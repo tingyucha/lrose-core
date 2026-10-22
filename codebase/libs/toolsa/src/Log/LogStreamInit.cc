@@ -34,6 +34,20 @@ void LogStreamInit::init(bool debug, bool debugVerbose, bool showRealtime,
 }
 
 //----------------------------------------------------------------------
+void LogStreamInit::setLogFile(const std::string &app,
+			       const std::string &instance,
+			       const std::string &logPath)
+{
+  LOG_STREAM_TO_LOGFILE(app, instance, logPath);
+}
+
+//----------------------------------------------------------------------
+void LogStreamInit::showAllSeverityKeys(bool showAll)
+{
+  LOG_STREAM_SET_SHOW_ALL_SEVERITY_KEYS(showAll);
+}
+
+//----------------------------------------------------------------------
 void LogStreamInit::setDebug(bool state)
 {
   LOG_STREAM_SET_TYPE(DEBUG, state);
@@ -43,6 +57,11 @@ void LogStreamInit::setDebug(bool state)
 void LogStreamInit::setDebugVerbose(bool state)
 {
   LOG_STREAM_SET_TYPE(DEBUG_VERBOSE, state);
+}
+
+void LogStreamInit::setDebugExtra(bool state)
+{
+  LOG_STREAM_SET_TYPE(DEBUG_EXTRA, state);
 }
 
 //----------------------------------------------------------------------

@@ -107,6 +107,9 @@ int Args::parse (const int argc, const char **argv)
       sprintf(tmp_str, "input_mode = SIMULATED_INPUT;");
       TDRP_add_override(&override, tmp_str);
       
+      sprintf(tmp_str, "begin_in_archive_mode = FALSE;");
+      TDRP_add_override(&override, tmp_str);
+      
     } else if (!strcmp(argv[i], "-fmq_mode")) {
       
       sprintf(tmp_str, "input_mode = DSR_FMQ_INPUT;");
@@ -125,6 +128,17 @@ int Args::parse (const int argc, const char **argv)
       
       if (i < argc - 1) {
         sprintf(tmp_str, "input_fmq_url = \"%s\";", argv[++i]);
+        TDRP_add_override(&override, tmp_str);
+      } else {
+	iret = -1;
+      }
+      
+    } else if (!strcmp(argv[i], "-max_range")) {
+      
+      if (i < argc - 1) {
+        sprintf(tmp_str, "max_range_km = %s;", argv[++i]);
+        TDRP_add_override(&override, tmp_str);
+        sprintf(tmp_str, "set_max_range = TRUE;");
         TDRP_add_override(&override, tmp_str);
       } else {
 	iret = -1;
@@ -280,6 +294,10 @@ int Args::parse (const int argc, const char **argv)
         iret = -1;
       }
 
+    } else {
+
+      tdrpCheckArgAndWarn(argv[i], stderr);
+      
     } // if
     
   } // i
@@ -295,6 +313,10 @@ int Args::parse (const int argc, const char **argv)
 void Args::_usage(ostream &out)
 
 {
+
+  out << endl;
+  out << "HawkEye is the engineering display for the HAWK moments data" << endl;
+  out << endl;
 
   out << "Usage: " << _progName << " [options as below]\n"
       << "options:\n"
@@ -315,6 +337,7 @@ void Args::_usage(ostream &out)
       << "       [ -images_start_time \"yyyy mm dd hh mm ss\"]\n"
       << "            set start time for image generation mode\n"
       << "       [ -instance ?] set instance for procmap\n"
+      << "       [ -max_range ?] set max range in km\n"
       << "       [ -polar ] run in POLAR (PPI/RHI) mode\n"
       << "       [ -realtime] start in realtime mode\n"
       << "       [ -sim_mode] SIMULATED_INPUT mode\n"

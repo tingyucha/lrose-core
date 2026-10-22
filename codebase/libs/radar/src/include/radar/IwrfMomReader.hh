@@ -167,14 +167,13 @@ public:
 protected:
   
   IwrfDebug_t _debug;
-  IwrfTsInfo _opsInfo;
-
+  
   // incoming message
-
+  
   MemBuf _msgBuf;
   int _msgId;
 
-  // reading DsRadar format
+  // reading DsRadar format - FMQ only
 
   DsRadarMsg _dsRadarMsg;
   int _dsContents;
@@ -185,6 +184,7 @@ protected:
   RadxRay *_savedRay;  // save 1 ray, so we can dermine the event flags
                        // by comparing with next ray read in
   bool _rayReady;
+  bool _useSavedRay;
   
   vector<RadxEvent> _events; // events for ray passed to user
   vector<RadxEvent> _savedEvents; // events for saved ray
@@ -237,7 +237,7 @@ protected:
   void _setEventFlags();
   void _setRcalibIndex();
 
-  int _handleIwrfMessage();
+  int _handleRadxMsg();
 
   virtual int _getNextMsg();
 
@@ -266,7 +266,13 @@ public:
                     DsInput_heartbeat_t heartbeat_func = PMU_auto_register,
                     bool use_ldata_info = TRUE);
   
-  // ARCHIVE mode - specify list of files to be read
+  // ARCHIVE mode - reads data within a time interval
+  
+  IwrfMomReaderFile(const char *input_dir,
+                    const RadxTime &start_time,
+                    const RadxTime &end_time);
+  
+  // FILELIST mode - specify list of files to be read
   
   IwrfMomReaderFile(const vector<string> &fileList);
  
@@ -308,9 +314,13 @@ private:
   
   DsInputPath *_input;
   vector<string> _fileList;
+  string _inputDir;
   string _inputPath;
   RadxVol _vol;
   size_t _rayIndex;
+  bool _startTimeFound;
+  RadxTime _archiveStartTime;
+  RadxTime _archiveEndTime;
 
   // private functions
   
@@ -362,12 +372,6 @@ private:
 
   // input message
 
-  DsMessage _msg;
-  int _nParts;
-  int _pos;
-
-  RadxRay _rayLocal; // _ray points to this
-  
   virtual int _getNextMsg();
 
 };

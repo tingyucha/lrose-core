@@ -1,0 +1,664 @@
+/*********************************************************
+ * parameter definitions for Fm301RadxFile lib module
+ *
+ * Mike Dixon, EOL, NCAR, Boulder, CO, USA, 80307-3000
+ *
+ * October 2026
+ */
+
+//////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "These parameters allow the user to control how FM301 files are written.";
+}
+
+commentdef {
+  p_header = "GLOBAL ATTRIBUTES";
+}
+
+paramdef string {
+  p_default = "CF-1.8, WMO CF-1.0";
+  p_descr = "NetCDF CF convention version.";
+  p_descr = "If empty, the default will be used.";
+} CF_convention;
+
+paramdef string {
+  p_default = "";
+  p_descr = "WIGOS station identifier.";
+  p_descr = "Left empty if no WIGOS identifier has been assigned.";
+} wmo__wsi;
+
+paramdef string {
+  p_default = "";
+  p_descr = "Traditional WMO identifier.";
+  p_descr = "Left empty if no WMO identifier has been assigned.";
+} wmo__id;
+
+paramdef string {
+  p_default = "FM 301-2022";
+  p_descr = "WMO CF profile.";
+  p_descr = "If empty, the default will be used.";
+} wmo__cf_profile;
+
+paramdef string {
+  p_default = "";
+  p_descr = "WMO data category.";
+} wmo__data_category;
+
+paramdef string {
+  p_default = "";
+  p_descr = "WMO data policy.";
+} wmo__data_policy;
+
+paramdef string {
+  p_default = "";
+  p_descr = "WMO originating centre.";
+} wmo__originating_centre;
+
+paramdef string {
+  p_default = "";
+  p_descr = "WMO originating sub-centre.";
+} wmo__originating_sub_centre;
+
+commentdef {
+  p_header = "FIELD NAME TRANSLATION";
+}
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to translate input field names to legal FM301 output names.";
+  p_descr = "Only the specified names are translated. The others are left unchanged.";
+} translate_field_names;
+
+typedef struct {
+  string input_field_name;
+  string fm301_field_name;
+  string source;
+} field_name_translation_t;
+
+paramdef struct field_name_translation_t {
+  p_default = {
+
+    // Reflectivity - horizontal, corrected/equivalent.
+    // Includes common LROSE/NEXRAD names, Vaisala/IRIS,
+    // Leonardo/Rainbow, EEC and GAMIC aliases.
+
+    {
+      input_field_name = "DBZ",
+      fm301_field_name = "DBZH",
+      source = "LROSE / common"
+    }
+    ,
+    {
+      input_field_name = "REF",
+      fm301_field_name = "DBZH",
+      source = "NEXRAD"
+    }
+    ,
+    {
+      input_field_name = "Z",
+      fm301_field_name = "DBZH",
+      source = "Vaisala/IRIS; EEC"
+    }
+    ,
+    {
+      input_field_name = "dBZ",
+      fm301_field_name = "DBZH",
+      source = "Leonardo/Rainbow"
+    }
+    ,
+    {
+      input_field_name = "zh",
+      fm301_field_name = "DBZH",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_DBZ",
+      fm301_field_name = "DBZH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_DBZ2",
+      fm301_field_name = "DBZH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+
+    // Reflectivity - vertical, corrected/equivalent.
+
+    {
+      input_field_name = "dBZv",
+      fm301_field_name = "DBZV",
+      source = "Leonardo/Rainbow"
+    }
+    ,
+    {
+      input_field_name = "zv",
+      fm301_field_name = "DBZV",
+      source = "GAMIC"
+    }
+    ,
+
+    // Total power / uncorrected reflectivity - horizontal.
+
+    {
+      input_field_name = "T",
+      fm301_field_name = "DBTH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "UZ",
+      fm301_field_name = "DBTH",
+      source = "EEC"
+    }
+    ,
+    {
+      input_field_name = "dBuZ",
+      fm301_field_name = "DBTH",
+      source = "Leonardo/Rainbow"
+    }
+    ,
+    {
+      input_field_name = "uh",
+      fm301_field_name = "DBTH",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "uzh",
+      fm301_field_name = "DBTH",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_DBT",
+      fm301_field_name = "DBTH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_DBT2",
+      fm301_field_name = "DBTH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+
+    // Total power / uncorrected reflectivity - vertical.
+
+    {
+      input_field_name = "dBuZv",
+      fm301_field_name = "DBTV",
+      source = "Leonardo/Rainbow"
+    }
+    ,
+    {
+      input_field_name = "uv",
+      fm301_field_name = "DBTV",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "uzv",
+      fm301_field_name = "DBTV",
+      source = "GAMIC"
+    }
+    ,
+
+    // Radial velocity - horizontal and vertical.
+
+    {
+      input_field_name = "VEL",
+      fm301_field_name = "VRADH",
+      source = "NEXRAD / common"
+    }
+    ,
+    {
+      input_field_name = "V",
+      fm301_field_name = "VRADH",
+      source = "Vaisala/IRIS; Leonardo/Rainbow; EEC"
+    }
+    ,
+    {
+      input_field_name = "vh",
+      fm301_field_name = "VRADH",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_VEL",
+      fm301_field_name = "VRADH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_VEL2",
+      fm301_field_name = "VRADH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "vv",
+      fm301_field_name = "VRADV",
+      source = "GAMIC"
+    }
+    ,
+
+    // Doppler spectrum width - horizontal and vertical.
+
+    {
+      input_field_name = "WIDTH",
+      fm301_field_name = "WRADH",
+      source = "common"
+    }
+    ,
+    {
+      input_field_name = "SW",
+      fm301_field_name = "WRADH",
+      source = "NEXRAD"
+    }
+    ,
+    {
+      input_field_name = "W",
+      fm301_field_name = "WRADH",
+      source = "Vaisala/IRIS; Leonardo/Rainbow; EEC"
+    }
+    ,
+    {
+      input_field_name = "wh",
+      fm301_field_name = "WRADH",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_WIDTH",
+      fm301_field_name = "WRADH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_WIDTH2",
+      fm301_field_name = "WRADH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "wv",
+      fm301_field_name = "WRADV",
+      source = "GAMIC"
+    }
+    ,
+
+    // Differential reflectivity.
+
+    {
+      input_field_name = "zdr",
+      fm301_field_name = "ZDR",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_ZDR",
+      fm301_field_name = "ZDR",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_ZDR2",
+      fm301_field_name = "ZDR",
+      source = "Vaisala/IRIS"
+    }
+    ,
+
+    // Differential phase.
+
+    {
+      input_field_name = "PHI",
+      fm301_field_name = "PHIDP",
+      source = "NEXRAD"
+    }
+    ,
+    {
+      input_field_name = "PhiDP",
+      fm301_field_name = "PHIDP",
+      source = "Leonardo/Rainbow; EEC"
+    }
+    ,
+    {
+      input_field_name = "phidp",
+      fm301_field_name = "PHIDP",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_PHIDP",
+      fm301_field_name = "PHIDP",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_PHIDP2",
+      fm301_field_name = "PHIDP",
+      source = "Vaisala/IRIS"
+    }
+    ,
+
+    // Specific differential phase.
+
+    {
+      input_field_name = "kdp",
+      fm301_field_name = "KDP",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_KDP",
+      fm301_field_name = "KDP",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_KDP2",
+      fm301_field_name = "KDP",
+      source = "Vaisala/IRIS"
+    }
+    ,
+
+    // Copolar correlation coefficient.
+
+    {
+      input_field_name = "RHO",
+      fm301_field_name = "RHOHV",
+      source = "NEXRAD"
+    }
+    ,
+    {
+      input_field_name = "RhoHV",
+      fm301_field_name = "RHOHV",
+      source = "Leonardo/Rainbow; EEC"
+    }
+    ,
+    {
+      input_field_name = "rhohv",
+      fm301_field_name = "RHOHV",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_RHOHV",
+      fm301_field_name = "RHOHV",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_RHOHV2",
+      fm301_field_name = "RHOHV",
+      source = "Vaisala/IRIS"
+    }
+    ,
+
+    // Linear depolarization ratio.
+
+    {
+      input_field_name = "ldr",
+      fm301_field_name = "LDR",
+      source = "GAMIC"
+    }
+    ,
+    {
+      input_field_name = "DB_LDRH",
+      fm301_field_name = "LDRH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+    {
+      input_field_name = "DB_LDRH2",
+      fm301_field_name = "LDRH",
+      source = "Vaisala/IRIS"
+    }
+    ,
+
+    // Radar echo classification / particle identification.
+
+    {
+      input_field_name = "PID",
+      fm301_field_name = "REC",
+      source = "LROSE / common"
+    }
+    ,
+    {
+      input_field_name = "CLASS",
+      fm301_field_name = "REC",
+      source = "ODIM / common"
+    }
+
+  };
+  p_descr = "Specified translation of input field names to output field names.";
+  p_descr = "The source member documents the likely origin of the input field name; it is informational only and is not used when applying the translation.";
+  p_help = "This translation occurs FIRST, followed by augmenting the field attributes - see below. Canonical FM301 names are deliberately not included as aliases, so fields already using FM301 names are left unchanged. Ambiguous aliases such as upper-case ZH are also deliberately omitted.";
+} field_name_translations[];
+
+commentdef {
+  p_header = "FIELD ATTRIBUTE AUGMENTATION";
+}
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to augment the attributes attached to each field.";
+  p_descr = "This step is performed AFTER the field name translation. I.e. this table applies to the output field names.";
+} augment_field_attributes;
+
+typedef struct {
+  string fm301_field_name;
+  string standard_name;
+  string long_name;
+  string units;
+  string wmo__parameter_uri;
+  string wmo__parameter_name;
+} field_attribute_t;
+
+paramdef struct field_attribute_t {
+  p_default = {
+    {
+      fm301_field_name = "DBZH",
+      standard_name = "radar_equivalent_reflectivity_factor_h",
+      long_name = "Equivalent reflectivity factor H",
+      units = "dBZ",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "DBZV",
+      standard_name = "radar_equivalent_reflectivity_factor_v",
+      long_name = "Equivalent reflectivity factor V",
+      units = "dBZ",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "ZH",
+      standard_name = "radar_linear_equivalent_reflectivity_factor_h",
+      long_name = "Linear equivalent reflectivity factor H",
+      units = "mm6 m-3",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "ZV",
+      standard_name = "radar_linear_equivalent_reflectivity_factor_v",
+      long_name = "Linear equivalent reflectivity factor V",
+      units = "mm6 m-3",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "DBTH",
+      standard_name = "radar_equivalent_reflectivity_factor_h",
+      long_name = "Total power H (uncorrected reflectivity)",
+      units = "dBZ",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "DBTV",
+      standard_name = "radar_equivalent_reflectivity_factor_v",
+      long_name = "Total power V (uncorrected reflectivity)",
+      units = "dBZ",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "TH",
+      standard_name = "radar_linear_equivalent_reflectivity_factor_h",
+      long_name = "Linear total power H (uncorrected reflectivity)",
+      units = "mm6 m-3",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "TV",
+      standard_name = "radar_linear_equivalent_reflectivity_factor_v",
+      long_name = "Linear total power V (uncorrected reflectivity)",
+      units = "mm6 m-3",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "VRADH",
+      standard_name = "radial_velocity_of_scatterers_away_from_instrument_h",
+      long_name = "Radial velocity of scatterers away from instrument H",
+      units = "m/s",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "VRADV",
+      standard_name = "radial_velocity_of_scatterers_away_from_instrument_v",
+      long_name = "Radial velocity of scatterers away from instrument V",
+      units = "m/s",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "WRADH",
+      standard_name = "radar_doppler_spectrum_width_h",
+      long_name = "Doppler spectrum width H",
+      units = "m/s",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "WRADV",
+      standard_name = "radar_doppler_spectrum_width_v",
+      long_name = "Doppler spectrum width V",
+      units = "m/s",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "ZDR",
+      standard_name = "radar_differential_reflectivity_hv",
+      long_name = "Log differential reflectivity H/V",
+      units = "dB",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "LDR",
+      standard_name = "radar_linear_depolarization_ratio",
+      long_name = "Log-linear depolarization ratio HV",
+      units = "dB",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "LDRH",
+      standard_name = "radar_linear_depolarization_ratio_h",
+      long_name = "Log-linear depolarization ratio H",
+      units = "dB",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "LDRV",
+      standard_name = "radar_linear_depolarization_ratio_v",
+      long_name = "Log-linear depolarization ratio V",
+      units = "dB",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "PHIDP",
+      standard_name = "radar_differential_phase_hv",
+      long_name = "Differential phase HV",
+      units = "degrees",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "KDP",
+      standard_name = "radar_specific_differential_phase_hv",
+      long_name = "Specific differential phase HV",
+      units = "degrees/km",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "PHIHX",
+      standard_name = "radar_differential_phase_copolar_h_crosspolar_v",
+      long_name = "Cross-polar differential phase",
+      units = "degrees",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "RHOHV",
+      standard_name = "radar_correlation_coefficient_hv",
+      long_name = "Correlation coefficient HV",
+      units = "1",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "RHOHX",
+      standard_name = "radar_correlation_coefficient_copolar_h_crosspolar_v",
+      long_name = "Co-to-cross polar correlation coefficient",
+      units = "1",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+    ,
+    {
+      fm301_field_name = "REC",
+      standard_name = "radar_scatterer_classification",
+      long_name = "Radar echo classification",
+      units = "",
+      wmo__parameter_uri = "unknown",
+      wmo__parameter_name = "unknown"
+    }
+  };
+  p_descr = "Attribute specification for selected output field variables.";
+  p_help = "If a string is empty, the existing attribute will be unchanged. The well-known radar moment names, standard_name values and long_name values follow FM301 Table 301-9. wmo__parameter_uri and wmo__parameter_name are placeholders until the applicable WMO radar parameter registry values are identified.";
+} field_attributes[];

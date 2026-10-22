@@ -39,11 +39,12 @@ TARGET_FILE = Sprite
 LOC_INCLUDES = $(QT_INCLUDES) $(NETCDF4_INCS)
 
 LOC_LIBS = \
-          -ldsdata -lradar -lFmq -lSpdb -lMdv  -ldsserver -ldidss \
-          -lRadx -lNcxx -lrapformats -leuclid -lrapmath \
-          -lphysics -ltoolsa -ldataport -ltdrp \
-          $(NETCDF4_LIBS) \
-          -lfftw3 -lbz2 -lz -lpthread
+	-ldsdata -lradar -lMdv -lSpdb \
+	-lFmq -lrapformats -ldsserver -ldidss \
+	-leuclid -lrapmath -ltoolsa -ldataport \
+	-ltdrp -lRadx -lNcxx -lphysics \
+	$(QT_LIBS) $(QJSENGINE) $(NETCDF4_LIBS) -lfftw3 \
+	-lbz2 -lz -lpthread
 
 LOC_LDFLAGS = -L$(LROSE_INSTALL_DIR)/lib $(QT_LDFLAGS) $(NETCDF4_LDFLAGS)
 
@@ -55,13 +56,16 @@ HDRS = \
 	AscopePlot.hh \
 	Beam.hh \
 	BeamMgr.hh \
+	ColorMap.hh \
 	IqPlot.hh \
 	RadarSpectra.hh \
 	ScaledLabel.hh \
-	SpectraMgr.hh \
-	SpectraWidget.hh \
+	SpriteMgr.hh \
+	SpritePlot.hh \
+	SpriteWidget.hh \
 	Sprite.hh \
 	TsReader.hh \
+	WaterfallPlot.hh \
 	WorldPlot.hh
 
 NORM_SRCS = \
@@ -70,21 +74,24 @@ NORM_SRCS = \
 	AscopePlot.cc \
 	Beam.cc \
 	BeamMgr.cc \
+	ColorMap.cc \
 	IqPlot.cc \
 	Main.cc \
 	RadarSpectra.cc \
 	ScaledLabel.cc \
 	Sprite.cc \
+	SpritePlot.cc \
 	TsReader.cc \
+	WaterfallPlot.cc \
 	WorldPlot.cc
 
 MOC_SRCS = \
-	SpectraMgr.cc \
-	SpectraWidget.cc
+	SpriteMgr.cc \
+	SpriteWidget.cc
 
 MOC_OUTPUT = \
-	moc_SpectraMgr.cpp \
-	moc_SpectraWidget.cpp
+	moc_SpriteMgr.cpp \
+	moc_SpriteWidget.cpp
 
 CC_SRCS = $(NORM_SRCS) $(MOC_SRCS)
 CPP_SRCS = $(MOC_OUTPUT)
@@ -112,4 +119,5 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
 #
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

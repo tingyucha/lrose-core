@@ -382,7 +382,7 @@ void OutputMdv::addConvStratBool(const RadxVol &vol,
 ////////////////////////////////////////
 // add convective stratiform fields
 
-void OutputMdv::addConvStratFields(const ConvStrat &convStrat,
+void OutputMdv::addConvStratFields(const ConvStratFinder &convStrat,
                                    const RadxVol &vol,
                                    MdvxProj &proj,
                                    const vector<double> &vlevels)
@@ -390,8 +390,8 @@ void OutputMdv::addConvStratFields(const ConvStrat &convStrat,
 {
 
   Mdvx::coord_t projCoord = proj.getCoord();
-  if (convStrat.getGridNx() != projCoord.nx ||
-      convStrat.getGridNy() != projCoord.ny) {
+  if ((int) convStrat.getGridNx() != projCoord.nx ||
+      (int) convStrat.getGridNy() != projCoord.ny) {
     cerr << "ERROR - OutputMdv::addConvStratFields" << endl;
     cerr << "  ConvStrat grid size does not match Proj grid size" << endl;
     cerr << "  ConvStrat nx, ny: " 
@@ -408,18 +408,18 @@ void OutputMdv::addConvStratFields(const ConvStrat &convStrat,
     addConvStratBool(vol, proj,
                      "ConvStrat",
                      "1 = stratiform, 2 = convective",
-                     ConvStrat::CATEGORY_MISSING,
-                     convStrat.getPartition());
+                     ConvStratFinder::CATEGORY_MISSING,
+                     convStrat.getEchoType2D());
   }
 
-  if (_params.conv_strat_write_mean_texture) {
+  if (_params.conv_strat_write_max_texture) {
     addField(vol, proj, vlevel2D,
-             "DbzTextureMean",
-             "mean_of_dbz_texture_over_height",
+             "DbzTextureMax",
+             "max_of_dbz_texture_over_height",
              "dBZ",
              Radx::FL32, 1.0, 0.0,
-             convStrat.getMissingVal(),
-             convStrat.getMeanTexture());
+             convStrat.getMissingFl32(),
+             convStrat.getTexture2D());
   }
   
   if (_params.conv_strat_write_convective_dbz) {
@@ -428,38 +428,26 @@ void OutputMdv::addConvStratFields(const ConvStrat &convStrat,
              "dbz_in_convection",
              "dBZ",
              Radx::FL32, 1.0, 0.0,
-             convStrat.getMissingVal(),
+             convStrat.getMissingFl32(),
              convStrat.getConvectiveDbz());
   }
 
   if (_params.conv_strat_write_debug_fields) {
-
-    addConvStratBool(vol, proj,
-                     "ConvFromColMax",
-                     "convective_flag_from_column_max_dbz",
-                     ConvStrat::CATEGORY_MISSING,
-                     convStrat.getConvFromColMax());
-    
-    addConvStratBool(vol, proj,
-                     "ConvFromTexture",
-                     "convective_flag_from_mean_dbz_texture",
-                     ConvStrat::CATEGORY_MISSING,
-                     convStrat.getConvFromTexture());
 
     addField(vol, proj, vlevel2D,
              "DbzColMax",
              "dbz_column_maximum",
              "dBZ",
              Radx::FL32, 1.0, 0.0,
-             convStrat.getMissingVal(),
-             convStrat.getColMaxDbz());
+             convStrat.getMissingFl32(),
+             convStrat.getDbzColMax());
     
     addField(vol, proj, vlevel2D,
              "FractionActive",
              "fraction_of_texture_kernel_with_active_dbz",
              "",
              Radx::FL32, 1.0, 0.0,
-             convStrat.getMissingVal(),
+             convStrat.getMissingFl32(),
              convStrat.getFractionActive());
 
 
@@ -1058,19 +1046,19 @@ string OutputMdv::_computeCfNetcdfPath()
     
     string v_yyyymmdd = validTime.getDateStrPlain();
     string v_hhmmss = validTime.getTimeStrPlain();
-    char filename[1024];
+    char filename[256];
     
-    sprintf(filename, "%s%s_%s%s.nc",
-            _params.netcdf_file_prefix,
-            v_yyyymmdd.c_str(), v_hhmmss.c_str(),
-            _params.netcdf_file_suffix);
+    snprintf(filename, 256, "%s%s_%s%s.nc",
+             _params.netcdf_file_prefix,
+             v_yyyymmdd.c_str(), v_hhmmss.c_str(),
+             _params.netcdf_file_suffix);
     
     if (isForecast) { 
       string g_hhmmss = genTime.getTimeStrPlain();
-      sprintf(outputPath, "%s/g_%s/%s",
-              _outputDir.c_str(), g_hhmmss.c_str(), filename);
+      snprintf(outputPath, 1024, "%s/g_%s/%s",
+               _outputDir.c_str(), g_hhmmss.c_str(), filename);
     } else {
-      sprintf(outputPath, "%s/%s", _outputDir.c_str(), filename);
+      snprintf(outputPath, 1024, "%s/%s", _outputDir.c_str(), filename);
     }
     
   }
@@ -1090,7 +1078,7 @@ void OutputMdv::_writeLdataInfo(const string &outputPath)
 
   DsLdataInfo ldata(_params.output_dir, _params.debug);
 
-  ldata.setWriter("Mdv2NetCDF");
+  ldata.setWriter("Radx2Grid");
   ldata.setDataFileExt("nc");
   ldata.setDataType("netCDF");
 
@@ -1114,7 +1102,7 @@ void OutputMdv::_writeLdataInfo(const string &outputPath)
   }
   
   if (_params.debug) {
-    cerr << "Mdv2NetCDF::_writeLdataInfo(): Data written to "
+    cerr << "OutputMdv::_writeLdataInfo(): Data written to "
          << outputPath << endl;
   }
 
@@ -1607,5 +1595,24 @@ int OutputMdv::_writeZebraXYNetCDF()
 
   return 0;
 
+}
+
+/////////////////////////////////////////////////////
+// check for output field suppression
+
+bool OutputMdv::suppressThisField(const string &fieldName)
+{
+  if (!_params.suppress_fields_from_output) {
+    return false;
+  }
+  for (int ii = 0; ii < _params.suppressed_fields_n; ii++) {
+    if (_params._suppressed_fields[ii].suppress_this_field) {;
+      string suppressedName = _params._suppressed_fields[ii].output_name;
+      if (fieldName == suppressedName) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 

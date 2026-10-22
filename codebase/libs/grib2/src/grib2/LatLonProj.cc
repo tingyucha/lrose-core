@@ -55,20 +55,20 @@ LatLonProj::~LatLonProj() {
 }
 
 
-int LatLonProj::pack (ui08 *projPtr) 
+int LatLonProj::pack (g2_ui08 *projPtr) 
 {
 
-  projPtr[0] = (ui08) _earthShape;
+  projPtr[0] = (g2_ui08) _earthShape;
 
-  projPtr[1] = (ui08) _radiusScaleFactor;
+  projPtr[1] = (g2_ui08) _radiusScaleFactor;
 
   GribSection::_pkUnsigned4(_radiusScaleValue, &(projPtr[2]));
 
-  projPtr[6] = (ui08) _majorAxisScaleFactor;
+  projPtr[6] = (g2_ui08) _majorAxisScaleFactor;
 
   GribSection::_pkUnsigned4(_majorAxisScaleValue, &(projPtr[7]));
 
-  projPtr[11] = (ui08) _minorAxisScaleFactor;
+  projPtr[11] = (g2_ui08) _minorAxisScaleFactor;
 
   GribSection::_pkUnsigned4(_minorAxisScaleValue, &(projPtr[12]));
 
@@ -84,7 +84,7 @@ int LatLonProj::pack (ui08 *projPtr)
 
   GribSection::_pkSigned4((int)(_lo1 / GDS::DEGREES_SCALE_FACTOR), &(projPtr[36]));
 
-  projPtr[40] = (ui08) _resolutionFlag;
+  projPtr[40] = (g2_ui08) _resolutionFlag;
 
   GribSection::_pkSigned4((int)(_la2 / GDS::DEGREES_SCALE_FACTOR), &(projPtr[41]));
 
@@ -94,33 +94,33 @@ int LatLonProj::pack (ui08 *projPtr)
 
   GribSection::_pkUnsigned4((int)(_dj / GDS::DEGREES_SCALE_FACTOR), &(projPtr[53]));
 
-  projPtr[57] = (ui08) _scanModeFlag;
+  projPtr[57] = (g2_ui08) _scanModeFlag;
 
   return( GRIB_SUCCESS );
 }
 
-int LatLonProj::unpack (ui08 *projPtr) 
+int LatLonProj::unpack (g2_ui08 *projPtr) 
 {
 
   // Shape of the earth (see Code Table 3.2)
-  _earthShape = (si32) projPtr[0]; 
+  _earthShape = (g2_si32) projPtr[0]; 
 
   // Scale factor of radius of spherical earth
-  _radiusScaleFactor = (si32) projPtr[1]; 
+  _radiusScaleFactor = (g2_si32) projPtr[1]; 
 
   //Scaled value of radius of spherical earth
   _radiusScaleValue 
             = GribSection::_upkUnsigned4 (projPtr[2], projPtr[3], projPtr[4], projPtr[5]);
 
   // Scale factor of major axis of oblate spheroid earth
-  _majorAxisScaleFactor = (si32) projPtr[6]; 
+  _majorAxisScaleFactor = (g2_si32) projPtr[6]; 
 
   // Scaled value of major axis of oblate spheroid earth
   _majorAxisScaleValue =
            GribSection::_upkUnsigned4 (projPtr[7], projPtr[8], projPtr[9], projPtr[10]);
 
   // Scale factor of minor axis of oblate spheroid earth
-  _minorAxisScaleFactor = (si32) projPtr[11]; 
+  _minorAxisScaleFactor = (g2_si32) projPtr[11]; 
 
   //Scaled value of minor axis of oblate spheroid earth
   _minorAxisScaleValue = 
@@ -134,37 +134,37 @@ int LatLonProj::unpack (ui08 *projPtr)
 
   // Basic angle of the initial production domain (see Note 1)
   _basicAngleProdDomain = GDS::DEGREES_SCALE_FACTOR *
-           (fl32) GribSection::_upkUnsigned4 (projPtr[24], projPtr[25], projPtr[26], projPtr[27]);
+           (g2_fl32) GribSection::_upkUnsigned4 (projPtr[24], projPtr[25], projPtr[26], projPtr[27]);
 
   // Subdivisions of basic angle used to define extreme longitudes and latitudes, 
   // and direction increments(see Note 1)
   _basicAngleSubdivisions = GDS::DEGREES_SCALE_FACTOR *
-           (fl32) GribSection::_upkUnsigned4 (projPtr[28], projPtr[29], projPtr[30], projPtr[31]);
+           (g2_fl32) GribSection::_upkUnsigned4 (projPtr[28], projPtr[29], projPtr[30], projPtr[31]);
 
   float units = GDS::DEGREES_SCALE_FACTOR;
   if(_basicAngleProdDomain != 0.0)
     units = _basicAngleProdDomain / _basicAngleSubdivisions;
 
   // Latitude of first grid point (leftmost bit set for south latitude)
-  _la1 = units * (fl32) GribSection::_upkSigned4(projPtr[32], projPtr[33], projPtr[34], projPtr[35]);
+  _la1 = units * (g2_fl32) GribSection::_upkSigned4(projPtr[32], projPtr[33], projPtr[34], projPtr[35]);
 
   // Longitude of first grid point (leftmost bit set for west longitude)
-  _lo1 = units * (fl32) GribSection::_upkSigned4(projPtr[36], projPtr[37], projPtr[38], projPtr[39]);
+  _lo1 = units * (g2_fl32) GribSection::_upkSigned4(projPtr[36], projPtr[37], projPtr[38], projPtr[39]);
 
   // Resolution and component flags
   _resolutionFlag = projPtr[40];
 
   // Latitude of last grid point (leftmost bit set for south latitude
-  _la2 = units * (fl32) GribSection::_upkSigned4(projPtr[41], projPtr[42], projPtr[43],  projPtr[44]);
+  _la2 = units * (g2_fl32) GribSection::_upkSigned4(projPtr[41], projPtr[42], projPtr[43],  projPtr[44]);
 
   // Longitude of last grid point (leftmost bit set for west longitude
-  _lo2 = units * (fl32) GribSection::_upkSigned4(projPtr[45], projPtr[46], projPtr[47],  projPtr[48]);
+  _lo2 = units * (g2_fl32) GribSection::_upkSigned4(projPtr[45], projPtr[46], projPtr[47],  projPtr[48]);
 
   // Longitudinal Direction Increment  (undefined - all bits set to 1)
-  _di = units * (fl32) GribSection::_upkUnsigned4(projPtr[49], projPtr[50], projPtr[51], projPtr[52]);
+  _di = units * (g2_fl32) GribSection::_upkUnsigned4(projPtr[49], projPtr[50], projPtr[51], projPtr[52]);
 
   // Latitudinal Direction Increment (undefined - all bits set to 1)
-  _dj = units * (fl32) GribSection::_upkUnsigned4(projPtr[53], projPtr[54], projPtr[55], projPtr[56]);
+  _dj = units * (g2_fl32) GribSection::_upkUnsigned4(projPtr[53], projPtr[54], projPtr[55], projPtr[56]);
 
   // Scanning mode flags
   _scanModeFlag = projPtr[57];
@@ -231,58 +231,48 @@ void LatLonProj::print(FILE *stream) const
   fprintf(stream, "Subdivisions of basic angle used to define extreme longitudes and latitudes, %f\n",_basicAngleSubdivisions);
   fprintf(stream, "Latitude of first grid point %f\n", _la1);
   fprintf(stream, "Longitude of first grid point %f\n", _lo1);
-  fprintf(stream, "Resolution flag byte %d\n", _resolutionFlag);
-  if ((_resolutionFlag & 32) == 32)
-    fprintf(stream, "    i direction increments given\n");
-  else
-    fprintf(stream, "    i direction increments not given\n");
-
-  if ((_resolutionFlag & 16) == 16)
-    fprintf(stream, "    j direction increments given\n");
-  else
-    fprintf(stream, "    j direction increments not given\n");
-
-  if ((_resolutionFlag & 8) == 8) {
-    fprintf(stream, "    u- and v- components of vector quantities resolved relative to the defined\n");
-    fprintf(stream, "    grid in the direction of increasing x and y (or i and j) coordinates respectively\n");
-  }
-  else {
-    fprintf(stream, "    u- and v- components of vector quantities resolved relative to easterly\n");
-    fprintf(stream, "     and northerly directions\n");
-  }
-
   fprintf(stream, "Latitude of last grid point %f\n", _la2);
   fprintf(stream, "Longitude of last grid point %f\n", _lo2);
   fprintf(stream, "Longitudinal Direction Increment %f\n", _di);
   fprintf(stream, "Latitudinal Direction Increment %f\n", _dj);
+
+  fprintf(stream, "Resolution flags %d\n", _resolutionFlag);
+  if ((_resolutionFlag & 32) == 32)
+    fprintf(stream, "    ! i direction increments not given\n");
+  if ((_resolutionFlag & 16) == 16)
+    fprintf(stream, "    ! j direction increments not given\n");
+  if ((_resolutionFlag & 8) == 8) {
+    fprintf(stream, "    !u- and v- components of vector quantities resolved relative to easterly\n");
+    fprintf(stream, "     and northerly directions\n");
+  }
+
   fprintf(stream, "Scanning mode flags %d\n", _scanModeFlag);
-
-  if ((_scanModeFlag & 16) == 0) {
-    fprintf(stream, "    All rows scan in the same direction\n");
+  if ((_scanModeFlag & 128) == 128) {
+    fprintf(stream, "    !Points of first row or column scan in the -i (-x) direction\n");
   }
-  else {
-    fprintf(stream, "    Adjacent rows scans in the opposite direction\n");
-  }
-
-  if ((_scanModeFlag & 32) == 0) {
-    fprintf(stream, "    Adjacent points in i (x) direction are consecutive\n");
-  }
-  else {
-    fprintf(stream, "    Adjacent points in j (y) direction are consecutive\n");
-  }
-
   if ((_scanModeFlag & 64) == 0) {
-    fprintf(stream, "    Points of first row or column scan in the -j (-y) direction\n");
+    fprintf(stream, "    !Points of first row or column scan in the -j (-y) direction\n");
   }
-  else {
-    fprintf(stream, "    Points of first row or column scan in the +j (+y) direction\n");
+  if ((_scanModeFlag & 32) == 32) {
+    fprintf(stream, "    !Adjacent points in j (y) direction are consecutive\n");
   }
-
-  if ((_scanModeFlag & 128) == 0) {
-    fprintf(stream, "    Points of first row or column scan in the +i (+x) direction\n");
+  if ((_scanModeFlag & 16) == 16) {
+    fprintf(stream, "    !Adjacent rows scans in the opposite direction\n");
   }
-  else {
-    fprintf(stream, "    Points of first row or column scan in the -i (-x) direction\n");
+  if ((_scanModeFlag & 8) == 8) {
+    fprintf(stream, "    !Points within odd rows are offset by Di/2 in i(x) direction\n");
+  }
+  if ((_scanModeFlag & 4) == 4) {
+    fprintf(stream, "    !Points within even rows are offset by Di/2 in i(x) direction\n");
+  }
+  if ((_scanModeFlag & 2) == 2) {
+    fprintf(stream, "    !Points are offset by Di/2 in j(y) direction\n");
+  }
+  if ((_scanModeFlag & 1) == 1) {
+    fprintf(stream, "    Rows have Ni grid points if points are not offset in i direction\n");
+    fprintf(stream, "    Rows have Ni-1 grid points if points are offset by Di/2 in i direction\n");
+    fprintf(stream, "    Columns have Nj grid points if points are not offset in j direction\n");
+    fprintf(stream, "    Columns have Nj-1 grid points if points are offset by Dj/2 in j direction\n");
   }
 
 }

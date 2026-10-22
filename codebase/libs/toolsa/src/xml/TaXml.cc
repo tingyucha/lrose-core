@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <cerrno>
 #include <iostream>
+#include <toolsa/safe_snprintf.hh>
 #include <toolsa/TaXml.hh>
 #include <toolsa/DateTime.hh>
 using namespace std;
@@ -1287,6 +1288,57 @@ string TaXml::writeStartTag(const string &tag,
 }
 
 /////////////////////////////////////////
+// write start tag with single attributes
+
+string TaXml::writeStartTag(const string &tag,
+                            int level,
+                            const string &attrName,
+                            const string &attrVal)
+{
+  vector<attribute> attrs;
+  attrs.push_back(attribute(attrName, attrVal));
+  return writeStartTag(tag, level, attrs, true);
+}
+  
+string TaXml::writeStartTag(const string &tag,
+                            int level,
+                            const string &attrName,
+                            bool attrVal)
+{
+  vector<attribute> attrs;
+  if (attrVal) {
+    attrs.push_back(attribute(attrName, "true"));
+  } else {
+    attrs.push_back(attribute(attrName, "false"));
+  }
+  return writeStartTag(tag, level, attrs, true);
+}
+  
+string TaXml::writeStartTag(const string &tag,
+                            int level,
+                            const string &attrName,
+                            int attrVal)
+{
+  vector<attribute> attrs;
+  char text[128];
+  snprintf(text, 128, "%d", attrVal);
+  attrs.push_back(attribute(attrName, text));
+  return writeStartTag(tag, level, attrs, true);
+}
+  
+string TaXml::writeStartTag(const string &tag,
+                            int level,
+                            const string &attrName,
+                            double attrVal)
+{
+  vector<attribute> attrs;
+  char text[128];
+  snprintf(text, 128, "%g", attrVal);
+  attrs.push_back(attribute(attrName, text));
+  return writeStartTag(tag, level, attrs, true);
+}
+  
+/////////////////////////////////////////
 // write tag with attributes
 // tag is closed
 
@@ -1346,9 +1398,9 @@ string TaXml::writeInt(int val, const char *format /* = NULL */)
 {
   char buf[1024];
   if (format == NULL) {
-    sprintf(buf, "%d", val);
+    safe_snprintf(buf, "%d", val);
   } else {
-    sprintf(buf, format, val);
+    safe_snprintf(buf, format, val);
   }
   string str = buf;
   return str;
@@ -1359,9 +1411,9 @@ string TaXml::writeLong(long int val, const char *format /* = NULL */)
 {
   char buf[1024];
   if (format == NULL) {
-    sprintf(buf, "%ld", val);
+    safe_snprintf(buf, "%ld", val);
   } else {
-    sprintf(buf, format, val);
+    safe_snprintf(buf, format, val);
   }
   string str = buf;
   return str;
@@ -1372,9 +1424,9 @@ string TaXml::writeDouble(double val, const char *format /* = NULL */)
 {
   char buf[1024];
   if (format == NULL) {
-    sprintf(buf, "%g", val);
+    safe_snprintf(buf, "%g", val);
   } else {
-    sprintf(buf, format, val);
+    safe_snprintf(buf, format, val);
   }
   string str = buf;
   return str;
@@ -1387,9 +1439,9 @@ string TaXml::writeUtime(time_t val, const char *format /* = NULL */)
 {
   char buf[1024];
   if (format == NULL) {
-    sprintf(buf, "%ld", (long int) val);
+    safe_snprintf(buf, "%ld", (long int) val);
   } else {
-    sprintf(buf, format, (long int) val);
+    safe_snprintf(buf, format, (long int) val);
   }
   string str = buf;
   return str;
@@ -1402,9 +1454,9 @@ string TaXml::writeTime(time_t val)
 {
   char buf[64];
   DateTime dt(val);
-  sprintf(buf, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d",
-          dt.getYear(), dt.getMonth(), dt.getDay(),
-          dt.getHour(), dt.getMin(), dt.getSec());
+  safe_snprintf(buf, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d",
+                dt.getYear(), dt.getMonth(), dt.getDay(),
+                dt.getHour(), dt.getMin(), dt.getSec());
   string str = buf;
   return str;
 }
@@ -1723,9 +1775,9 @@ void TaXml::addIntAttr(const string &name,
 {
   char buf[1024];
   if (format == NULL) {
-    sprintf(buf, "%d", val);
+    safe_snprintf(buf, "%d", val);
   } else {
-    sprintf(buf, format, val);
+    safe_snprintf(buf, format, val);
   }
   string valStr = buf;
   addStringAttr(name, valStr, attributes);
@@ -1741,9 +1793,9 @@ void TaXml::addLongAttr(const string &name,
 {
   char buf[1024];
   if (format == NULL) {
-    sprintf(buf, "%ld", val);
+    safe_snprintf(buf, "%ld", val);
   } else {
-    sprintf(buf, format, val);
+    safe_snprintf(buf, format, val);
   }
   string valStr = buf;
   addStringAttr(name, valStr, attributes);
@@ -1759,9 +1811,9 @@ void TaXml::addDoubleAttr(const string &name,
 {
   char buf[1024];
   if (format == NULL) {
-    sprintf(buf, "%g", val);
+    safe_snprintf(buf, "%g", val);
   } else {
-    sprintf(buf, format, val);
+    safe_snprintf(buf, format, val);
   }
   string valStr = buf;
   addStringAttr(name, valStr, attributes);
@@ -1776,9 +1828,9 @@ void TaXml::addTimeAttr(const string &name,
 {
   DateTime dt(val);
   char str[64];
-  sprintf(str, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d",
-          dt.getYear(), dt.getMonth(), dt.getDay(),
-          dt.getHour(), dt.getMin(), dt.getSec());
+  safe_snprintf(str, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d",
+                dt.getYear(), dt.getMonth(), dt.getDay(),
+                dt.getHour(), dt.getMin(), dt.getSec());
   string valStr = str;
   addStringAttr(name, valStr, attributes);
 }
@@ -1791,7 +1843,7 @@ void TaXml::addUtimeAttr(const string &name,
 
 {
   char str[64];
-  sprintf(str, "%ld", val);
+  safe_snprintf(str, "%ld", val);
   string valStr = str;
   addStringAttr(name, valStr, attributes);
 }
@@ -1879,5 +1931,4 @@ void TaXml::setUtimeAttr(const string &name,
   attributes.clear();
   addUtimeAttr(name, val, attributes);
 }
-
 

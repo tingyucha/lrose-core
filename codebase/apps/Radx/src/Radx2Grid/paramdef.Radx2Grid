@@ -1,5 +1,5 @@
 /*********************************************************
- * parameter definitions for Radx2Grid
+ * Parameter definitions for Radx2Grid
  *
  * Mike Dixon, EOL, NCAR, Boulder, CO, USA, 80307-3000
  *
@@ -42,6 +42,18 @@ paramdef string {
   p_help = "Files will be searched for in this directory. This is ignored if the list of files is  specified on the command line using the -f option.";
 } input_dir;
 
+paramdef string {
+  p_default = "";
+  p_descr = "File name extension.";
+  p_help = "If set, only files with this extension will be processed.";
+} input_file_search_ext;
+
+paramdef string {
+  p_default = "";
+  p_descr = "File name sub-string.";
+  p_help = "If set, only files with names containing this sub-string will be processed.";
+} input_file_search_substr;
+
 typedef enum {
   FILELIST, ARCHIVE, REALTIME
 } mode_t;
@@ -71,7 +83,7 @@ paramdef string {
 } end_time;
 
 commentdef {
-  p_header = "DATA OUTPUT DIRECTORY AND FILE NAMES";
+  p_header = "DATA OUTPUT";
 }
 
 paramdef string {
@@ -89,6 +101,26 @@ paramdef enum output_format_t {
   p_descr = "Set the output format";
   p_help = "CF_NETCDF: CF-compliant NetCDF. See http://cf-pcmdi.llnl.gov/documents/cf-conventions. ZEBRA_NETCDF: NetCDF format specifically for ZEBRA display. This forces a conversion to a LATLON projection. MDV: legacy MDV format.";
 } output_format;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to suppress selected fields from the output data set.";
+  p_help = "These fields will not be written to the output files.";
+} suppress_fields_from_output;
+
+typedef struct {
+  string output_name;
+  boolean suppress_this_field;
+} suppress_field_t;
+
+paramdef struct suppress_field_t {
+  p_default = { 
+    { "SNR", TRUE },
+    { "NCP", TRUE }
+  };
+  p_descr = "Select the list of fields to be suppressed.";
+  p_help = "See 'suppress_fields_from_output'. You specify the list of field names to be suppressed. In addition you need to set 'suppress_this_field' to TRUE or FALSE. This is provided as a convenience, so that you can select or deselect fields without having to change the list.";
+} suppressed_fields[];
 
 commentdef {
   p_header = "INTERPOLATION MODE";
@@ -124,7 +156,7 @@ paramdef boolean {
 } use_nearest_neighbor;
 
 paramdef int {	
-  p_default = 3;
+  p_default = 5;
   p_min = 1;
   p_max = 8;
   p_descr = "Minimum number of valid data points for theinterpolation.";
@@ -375,6 +407,43 @@ paramdef struct select_field_t {
 } selected_fields[];
 
 commentdef {
+  p_header = "CENSORING INPUT FIELDS";
+  p_text = "You have the option of censoring the input fields - i.e. setting the fields to missing values - at gates which meet certain criteria based on the values in the input fields.\n\n This will also affect all of the interpolated fields.";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Apply censoring based on field values and thresholds.";
+  p_help = "If TRUE, censoring will be performed. See 'censoring_fields' for details on how the censoring will be applied.";
+} apply_censoring;
+
+typedef enum {
+  LOGICAL_AND, LOGICAL_OR
+} logical_t;
+
+typedef struct {
+  string name;
+  double min_valid_value;
+  double max_valid_value;
+  logical_t combination_method;
+} censoring_field_t;
+
+paramdef struct censoring_field_t {
+  p_default = {
+    { "SNR", 0.0, 1000.0, LOGICAL_OR },
+    { "NCP", 0.15, 1000.0, LOGICAL_OR }
+  };
+  p_descr = "Fields to be used for censoring.";
+  p_help = "Specify the input fields to be used to determine whether a gate should be censored.\n\nThe name refers to the field name in the input files.\n\nValid field values lie in the range from min_valid_value to max_valid_value, inclusively. If the value of a field at a gate lies within this range, it is considered valid.\n\nEach specified field is examined at each gate, and is flagged as valid if its value lies in the valid range.\n\nThese field flags are then combined as follows:\n\nFirst, all of the LOGICAL_OR flags are combined, yielding a single combined_or flag which is true if any of the LOGICAL_OR fields is true.\n\nNext the combined_or flag is combined with all of the LOGICAL_AND fields, yielding a true value only if the combined_or flag and the LOGICAL_AND fields are all true.\n\nIf this computed flag is true, then the data at the gate is regarded as valid and is retained.\n\nIf the computed flag is false, the data at the gate is censored, and all of the fields at the gate are set to missing.";
+} censoring_fields[];
+  
+paramdef int {
+  p_default = 1;
+  p_descr = "Minimum valid run of non-censored gates.";
+  p_help = "Only active if set to 2 or greater. A check is made to remove short runs of noise. Looking along the radial, we compute the number of contiguous gates (a 'run') with uncensored data. For the gates in this run to be accepted the length of the run must exceed censoring_min_valid_run. If the number of gates in a run is less than this, then all gates in the run are censored.";
+} censoring_min_valid_run;
+
+commentdef {
   p_header = "TRANSFORMING FIELDS FOR INTERPOLATION";
 }
 
@@ -610,43 +679,6 @@ paramdef boolean {
   p_descr = "Option to add debug fields for checking the interpolation.";
   p_help = "The test fields allow us to ensure that the interpolation is working correctly.\n\nThe debug fields are:\n\n\tnContrib - number of points used in interpolation\n\tgridAz: azimuth deg\n\tgridEl: elevation deg\n\tgridRange: range km\n\tllEl: lower left elevation deg\n\tllAz: lower left azimuth deg\n\tlrEl: lower right elevation deg\n\tlrAz: lower right azimuth deg\n\tulEl: upper left elevation deg\n\tulAz: upper left azimuth deg\n\turEl: upper right elevation deg\n\turAz: upper right azimuth deg";
 } output_debug_fields;
-
-commentdef {
-  p_header = "CENSORING OUTPUT FIELDS";
-  p_text = "You have the option of censoring the output data fields - i.e. setting the fields to missing values - at gates which meet certain criteria based on the values in the input fields.\n\nIf this is done correctly, it allows you to preserve the valid data and discard the noise, thereby improving compression. This leads to smaller data files.";
-}
-
-paramdef boolean {
-  p_default = FALSE;
-  p_descr = "Apply censoring based on field values and thresholds.";
-  p_help = "If TRUE, censoring will be performed. See 'censoring_fields' for details on how the censoring will be applied.";
-} apply_censoring;
-
-typedef enum {
-  LOGICAL_AND, LOGICAL_OR
-} logical_t;
-
-typedef struct {
-  string name;
-  double min_valid_value;
-  double max_valid_value;
-  logical_t combination_method;
-} censoring_field_t;
-
-paramdef struct censoring_field_t {
-  p_default = {
-    { "SNR", 0.0, 1000.0, LOGICAL_OR },
-    { "NCP", 0.15, 1000.0, LOGICAL_OR }
-  };
-  p_descr = "Fields to be used for censoring.";
-  p_help = "Specify the fields to be used to determine whether a gate should be censored.\n\nThe name refers to the field name in the input files.\n\nValid field values lie in the range from min_valid_value to max_valid_value, inclusively. If the value of a field at a gate lies within this range, it is considered valid.\n\nEach specified field is examined at each gate, and is flagged as valid if its value lies in the valid range.\n\nThese field flags are then combined as follows:\n\nFirst, all of the LOGICAL_OR flags are combined, yielding a single combined_or flag which is true if any of the LOGICAL_OR fields is true.\n\nNext the combined_or flag is combined with all of the LOGICAL_AND fields, yielding a true value only if the combined_or flag and the LOGICAL_AND fields are all true.\n\nIf this computed flag is true, then the data at the gate is regarded as valid and is retained.\n\nIf the computed flag is false, the data at the gate is censored, and all of the fields at the gate are set to missing.";
-} censoring_fields[];
-  
-paramdef int {
-  p_default = 1;
-  p_descr = "Minimum valid run of non-censored gates.";
-  p_help = "Only active if set to 2 or greater. A check is made to remove short runs of noise. Looking along the radial, we compute the number of contiguous gates (a 'run') with uncensored data. For the gates in this run to be accepted the length of the run must exceed censoring_min_valid_run. If the number of gates in a run is less than this, then all gates in the run are censored.";
-} censoring_min_valid_run;
 
 commentdef {
   p_header = "SETTING THE PSEUDO EARTH RADIUS RATIO FOR HEIGHT COMPUTATIONS";
@@ -1192,18 +1224,6 @@ paramdef double {
 } conv_strat_min_valid_dbz;
 
 paramdef double {
-  p_default = 53;
-  p_descr = "Reflectivity value that indicates definite convection.";
-  p_help = "If the reflectivity exceeds this value at a point, we assume convection is definitely active at that point. To use this, we first compute the column maximum reflectivity. If the column max dbz at a point exceeds this threshold, then we flag that point as convective.";
-} conv_strat_dbz_threshold_for_definite_convection;
-
-paramdef double {
-  p_default = 5.0;
-  p_descr = "Radius of convective influence (km).";
-  p_help = "Given definite convection at a point (see above), we set all points within this radius to be convective.";
-} conv_strat_convective_radius_km;
-
-paramdef double {
   p_default = 7.0;
   p_descr = "Radius for texture analysis (km).";
   p_help = "We determine the reflectivity 'texture' at a point by computing the standard deviation of the square of the reflectivity, for all grid points within this radius of the central point. We then compute the square root of that sdev.";
@@ -1216,10 +1236,22 @@ paramdef double {
 } conv_strat_min_valid_fraction_for_texture;
 
 paramdef double {
-  p_default = 15.0;
-  p_descr = "Minimum texture for convection at a point.";
-  p_help = "If the texture at a point exceeds this value, we set the convective flag at this point. We then expand the convective influence around the point using convetive_radius_km.";
-} conv_strat_min_texture_for_convection;
+  p_default = 0.5;
+  p_descr = "Minimum convectivity for convective at a point.";
+  p_help = "If the convectivity at a point exceeds this value, we set the convective flag at this point.";
+} conv_strat_min_convectivity_for_convective;
+
+paramdef double {
+  p_default = 0.4;
+  p_descr = "Maximum convectivity for stratiform at a point.";
+  p_help = "If the convectivity at a point is less than this value, we set the stratiform flag at this point. If it is above this but less than min_convectivity_for_convective we flag the point as MIXED.";
+} conv_strat_max_convectivity_for_stratiform;
+
+paramdef int {
+  p_default = 3;
+  p_descr = "Minimum grid overlap in convective regions.";
+  p_help = "A convective region is identified as a series of adjacent 'runs' of grid cells data in the EW direction. When testing for overlap, some minimum number of overlap grids must be used. This is that minimum overlap in grid units.";
+} conv_strat_min_overlap_for_convective_clumps;
 
 paramdef boolean {
   p_default = TRUE;
@@ -1229,9 +1261,9 @@ paramdef boolean {
 
 paramdef boolean {
   p_default = FALSE;
-  p_descr = "Option to write out the mean texture.";
-  p_help = "If true, the mean texture will be written to the outptu file. This is a 2-D field - the mean over height of the 3-D texture fields.";
-} conv_strat_write_mean_texture;
+  p_descr = "Option to write out the max texture.";
+  p_help = "If true, the mean texture will be written to the output file. This is a 2-D field - the max over height of the 3-D texture fields.";
+} conv_strat_write_max_texture;
 
 paramdef boolean {
   p_default = FALSE;

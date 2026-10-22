@@ -44,6 +44,7 @@
 #include <Mdv/MdvxField.hh>
 #include <Mdv/MdvxChunk.hh>
 #include "ConvectionFinder.hh"
+#include "Sounding.hh"
 using namespace std;
 
 const fl32 ConvectionFinder::_missing = -9999.0;
@@ -57,7 +58,7 @@ ConvectionFinder::ConvectionFinder(const string &progName,
         
 {
 
-  // set up ConvStrat object
+  // set up ConvStratFinder object
 
   if (_params.debug >= Params::DEBUG_EXTRA) {
     _convStrat.setVerbose(true);
@@ -67,14 +68,15 @@ ConvectionFinder::ConvectionFinder(const string &progName,
   _convStrat.setMinValidHtKm(_params.convection_finder_min_valid_height);
   _convStrat.setMaxValidHtKm(_params.convection_finder_max_valid_height);
   _convStrat.setMinValidDbz(_params.convection_finder_min_valid_dbz);
-  _convStrat.setDbzForDefiniteConvection
-    (_params.dbz_threshold_for_definite_convection);
-  _convStrat.setConvectiveRadiusKm(_params.convective_radius_km);
   _convStrat.setTextureRadiusKm(_params.convection_finder_texture_radius_km);
   _convStrat.setMinValidFractionForTexture
     (_params.convection_finder_min_valid_fraction_for_texture);
-  _convStrat.setMinTextureForConvection
-    (_params.convection_finder_min_texture_value);
+  _convStrat.setMinConvectivityForConvective
+    (_params.convection_finder_min_convectivity_for_convective);
+  _convStrat.setMaxConvectivityForStratiform
+    (_params.convection_finder_max_convectivity_for_stratiform);
+  _convStrat.setMinGridOverlapForClumping
+    (_params.convection_finder_min_overlap_for_convective_clumps);
 
 }
 
@@ -98,7 +100,7 @@ int ConvectionFinder::run(const DsMdvx &inMdvx,
   
   PMU_auto_register("ConvectionFinder::run");
   
-  // set grid in ConvStrat object
+  // set grid in ConvStratFinder object
   
   const Mdvx::field_header_t &fhdr = dbzField.getFieldHeader();
   const Mdvx::vlevel_header_t &vhdr = dbzField.getVlevelHeader();
@@ -117,11 +119,20 @@ int ConvectionFinder::run(const DsMdvx &inMdvx,
                      zLevels,
                      isLatLon);
 
+  // set temp grid if available
+
+  Sounding &sndg = Sounding::inst();
+  fl32 missingTemp;
+  const fl32 *tempGrid3D = sndg.getTemp3D(missingTemp);
+  if (tempGrid3D != nullptr) {
+    _convStrat.setTempBasedHts(tempGrid3D, missingTemp);
+  }
+
   // compute the convective stratifom partition
   
   const fl32 *dbz = (const fl32*) dbzField.getVol();
   fl32 missingDbz = fhdr.missing_data_value;
-  if (_convStrat.computePartition(dbz, missingDbz)) {
+  if (_convStrat.computeEchoType(dbz, missingDbz)) {
     cerr << "ERROR - ConvectionFinder::run()" << endl;
     cerr << "  Cannot compute convective stratiform partition" << endl;
     return -1;
@@ -135,6 +146,8 @@ int ConvectionFinder::run(const DsMdvx &inMdvx,
       cerr << "  Cannot write MDV files for debugging" << endl;
     }
   }
+
+  _convStrat.freeArrays();
 
   return 0;
 
@@ -185,13 +198,13 @@ void ConvectionFinder::_addFields(const MdvxField &dbzField,
   
   Mdvx::field_header_t textureFhdr = fhdr;
   MdvxField *textureField = new MdvxField(textureFhdr, vhdr);
-  textureField->setVolData(_convStrat.getMeanTexture(), 
+  textureField->setVolData(_convStrat.getTexture2D(), 
                            volSize32,
                            Mdvx::ENCODING_FLOAT32);
   textureField->convertType(Mdvx::ENCODING_FLOAT32,
-                         Mdvx::COMPRESSION_GZIP);
+                            Mdvx::COMPRESSION_GZIP);
   textureField->setFieldName("DbzTexture");
-  textureField->setFieldNameLong("Mean texture of dbz");
+  textureField->setFieldNameLong("Max texture of dbz");
   textureField->setUnits("dBZ");
   outMdvx.addField(textureField);
   
@@ -199,7 +212,7 @@ void ConvectionFinder::_addFields(const MdvxField &dbzField,
   
   Mdvx::field_header_t maxFhdr = fhdr;
   MdvxField *maxField = new MdvxField(maxFhdr, vhdr);
-  maxField->setVolData(_convStrat.getColMaxDbz(),
+  maxField->setVolData(_convStrat.getDbzColMax(),
                        volSize32,
                        Mdvx::ENCODING_FLOAT32);
   maxField->convertType(Mdvx::ENCODING_FLOAT32,
@@ -215,43 +228,14 @@ void ConvectionFinder::_addFields(const MdvxField &dbzField,
   fhdr.volume_size = volSize08;
   fhdr.encoding_type = Mdvx::ENCODING_INT8;
   fhdr.data_element_nbytes = 1;
-  fhdr.missing_data_value = ConvStrat::CATEGORY_MISSING;
-  fhdr.bad_data_value = ConvStrat::CATEGORY_MISSING;
-  
-  // convective flag from max dbz
-  
-  Mdvx::field_header_t convFromMaxFhdr = fhdr;
-  MdvxField *convFromMaxField = new MdvxField(convFromMaxFhdr, vhdr);
-  convFromMaxField->setVolData(_convStrat.getConvFromColMax(),
-                               volSize08,
-                               Mdvx::ENCODING_INT8);
-  convFromMaxField->convertType(Mdvx::ENCODING_INT8,
-                                Mdvx::COMPRESSION_GZIP);
-  convFromMaxField->setFieldName("ConvFromColMax");
-  convFromMaxField->setFieldNameLong("Flag for convection from column max dbz");
-  convFromMaxField->setUnits("");
-  outMdvx.addField(convFromMaxField);
-
-  // convective flag from texture
-  
-  Mdvx::field_header_t convFromTextureFhdr = fhdr;
-  MdvxField *convFromTextureField = new MdvxField(convFromTextureFhdr, vhdr);
-  convFromTextureField->setVolData(_convStrat.getConvFromTexture(),
-                                   volSize08,
-                                   Mdvx::ENCODING_INT8);
-  convFromTextureField->convertType(Mdvx::ENCODING_INT8,
-                              Mdvx::COMPRESSION_GZIP);
-  convFromTextureField->setFieldName("ConvFromTexture");
-  convFromTextureField->setFieldNameLong
-    ("Flag for convection from texture field");
-  convFromTextureField->setUnits("");
-  outMdvx.addField(convFromTextureField);
+  fhdr.missing_data_value = ConvStratFinder::CATEGORY_MISSING;
+  fhdr.bad_data_value = ConvStratFinder::CATEGORY_MISSING;
   
   // partition
   
   Mdvx::field_header_t partitionFhdr = fhdr;
   MdvxField *partitionField = new MdvxField(partitionFhdr, vhdr);
-  partitionField->setVolData(_convStrat.getPartition(),
+  partitionField->setVolData(_convStrat.getEchoType2D(),
                              volSize08,
                              Mdvx::ENCODING_INT8);
   partitionField->convertType(Mdvx::ENCODING_INT8,

@@ -45,6 +45,7 @@
 #include <Radx/ByteOrder.hh>
 #include <Radx/RadxBuf.hh>
 #include <Radx/RadxGeoref.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <cstring>
 #include <cmath>
 #include <cerrno>
@@ -166,13 +167,13 @@ int UfRadxFile::writeToDir(const RadxVol &vol,
   string outDir(dir);
   if (addYearSubDir) {
     char yearStr[BUFSIZ];
-    sprintf(yearStr, "%s%.4d", PATH_SEPARATOR, ftime.getYear());
+    safe_snprintf(yearStr, "%s%.4d", PATH_SEPARATOR, ftime.getYear());
     outDir += yearStr;
   }
   if (addDaySubDir) {
     char dayStr[BUFSIZ];
-    sprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
-            ftime.getYear(), ftime.getMonth(), ftime.getDay());
+    safe_snprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
+                  ftime.getYear(), ftime.getMonth(), ftime.getDay());
     outDir += dayStr;
   }
 
@@ -342,9 +343,9 @@ string UfRadxFile::computeFileName(int volNum,
   }
 
   char outName[BUFSIZ];
-  sprintf(outName, "%04d%02d%02d_%02d%02d%02d_%s_v%03d_%s.uf",
-          year, month, day, hour, min, sec,
-          instrumentName.c_str(), volNum, scanType.c_str());
+  safe_snprintf(outName, "%04d%02d%02d_%02d%02d%02d_%s_v%03d_%s.uf",
+                year, month, day, hour, min, sec,
+                instrumentName.c_str(), volNum, scanType.c_str());
 
   return outName;
 
@@ -1773,8 +1774,8 @@ int UfRadxFile::_loadWriteRecordFromRay(const RadxVol &vol, int rayNumber)
 
   // Copy radarName and siteName
 
-  strncpy(_manHdr.radar_name, vol.getInstrumentName().c_str(), 8);
-  strncpy(_manHdr.site_name, vol.getSiteName().c_str(), 8);
+  Radx::copyString(_manHdr.radar_name, vol.getInstrumentName(), 8);
+  Radx::copyString(_manHdr.site_name, vol.getSiteName(), 8);
 
   // record latitude:
   // check for location override,
@@ -1902,7 +1903,7 @@ int UfRadxFile::_loadWriteRecordFromRay(const RadxVol &vol, int rayNumber)
   
   // Facility
 
-  strncpy(_manHdr.gen_facility, vol.getSource().c_str(), 8);
+  Radx::copyString(_manHdr.gen_facility, vol.getSource(), 8);
 
   // missing data value
 
@@ -1910,8 +1911,8 @@ int UfRadxFile::_loadWriteRecordFromRay(const RadxVol &vol, int rayNumber)
   
   // Fill optional header
   
-  strncpy(_optHdr.project_name, vol.getTitle().c_str(), 8);
-  strncpy(_optHdr.tape_name, vol.getReferences().c_str(), 8);
+  Radx::copyString(_optHdr.project_name, vol.getTitle(), 8);
+  Radx::copyString(_optHdr.tape_name, vol.getReferences(), 8);
   RadxTime volStartTime(vol.getStartTimeSecs());
   _optHdr.baseline_azimuth = -99 * 64;
   _optHdr.baseline_elevation = -99 * 64;
@@ -2547,4 +2548,3 @@ void UfRadxFile::_printRecord(ostream &out,
   } // ii
 
 }
-

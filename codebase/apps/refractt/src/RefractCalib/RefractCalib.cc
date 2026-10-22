@@ -21,13 +21,24 @@
 // ** OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED      
 // ** WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.    
 // *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* 
-/**
- *
- * @file RefractCalib.cc
- * @class RefractCalib
- * Main application class
- * @date 1/15/2009
- */
+/////////////////////////////////////////////////////////////
+// RefractCalib Main
+//
+// Mike Dixon, EOL, NCAR, P.O.Box 3000, Boulder, CO, 80307-3000, USA
+//
+// Jan 2026
+//
+/////////////////////////////////////////////////////////////
+//
+// RefractCalib:
+//    (a) reads radar scan files, in polar coordinates
+//    (b) identifies suitable clutter targets
+//    (c) computes the mean phase of those targets for a baseline calibration
+//    (d) writes the calibration details to a file.
+// Typically we use 6 hours of scans for this purpose.
+// Ideally the moisture field should be uniform for this procedure to work well.
+//
+//////////////////////////////////////////////////////////////
 
 #include "RefractCalib.hh"
 #include <Refract/RefractInput.hh>
@@ -38,333 +49,174 @@
 #include <dsdata/DsUrlTrigger.hh>
 #include <toolsa/DateTime.hh>
 #include <toolsa/LogStream.hh>
+#include <toolsa/LogStreamInit.hh>
 #include <toolsa/umisc.h>
 #include <toolsa/str.h>
 #include <assert.h>
 
-
-// Global variables
-
-RefractCalib *RefractCalib::_instance = (RefractCalib *)NULL;
-
 //---------------------------------------------------------------------
-RefractCalib::RefractCalib(int argc, char **argv)
-{
-  // Make sure the singleton wasn't already created.
-  assert(_instance == (RefractCalib *)NULL);
-  
-  // Initialize the okay flag.
-  okay = true;
-  
-  // Set the singleton instance pointer
-  _instance = this;
 
-  // Set the program name.
-  path_parts_t progname_parts;
+RefractCalib::RefractCalib(int argc, char **argv)
+
+{
+
+  // Initialize the okay flag.
+
+  okay = true;
+  _calib = nullptr;
+  _startTime = 0;
+  _endTime = 0;
   
-  uparse_path(argv[0], &progname_parts);
-  _progName = STRdup(progname_parts.base);
+  // Set the program name.
+
+  _progName = "RefractCalib";
   
   // Display ucopyright message.
-  ucopyright(_progName);
 
+  ucopyright(_progName.c_str());
   
-  // Get TDRP parameters.
-  if (!parmAppInit(_params, argc, argv))
-  {
-    exit(0);
-  }
-  if (RefParms::isPrintMode())
-  {
-    _refparms.print(stdout, PRINT_VERBOSE);
-  }
-  else
-  {
-    if (_refparms.load(RefParms::parmPath().c_str(), NULL,
-		       !RefParms::isParmPrint(), false))
-    {
-      LOG(ERROR) << "cant load " <<  RefParms::parmPath();
-      okay = false;
-    }
-    else
-    {
-      _refparms.setOk();
-    }
-    if (RefParms::isPrintAndLoadMode())
-    {
-      _refparms.print(stdout, PRINT_VERBOSE);
-    }  
-  }
-  parmAppFinish(_params, _refparms);
-}
+  // get command line args
 
-//---------------------------------------------------------------------
-RefractCalib::~RefractCalib(void)
-{
-  // Free contained objects
-  
-  // Free included strings
-  STRfree(_progName);
-}
-
-//---------------------------------------------------------------------
-RefractCalib *RefractCalib::Inst(int argc, char **argv)
-{
-  if (_instance == (RefractCalib *)NULL)
-  {
-    new RefractCalib(argc, argv);
-  }
-  return(_instance);
-}
-
-//---------------------------------------------------------------------
-RefractCalib *RefractCalib::Inst(void)
-{
-  assert(_instance != (RefractCalib *)NULL);
-  return(_instance);
-}
-
-//---------------------------------------------------------------------
-bool RefractCalib::init(void)
-{
-  // Create the requested colorscale files
-  if (_params.create_strength_colorscale)
-  {
-    _createStrengthColorscale();
-  }
-  
-  if (_params.create_quality_colorscale)
-  {
-    _createQualityColorscale();
-  }
-  
-  // Initialize the input handler
-  RefractInput *input_handler = _refparms.initInput();
-
-  // Initialize the processor object
-  if (!_driver.init(_params, _refparms, input_handler))
-  {
-    LOG(ERROR) << " initializing driver object";
-    return false;
-  }
-  return true;
-}
-
-//---------------------------------------------------------------------
-void RefractCalib::run(void)
-{
-  // Do the target identification step
-
-  vector< string >
-    target_id_file_list = _setupFiles(_params.target_id_file_list_n,
-				      _params._target_id_file_list,
-				      _params._target_files_time_range,
-				      _params.target_files_host,
-				      _params.target_files_path);
-  vector< string >
-    calib_file_list = _setupFiles(_params.calibration_file_list_n,
-				  _params._calibration_file_list,
-				  _params._calibration_files_time_range,
-				  _params.calibration_files_host,
-				  _params.calibration_files_path);
-  if (target_id_file_list.empty() || calib_file_list.empty())
-  {
+  if (_args.parse(argc, argv, _progName)) {
+    cerr << "ERROR: " << _progName << endl;
+    cerr << "Problem with command line args" << endl;
+    okay = false;
     return;
   }
-  
-  // vector< string > target_id_file_list;
-  // vector< string > calib_file_list;
 
-  // if (_params.file_list_inputs)
-  // {
-  //   // load the files into the vectors from the params
-  //   for (int i = 0; i < _params.target_id_file_list_n; ++i)
-  //   {
-  //     target_id_file_list.push_back(_params._target_id_file_list[i]);
-  //   }
-  //   for (int i = 0; i < _params.calibration_file_list_n; ++i)
-  //   {
-  //     calib_file_list.push_back(_params._calibration_file_list[i]);
-  //   }
-  // }
-  // else
-  // {
-  //   // get a range of times and load files into vectors using server queries
-  //   time_t t0 = _timeFromParams(_params._target_files_time_range[0]);
-  //   time_t t1 = _timeFromParams(_params._target_files_time_range[1]);
-  //   if (!_identifyFiles(_params.target_files_host,
-  // 			_params.target_files_path, t0, t1,target_id_file_list))
-  //   {    
-  //     LOG(ERROR) << "Cannot compile target id files time list ";
-  //     return;
-  //   }
+  // get TDRP params
+  
+  _paramsPath = (char *) "unknown";
+  if (_params.loadFromArgs(argc, argv, _args.override.list,
+			   &_paramsPath)) {
+    cerr << "ERROR: " << _progName << endl;
+    cerr << "Problem with TDRP parameters" << endl;
+    okay = false;
+  }
+
+  // check that start and end time is set in archive mode
+  
+  if (_params.mode == Params::ARCHIVE) {
+    if (_args.startTime != 0 && _args.endTime != 0) {
+      _startTime = _args.startTime;
+      _endTime = _args.endTime;
+      if (_args.startTime == 0 || _args.endTime == 0) {
+        cerr << "ERROR - must specify both start and end dates." << endl << endl;
+        _args.usage(_progName, cerr);
+        okay = false;
+      } else {
+        if (_params.debug) {
+          cerr << "Using time limits from command line:" << endl;
+          cerr << "  start time: " << DateTime::strm(_startTime) << endl;
+          cerr << "  end time: " << DateTime::strm(_endTime) << endl;
+        }
+      }
+    } else {
+      _startTime = DateTime::parseDateTime(_params.start_time);
+      _endTime = DateTime::parseDateTime(_params.end_time);
+      if (_params.debug) {
+        cerr << "Using time limits from param file:" << endl;
+        cerr << "  start time: " << DateTime::strm(_startTime) << endl;
+        cerr << "  end time: " << DateTime::strm(_endTime) << endl;
+      }
+    }
+  }
+
+  // create _calib object
+
+  _calib = new Calib(_params);
+
+  // initialize logging
+  LogStreamInit::init(false, false, true, true);
+  LOG_STREAM_DISABLE(LogStream::WARNING);
+  LOG_STREAM_DISABLE(LogStream::DEBUG);
+  LOG_STREAM_DISABLE(LogStream::DEBUG_VERBOSE);
+  LOG_STREAM_DISABLE(LogStream::DEBUG_EXTRA);
+  if (_params.debug >= Params::DEBUG_EXTRA) {
+    LOG_STREAM_ENABLE(LogStream::DEBUG_EXTRA);
+    LOG_STREAM_ENABLE(LogStream::DEBUG_VERBOSE);
+    LOG_STREAM_ENABLE(LogStream::DEBUG);
+  } else if (_params.debug >= Params::DEBUG_VERBOSE) {
+    LOG_STREAM_ENABLE(LogStream::DEBUG_VERBOSE);
+    LOG_STREAM_ENABLE(LogStream::DEBUG);
+  } else if (_params.debug) {
+    LOG_STREAM_ENABLE(LogStream::DEBUG);
+    LOG_STREAM_ENABLE(LogStream::WARNING);
+  }
+
+}
+
+//---------------------------------------------------------------------
+RefractCalib::~RefractCalib()
+{
+
+}
+
+//---------------------------------------------------------------------
+int RefractCalib::run()
+{
+
+  // get vector list of files
+
+  vector<string> fileList;
+  
+  if (_params.mode == Params::FILELIST) {
+
+    fileList = _args.inputFileList;
+
+  } else {
+
+    // get the files to be processed
     
-  //   t0 = _timeFromParams(_params._calibration_files_time_range[0]);
-  //   t1 = _timeFromParams(_params._calibration_files_time_range[1]);
-  //   if (!_identifyFiles(_params.calibration_files_host,
-  // 			_params.calibration_files_path, t0, t1,
-  // 			calib_file_list))
-  //   {    
-  //     LOG(ERROR) << "Cannot compile calibration files time list ";
-  //     return;
-  //   }
-  // }
+    RadxTimeList tlist;
+    tlist.setDir(_params.input_dir);
+    tlist.setModeInterval(_startTime, _endTime);
+    if (tlist.compile()) {
+      cerr << "ERROR - RadxConvert::_runArchive()" << endl;
+      cerr << "  Cannot compile time list, dir: " << _params.input_dir << endl;
+      cerr << "  Start time: " << RadxTime::strm(_startTime) << endl;
+      cerr << "  End time: " << RadxTime::strm(_endTime) << endl;
+      cerr << tlist.getErrStr() << endl;
+      return -1;
+    }
+
+    fileList = tlist.getPathList();
+
+  }
+
+  if (fileList.empty()) {
+    cerr << "ERROR - RefractCalib" << endl;
+    cerr << "  No files found" << endl;
+    return -1;
+  }
+
+  if (_params.debug >= Params::DEBUG_VERBOSE) {
+    cerr << "RefractCalib, input file list:" << endl;
+    for (size_t ii = 0; ii < fileList.size(); ii++) {
+      cerr << "  file num: " << ii << ", path: " << fileList[ii] << endl;
+    }
+  } else if (_params.debug) {
+    cerr << "RefractCalib, input dir: " << _params.input_dir << endl;
+    cerr << "  N files found: " << fileList.size() << endl;
+  }
+  
+  // find suitable targets
+  // sets input_gate_spacing
   
   double input_gate_spacing;
-  if (!_driver.findReliableTargets(target_id_file_list,
-				   _params.target_files_host,
-				   input_gate_spacing))
-  {
-    return;
+  if (!_calib->findReliableTargets(fileList,
+                                   input_gate_spacing)) {
+    return -1;
   }
   
-  // Do the calibration step
-  if (!_driver.calibTargets(calib_file_list, _params.target_files_host,
-			    input_gate_spacing))
-  {
-    return;
-  }
-}
-
-//---------------------------------------------------------------------
-void RefractCalib::_createStrengthColorscale() const
-{
-  FILE *file;
-
-  if ((file = fopen(_params.strength_colorscale_path, "w")) == 0)
-  {
-    LOG(ERROR) << "Error opening colorscale file for output";
-    perror(_params.strength_colorscale_path);
-    return;
+  // perform the calibration step
+  
+  if (!_calib->calibTargets(fileList,
+                            input_gate_spacing)) {
+    return -1;
   }
   
-  for (int i = 0; i < 120; ++i)
-  {
-    float step = 6.0 * ((float)i / 120.0);
-    
-    short int red, green, blue;
-
-    red = (short int)(step * 255.0 / 6.0);
-    green = red;
-    blue = red;
-    
-    double min_value = ((80.0 / 120.0) * (double)i) - 10.0;
-    double max_value = ((80.0 / 120.0) * (double)(i+1)) - 10.0;
-    
-    fprintf(file, "%8.7f  %8.7f   #%02x%02x%02x\n",
-	    min_value, max_value, red, green, blue);
-  }
+  return 0;
   
-  fclose(file);
-}
-
-//---------------------------------------------------------------------
-void RefractCalib::_createQualityColorscale() const
-{
-  FILE *file;
-
-  if ((file = fopen(_params.quality_colorscale_path, "w")) == 0)
-  {
-    LOG(ERROR) << "Error opening colorscale file for output";
-    perror(_params.quality_colorscale_path);
-    return;
-  }
-  
-  for (int i = 0; i < 120; ++i)
-  {
-    float step = 6.0 * ((float)i / 120.0);
-    
-    short int red, green, blue;
-
-    red = (short int)(step * 255.0 / 6.0);
-    green = red;
-    blue = red;
-    
-    double min_value = ((1.0 / 120.0) * (double)i);
-    double max_value = ((1.0 / 120.0) * (double)(i+1));
-    
-    fprintf(file, "%8.7f  %8.7f   #%02x%02x%02x\n",
-	    min_value, max_value, red, green, blue);
-  }
-  
-  fclose(file);
-}
-
-//---------------------------------------------------------------------
-std::vector<string> RefractCalib::_setupFiles(int numFiles,
-					      char ** fileList,
-					      Params::Time_t *timeRange,
-					      const std::string &host,
-					      const std::string &filesPath)
-{
-  vector<string> ret;
-  if (_params.file_list_inputs)
-  {
-    // load the files into the vectors from the params
-    for (int i = 0; i < numFiles; ++i)
-    {
-      ret.push_back(fileList[i]);
-    }
-  }
-  else
-  {
-    time_t t0 = _timeFromParams(timeRange[0]);
-    time_t t1 = _timeFromParams(timeRange[1]);
-    if (!_identifyFiles(host, filesPath, t0, t1, ret))
-    {    
-      LOG(ERROR) << "Cannot compile target id files time list ";
-      ret.clear();
-    }
-  }
-  return ret;
-}
-
-//---------------------------------------------------------------------
-time_t RefractCalib::_timeFromParams(const Params::Time_t &p) const
-{
-  DateTime dt(p.year, p.month, p.day, p.hour, p.min, p.sec);
-  return dt.utime();
-}
-
-//---------------------------------------------------------------------
-bool RefractCalib::_identifyFiles(const std::string &host,
-				  const std::string &path, const time_t &t0,
-				  const time_t &t1,
-				  std::vector<string> &files) const
-{
-  string url = "mdvp:://";
-  url = url + host;
-  url = url + "::";
-  url = url + path;
-  DsUrlTrigger trigger(t0, t1, url, DsUrlTrigger::OBS, false);
-  time_t ttime;
-  while (trigger.nextTime(ttime))
-  {
-    LOG(DEBUG) << "Checking for file at " << DateTime::strn(ttime);
-    DsMdvx d;
-    d.clearTimeListMode();
-    d.setTimeListModeValid(url, ttime - 10000, ttime-1);
-    d.compileTimeList();
-    vector<time_t> times = d.getTimeList();
-    if (times.empty())
-    {
-      LOG(ERROR) << "No input data near time " << DateTime::strn(ttime)
-		 << " path=" << url;
-    }
-    else
-    {
-      time_t lastT = *(times.rbegin());
-      d.setReadTime(Mdvx::READ_FIRST_BEFORE, url, 0, lastT);
-      if (d.readAllHeaders())
-      {
-	LOG(ERROR) << "Cannot read the data in";
-      }
-      else
-      {
-	files.push_back(d.getPathInUse());
-      }
-    }
-  }
-  return !files.empty();
 }
 

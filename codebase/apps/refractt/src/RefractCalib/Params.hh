@@ -68,6 +68,23 @@ public:
   // enum typedefs
 
   typedef enum {
+    DEBUG_OFF = 0,
+    DEBUG_NORM = 1,
+    DEBUG_VERBOSE = 2,
+    DEBUG_EXTRA = 3
+  } debug_t;
+
+  typedef enum {
+    ARCHIVE = 0,
+    FILELIST = 1
+  } mode_t;
+
+  typedef enum {
+    QUALITY_FROM_WIDTH = 0,
+    QUALITY_FROM_CPA = 1
+  } quality_source_t;
+
+  typedef enum {
     ENTER_N = 0,
     ENTER_P_T_TD = 1
   } entry_type_t;
@@ -75,13 +92,9 @@ public:
   // struct typedefs
 
   typedef struct {
-    int year;
-    int month;
-    int day;
-    int hour;
-    int min;
-    int sec;
-  } Time_t;
+    double min_angle;
+    double max_angle;
+  } elevation_angle_t;
 
   ///////////////////////////
   // Member functions
@@ -103,7 +116,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -377,35 +390,61 @@ public:
                 // needed for zeroing out data
                 // and computing offsets
 
+  debug_t debug;
+
   tdrp_bool_t write_debug_mdv_files;
 
   char* debug_mdv_url;
 
-  tdrp_bool_t file_list_inputs;
+  double debug_lat;
 
-  char* target_files_host;
+  double debug_lon;
 
-  char* calibration_files_host;
+  int debug_npt;
 
-  char* *_target_id_file_list;
-  int target_id_file_list_n;
+  mode_t mode;
 
-  char* *_calibration_file_list;
-  int calibration_file_list_n;
+  char* input_dir;
 
-  char* target_files_path;
+  char* start_time;
 
-  Time_t *_target_files_time_range;
-  int target_files_time_range_n;
+  char* end_time;
 
-  char* calibration_files_path;
+  char* output_file_path;
 
-  Time_t *_calibration_files_time_range;
-  int calibration_files_time_range_n;
+  char* output_dir;
 
-  char* ref_file_path;
+  tdrp_bool_t raw_iq_in_input;
 
-  char* ref_url;
+  char* raw_i_field_name;
+
+  char* raw_q_field_name;
+
+  char* niq_field_name;
+
+  double input_niq_scale;
+
+  tdrp_bool_t invert_target_angle_sign;
+
+  char* aiq_field_name;
+
+  tdrp_bool_t snr_available;
+
+  char* snr_field_name;
+
+  double noise_dbz_at_100km;
+
+  char* dbz_field_name;
+
+  quality_source_t quality_source;
+
+  char* quality_field_name;
+
+  elevation_angle_t elevation_angle;
+
+  long num_azim;
+
+  long num_range_bins;
 
   double beam_width;
 
@@ -423,14 +462,6 @@ public:
 
   double calib_dewpoint_temperature;
 
-  tdrp_bool_t create_strength_colorscale;
-
-  char* strength_colorscale_path;
-
-  tdrp_bool_t create_quality_colorscale;
-
-  char* quality_colorscale_path;
-
   char _end_; // end of data region
               // needed for zeroing out data
 
@@ -438,7 +469,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[29];
+  mutable TDRPtable _table[43];
 
   const char *_className;
 

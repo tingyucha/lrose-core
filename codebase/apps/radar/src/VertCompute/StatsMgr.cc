@@ -59,21 +59,26 @@ using namespace std;
 // Constructor
 
 StatsMgr::StatsMgr(const string &prog_name,
+                   const Args &args,
 		   const Params &params) :
   _progName(prog_name),
+  _args(args),
   _params(params)
   
 {
 
-  _startTime = 0;
-  _endTime = 0;
-  _startTime360 = 0;
+  _startTimeGlobal = 0;
+  _endTimeGlobal = 0;
+  _startTimeStats = 0;
+  _endTimeStats = 0;
+  _prevTime = 0;
   _prt = 0;
   _el = 0;
   _az = 0;
   _prevAz = -999;
-  _azMoved = 0;
-  _nRotations = 0;
+  _azMovedGlobal = 0.0;
+  _azMovedStats = 0.0;
+  _azMovedPrint = 0.0;
 
   _sumEl = 0.0;
   _nEl = 0.0;
@@ -87,7 +92,6 @@ StatsMgr::StatsMgr(const string &prog_name,
   _globalSumSqZdrm = 0;
   _globalMeanZdrm = -9999;
   _globalSdevZdrm = -9999;
-  _globalMeanOfSdevZdrm = -9999;
 
   // set up layers
   
@@ -117,6 +121,29 @@ StatsMgr::~StatsMgr()
 
 }
 
+///////////////////////////////
+// set the start and end time
+
+void StatsMgr::setStartTime(double start_time)
+{
+  _startTimeStats = start_time;
+  if (_startTimeGlobal == 0.0) {
+    _startTimeGlobal = start_time;
+  }
+}
+
+void StatsMgr::setEndTime(double latest_time)
+{
+  _endTimeStats = latest_time;
+  _endTimeGlobal = latest_time;
+  if (_prevTime != 0) {
+    double timeGap = _endTimeStats - _prevTime;
+    if (timeGap > _params.max_time_gap_for_stats) {
+      clearStats();
+    }
+  }
+}
+
 ////////////////////
 // set the elevation
 
@@ -142,8 +169,12 @@ void StatsMgr::setAz(double az) {
   if (_prevAz < -900) {
     _prevAz = _az;
   } else {
-    double azDiff = RadarComplex::diffDeg(_prevAz, _az);
-    _azMoved += fabs(azDiff);
+    double azDiff = fabs(RadarComplex::diffDeg(_prevAz, _az));
+    if (azDiff < 10.0) {
+      _azMovedGlobal += azDiff;
+      _azMovedStats += azDiff;
+      _azMovedPrint += azDiff;
+    }
     _prevAz = _az;
   }
   
@@ -152,33 +183,32 @@ void StatsMgr::setAz(double az) {
 /////////////////////////////////
 // check and compute when ready
 
-void StatsMgr::checkCompute() {
+void StatsMgr::checkCompute()
+{
 
-  if (_azMoved > 360.0) {
+  if (_azMovedStats > _params.cumulative_azimuth_moved_for_stats) {
 
-    if (_startTime360 == 0.0) {
-      _startTime360 = _startTime;
-    }
+    if (computeStats() == 0) {
+    
+      if (_params.write_stats_to_text_file) {
+        writeStats();
+      }
+      if (_params.write_stats_to_spdb) {
+        writeStatsToSpdb();
+      }
 
-    computeStats360();
-    if (_params.write_360deg_stats_to_text_file) {
-      writeResults360();
     }
-    if (_params.debug) {
-      printResults360(stderr);
-    }
-    if (_params.write_results_to_spdb) {
-      writeResults360ToSpdb();
-    }
-    clearStats360();
-    _azMoved = 0;
-    _nRotations++;
-    _startTime360 = _endTime;
+    
+    clearStats();
+    _azMovedStats = 0;
+    _startTimeStats = _endTimeStats;
+    
+  } else if (_azMovedPrint > _params.cumulative_azimuth_moved_for_debug_print) {
 
-    // if (_nRotations % _params.nrevs_for_global_stats == 0) {
-    //   computeGlobalStats();
-    //   writeGlobalResults();
-    // }
+    if (computeStats() == 0) {
+      printStats(stderr);
+    }
+    _azMovedPrint = 0.0;
 
   }
   
@@ -204,7 +234,7 @@ void StatsMgr::addDataPoint(double range,
 ////////////////////////////////////////////
 // clear stats info
 
-void StatsMgr::clearStats360()
+void StatsMgr::clearStats()
 
 {
   for (int ii = 0; ii < (int) _layers.size(); ii++) {
@@ -212,20 +242,19 @@ void StatsMgr::clearStats360()
   }
   _sumEl = 0.0;
   _nEl = 0.0;
+  _startTimeStats = _endTimeStats;
+  _prevTime = _endTimeStats;
 }
   
-/////////////////////////
-// compute stats for 360
+//////////////////////////////////////
+// compute stats for az moved so far
 
-void StatsMgr::computeStats360()
+int StatsMgr::computeStats()
   
 {
   
   for (int ii = 0; ii < (int) _layers.size(); ii++) {
     _layers[ii]->computeStats();
-    // if (_params.debug >= Params::DEBUG_VERBOSE) {
-    //   _layers[ii]->print(cerr);
-    // }
   }
 
   // compute Zdr for this rotation
@@ -233,7 +262,7 @@ void StatsMgr::computeStats360()
 
   double sumValid = 0.0;
   double sumZdrm = 0.0;
-  double sum2Zdrm = 0.0;
+  double sumSqZdrm = 0.0;
 
   for (int ii = 0; ii < (int) _layers.size(); ii++) {
     LayerStats &layer = *(_layers[ii]);
@@ -244,7 +273,7 @@ void StatsMgr::computeStats360()
         snr >= _params.min_snr) {
       sumValid += layer.getNValid();
       sumZdrm += layer.getSum().zdrm;
-      sum2Zdrm += layer.getSum2().zdrm;
+      sumSqZdrm += layer.getSumSq().zdrm;
     }
   }
 
@@ -256,18 +285,25 @@ void StatsMgr::computeStats360()
 
   if (_countZdrm > 0) {
     _meanZdrm = sumZdrm / _countZdrm;
-    _globalCountZdrm++;
-    _globalSumZdrm += _meanZdrm;
-    _globalSumSqZdrm += _meanZdrm * _meanZdrm;
+    _globalCountZdrm += _countZdrm;
+    _globalSumZdrm += sumZdrm;
+    _globalSumSqZdrm += sumSqZdrm;
   }
+
   if (_countZdrm > 2) {
     _meanZdrm = sumZdrm / _countZdrm;
     double variance =
-      (sum2Zdrm - (sumZdrm * sumZdrm) / _countZdrm) / (_countZdrm - 1.0);
+      (sumSqZdrm - (sumZdrm * sumZdrm) / _countZdrm) / (_countZdrm - 1.0);
     _sdevZdrm = 0.000001;
     if (variance >= 0.0) {
       _sdevZdrm = sqrt(variance);
     }
+  }
+
+  if (_countZdrm < _params.min_valid_count_for_stats) {
+    return -1;
+  } else {
+    return 0;
   }
 
 }
@@ -275,7 +311,7 @@ void StatsMgr::computeStats360()
 /////////////////////////
 // compute global stats
 
-void StatsMgr::computeGlobalStats()
+int StatsMgr::computeGlobalStats()
   
 {
 
@@ -291,47 +327,52 @@ void StatsMgr::computeGlobalStats()
     _globalMeanZdrm = _globalSumZdrm / _globalCountZdrm;
   }
   if (_globalCountZdrm > 2) {
-    _globalMeanZdrm = _globalSumZdrm / _globalCountZdrm;
     double variance =
-      (_globalSumSqZdrm - (_globalSumZdrm * _globalSumZdrm) / 
-       _globalCountZdrm) / (_globalCountZdrm - 1.0);
+      (_globalSumSqZdrm -
+       (_globalSumZdrm * _globalSumZdrm) / _globalCountZdrm) /
+      (_globalCountZdrm - 1.0);
     _globalSdevZdrm = 0.000001;
     if (variance >= 0.0) {
       _globalSdevZdrm = sqrt(variance);
     }
-    _globalMeanOfSdevZdrm = _globalSdevZdrm / sqrt(_globalCountZdrm);
+  }
+
+  if (_globalCountZdrm < _params.min_valid_count_for_stats) {
+    return -1;
+  } else {
+    return 0;
   }
 
 }
 
 //////////////////////////////////////
-// write out 360 deg results to files
+// write out 360 deg stats to files
 
-int StatsMgr::writeResults360()
+int StatsMgr::writeStats()
 
 {
 
   // print to stdout
 
-  printResults360(stdout);
+  printStats(stdout);
 
   // create the directory for the output files, if needed
 
-  if (ta_makedir_recurse(_params.output_dir)) {
+  if (ta_makedir_recurse(_params.text_output_dir)) {
     int errNum = errno;
-    cerr << "ERROR - StatsMgr::_writeResults";
-    cerr << "  Cannot create output dir: " << _params.output_dir << endl;
+    cerr << "ERROR - StatsMgr::_writeStats";
+    cerr << "  Cannot create output dir: " << _params.text_output_dir << endl;
     cerr << "  " << strerror(errNum) << endl;
     return -1;
   }
   
   // compute output file path
 
-  time_t fileTime = (time_t) _startTime;
+  time_t fileTime = (time_t) _startTimeStats;
   DateTime ftime(fileTime);
   char outPath[1024];
   sprintf(outPath, "%s/vert_zdr_cal_%.4d%.2d%.2d_%.2d%.2d%.2d.txt",
-          _params.output_dir,
+          _params.text_output_dir,
           ftime.getYear(),
           ftime.getMonth(),
           ftime.getDay(),
@@ -344,16 +385,16 @@ int StatsMgr::writeResults360()
   FILE *out;
   if ((out = fopen(outPath, "w")) == NULL) {
     int errNum = errno;
-    cerr << "ERROR - StatsMgr::_writeFile";
+    cerr << "ERROR - StatsMgr::writeStats";
     cerr << "  Cannot create file: " << outPath << endl;
     cerr << "  " << strerror(errNum) << endl;
     return -1;
   }
 
-  printResults360(out);
-
+  printStats(out);
+  
   if (_params.debug) {
-    cerr << "-->> Writing 360 results file: " << outPath << endl;
+    cerr << "-->> Writing stats to file: " << outPath << endl;
   }
 
   // close file
@@ -364,35 +405,36 @@ int StatsMgr::writeResults360()
 }
 
 ///////////////////////////////
-// print out results for 360
+// print out stats as text
 
-void StatsMgr::printResults360(FILE *out)
+void StatsMgr::printStats(FILE *out)
 
 {
 
-  // check we have some valid results to print
+  // check we have some valid stats to print
 
-  bool resultsFound = false;
+  bool statsFound = false;
   for (int ii = 0; ii < (int) _layers.size(); ii++) {
     const LayerStats &layer = *(_layers[ii]);
     if (layer.getMean().snr > -9990) {
-      resultsFound = true;
+      statsFound = true;
       break;
     }
   }
-  if (!resultsFound) {
+  if (!statsFound) {
     return;
   }
   
-  time_t startTime = (time_t) _startTime360;
+  time_t startTime = (time_t) _startTimeStats;
   
   fprintf(out,
-          " ===================================="
+          " ====================================="
           "============================================\n");
   fprintf(out, " Vertical-pointing ZDR calibration\n");
   fprintf(out, "   Time: %s\n", DateTime::strm(startTime).c_str());
+  fprintf(out, "   az moved (deg)        : %8g\n", _azMovedStats);
   fprintf(out, "   n samples             : %8d\n", _params.n_samples);
-  fprintf(out, "   n rotations           : %8d\n", (int) (_countZdrm + 0.5));
+  fprintf(out, "   n valid               : %8d\n", (int) (_countZdrm + 0.5));
   fprintf(out, "   min snr (dB)          : %8.3f\n", _params.min_snr);
   fprintf(out, "   max snr (dB)          : %8.3f\n", _params.max_snr);
   fprintf(out, "   min vel (m/s)         : %8.3f\n", _params.min_vel);
@@ -407,7 +449,7 @@ void StatsMgr::printResults360(FILE *out)
   fprintf(out, "   sdev ZDRm (dB)        : %8.3f\n", _sdevZdrm);
   fprintf(out, "   ZDR correction (dB)   : %8.3f\n", _meanZdrm * -1.0);
   fprintf(out,
-          " ===================================="
+          " ====================================="
           "============================================\n");
   fprintf(out, " %5s %7s %7s %7s %5s %8s %6s %7s %7s %6s %6s\n",
           "Ht", "npts", "snr", "dBZ", "vel",
@@ -431,29 +473,29 @@ void StatsMgr::printResults360(FILE *out)
     }
   }
   fprintf(out,
-          " ===================================="
+          " ====================================="
           "============================================\n");
   
 }
 
 ///////////////////////////////
-// write results to SPDB
+// write stats to SPDB
 
-int StatsMgr::writeResults360ToSpdb()
+int StatsMgr::writeStatsToSpdb()
 
 {
 
-  // check we have some valid results to print
+  // check we have some valid stats to print
 
-  bool resultsFound = false;
+  bool statsFound = false;
   for (int ii = 0; ii < (int) _layers.size(); ii++) {
     const LayerStats &layer = *(_layers[ii]);
     if (layer.getMean().snr > -9990) {
-      resultsFound = true;
+      statsFound = true;
       break;
     }
   }
-  if (!resultsFound) {
+  if (!statsFound) {
     return 0;
   }
 
@@ -461,53 +503,53 @@ int StatsMgr::writeResults360ToSpdb()
 
   string xml;
 
-  xml += TaXml::writeStartTag("VertPointingResults", 0);
+  xml += TaXml::writeStartTag("VertPointingStats", 0);
 
   xml += TaXml::writeDouble("meanElevation", 1, _meanEl);
-  xml += TaXml::writeDouble("meanZdrm", 1, _meanZdrm);
-  xml += TaXml::writeDouble("sdevZdrm", 1, _sdevZdrm);
-  xml += TaXml::writeDouble("countZdrm", 1, _countZdrm);
+  xml += TaXml::writeDouble("meanZdrmVol", 1, _meanZdrm);
+  xml += TaXml::writeDouble("sdevZdrmVol", 1, _sdevZdrm);
+  xml += TaXml::writeDouble("countZdrmVol", 1, _countZdrm);
 
   for (int ii = 0; ii < (int) _layers.size(); ii++) {
     const LayerStats &layer = *(_layers[ii]);
     // if (layer.getMean().snr > -9990) {
 
       xml += TaXml::writeStartTag("LayerStats", 1);
-      xml += TaXml::writeDouble("meanHt", 2, layer.getMeanHt());
-      xml += TaXml::writeInt("nValid", 2, layer.getNValid());
-      xml += TaXml::writeDouble("meanSnr", 2, layer.getMean().snr);
-      xml += TaXml::writeDouble("meanDbz", 2, layer.getMean().dbz);
-      xml += TaXml::writeDouble("meanVel", 2, layer.getMean().vel);
-      xml += TaXml::writeDouble("meanZdrm", 2, layer.getMean().zdrm);
-      xml += TaXml::writeDouble("sdevZdrm", 2, layer.getSdev().zdrm);
-      xml += TaXml::writeDouble("meanLdrh", 2, layer.getMean().ldrh);
-      xml += TaXml::writeDouble("meanLdrv", 2, layer.getMean().ldrv);
-      xml += TaXml::writeDouble("meanRhohv", 2, layer.getMean().rhohv);
-      xml += TaXml::writeEndTag("LayerStats", 1);
+      xml += TaXml::writeDouble("meanHtLayer", 2, layer.getMeanHt());
+      xml += TaXml::writeInt("nValidLayer", 2, layer.getNValid());
+      xml += TaXml::writeDouble("meanSnrLayer", 2, layer.getMean().snr);
+      xml += TaXml::writeDouble("meanDbzLayer", 2, layer.getMean().dbz);
+      xml += TaXml::writeDouble("meanVelLayer", 2, layer.getMean().vel);
+      xml += TaXml::writeDouble("meanZdrmLayer", 2, layer.getMean().zdrm);
+      xml += TaXml::writeDouble("sdevZdrmLayer", 2, layer.getSdev().zdrm);
+      xml += TaXml::writeDouble("meanLdrhLayer", 2, layer.getMean().ldrh);
+      xml += TaXml::writeDouble("meanLdrvLayer", 2, layer.getMean().ldrv);
+      xml += TaXml::writeDouble("meanRhohvLayer", 2, layer.getMean().rhohv);
+      xml += TaXml::writeEndTag("LayerStatsLayer", 1);
 
       // }
   }
   
-  xml += TaXml::writeEndTag("VertPointingResults", 0);
+  xml += TaXml::writeEndTag("VertPointingStats", 0);
   
   if (_params.debug >= Params::DEBUG_VERBOSE) {
-    cerr << "Writing XML results to SPDB:" << endl;
+    cerr << "Writing XML stats to SPDB:" << endl;
     cerr << xml << endl;
   }
 
   DsSpdb spdb;
-  time_t validTime = (time_t) _startTime360;
-  si32 dataType = Spdb::hash4CharsToInt32(_params.radar_name);
+  time_t validTime = (time_t) _startTimeStats;
+  si32 dataType = Spdb::hash4CharsToInt32(_params.radar_name_for_spdb);
   spdb.addPutChunk(dataType, validTime, validTime, xml.size() + 1, xml.c_str());
   if (spdb.put(_params.spdb_output_url,
                SPDB_XML_ID, SPDB_XML_LABEL)) {
-    cerr << "ERROR - StatsMgr::writeResults360ToSpdb" << endl;
+    cerr << "ERROR - StatsMgr::writeStatsToSpdb" << endl;
     cerr << spdb.getErrStr() << endl;
     return -1;
   }
   
   if (_params.debug) {
-    cerr << "Wrote results to spdb, url: " << _params.spdb_output_url << endl;
+    cerr << "Wrote stats to spdb, url: " << _params.spdb_output_url << endl;
     cerr << "  Valid time: " << DateTime::strm(validTime) << endl;
   }
 
@@ -516,31 +558,31 @@ int StatsMgr::writeResults360ToSpdb()
 }
 
 ///////////////////////////////
-// write out results to files
+// write out stats to files
 
-int StatsMgr::writeGlobalResults()
+int StatsMgr::writeGlobalStats()
 
 {
 
-  printGlobalResults(stdout);
+  printGlobalStats(stdout);
 
   // create the directory for the output files, if needed
 
-  if (ta_makedir_recurse(_params.output_dir)) {
+  if (ta_makedir_recurse(_params.text_output_dir)) {
     int errNum = errno;
-    cerr << "ERROR - StatsMgr::writeGlobalResults";
-    cerr << "  Cannot create output dir: " << _params.output_dir << endl;
+    cerr << "ERROR - StatsMgr::writeGlobalStats";
+    cerr << "  Cannot create output dir: " << _params.text_output_dir << endl;
     cerr << "  " << strerror(errNum) << endl;
     return -1;
   }
   
   // compute output file path
 
-  time_t startTime = (time_t) _startTime;
+  time_t startTime = (time_t) _startTimeGlobal;
   DateTime ftime(startTime);
   char outPath[1024];
   sprintf(outPath, "%s/vert_zdr_global_cal_%.4d%.2d%.2d_%.2d%.2d%.2d.txt",
-          _params.output_dir,
+          _params.text_output_dir,
           ftime.getYear(),
           ftime.getMonth(),
           ftime.getDay(),
@@ -561,10 +603,10 @@ int StatsMgr::writeGlobalResults()
 
   // print to file
 
-  printGlobalResults(out);
+  printGlobalStats(out);
 
   if (_params.debug) {
-    cerr << "-->> Writing global results file: " << outPath << endl;
+    cerr << "-->> Writing global stats file: " << outPath << endl;
   }
 
   // close file
@@ -575,23 +617,24 @@ int StatsMgr::writeGlobalResults()
 }
 
 ///////////////////////////////
-// print global results
+// print global stats
 
-void StatsMgr::printGlobalResults(FILE *out)
+void StatsMgr::printGlobalStats(FILE *out)
 
 {
   
-  time_t startTime = (time_t) _startTime;
-  time_t endTime = (time_t) _endTime;
+  time_t startTime = (time_t) _startTimeGlobal;
+  time_t endTime = (time_t) _endTimeGlobal;
 
   fprintf(out,
-          " ===================================="
+          " ====================================="
           "============================================\n");
   fprintf(out, " Vertical-pointing ZDR calibration - global\n");
   fprintf(out, " Start time: %s\n", DateTime::strm(startTime).c_str());
   fprintf(out, " End time  : %s\n", DateTime::strm(endTime).c_str());
+  fprintf(out, "   az moved (deg)        : %8g\n", _azMovedGlobal);
   fprintf(out, "   n samples             : %8d\n", _params.n_samples);
-  fprintf(out, "   n complete rotations  : %8d\n", _nRotations);
+  fprintf(out, "   n valid               : %8g\n", _globalCountZdrm);
   fprintf(out, "   min snr (dB)          : %8.3f\n", _params.min_snr);
   fprintf(out, "   max snr (dB)          : %8.3f\n", _params.max_snr);
   fprintf(out, "   min vel (m/s)         : %8.3f\n", _params.min_vel);
@@ -605,14 +648,14 @@ void StatsMgr::printGlobalResults(FILE *out)
   fprintf(out, "   sdev ZDRm (dB)        : %8.3f\n", _globalSdevZdrm);
   fprintf(out, "   ZDR correction (dB)   : %8.3f\n", _globalMeanZdrm * -1.0);
   fprintf(out,
-          " ===================================="
+          " ====================================="
           "============================================\n");
   fprintf(out, " %5s %7s %7s %7s %5s %8s %6s %7s %7s %6s %6s\n",
           "Ht", "npts", "snr", "dBZ", "vel",
           "ldr", "rhohv", "zdrMean", "zdrSdev", "gof", "rmse");
   for (int ii = 0; ii < (int) _layers.size(); ii++) {
     const LayerStats &layer = *(_layers[ii]);
-    if (layer.getMean().snr > -9990) {
+    if (layer.getGlobalMean().snr > -9990) {
       fprintf(out,
               " %5.2f %7d %7.3f %7.3f %5.1f %8.3f %6.3f %7.3f %7.3f %6.3f %6.3f\n",
               layer.getMeanHt(),
@@ -629,7 +672,7 @@ void StatsMgr::printGlobalResults(FILE *out)
     }
   } // ii
   fprintf(out,
-          " ===================================="
+          " ====================================="
           "============================================\n");
 
 }
@@ -641,14 +684,22 @@ int StatsMgr::writeZdrPoints()
 
 {
   
+  if (ta_makedir_recurse(_params.zdr_points_output_dir)) {
+    int errNum = errno;
+    cerr << "ERROR - StatsMgr::_writeZdrPoints";
+    cerr << "  Cannot create output dir: " << _params.zdr_points_output_dir << endl;
+    cerr << "  " << strerror(errNum) << endl;
+    return -1;
+  }
+  
   // compute output file path
 
-  time_t startTime = (time_t) _startTime;
-  time_t endTime = (time_t) _endTime;
+  time_t startTime = (time_t) _startTimeGlobal;
+  time_t endTime = (time_t) _endTimeGlobal;
   DateTime ftime(startTime);
   char outPath[1024];
   sprintf(outPath, "%s/zdr_points_%.4d%.2d%.2d_%.2d%.2d%.2d.txt",
-          _params.output_dir,
+          _params.zdr_points_output_dir,
           ftime.getYear(),
           ftime.getMonth(),
           ftime.getDay(),

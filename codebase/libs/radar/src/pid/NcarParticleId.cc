@@ -434,7 +434,7 @@ void NcarParticleId::initializeArrays(int nGates)
 }
 
 /////////////////////////////////////////////////////////
-// compute PID for a beam
+// Prepare for computing PID
 //
 // Passed in:
 // ---------
@@ -455,15 +455,14 @@ void NcarParticleId::initializeArrays(int nGates)
 // --------
 // Stored in local arrays on this class. Use get() methods to retieve them.
 
-void NcarParticleId::computePidBeam(int nGates,
-                                    const double *snr,
-                                    const double *dbz,
-                                    const double *zdr,
-                                    const double *kdp,
-                                    const double *ldr,
-                                    const double *rhohv,
-                                    const double *phidp,
-                                    const double *tempC)
+void NcarParticleId::prepareForPid(int nGates,
+                                   const double *snr,
+                                   const double *dbz,
+                                   const double *zdr,
+                                   const double *kdp,
+                                   const double *ldr,
+                                   const double *rhohv,
+                                   const double *phidp)
   
 {
 
@@ -484,7 +483,6 @@ void NcarParticleId::computePidBeam(int nGates,
   memcpy(_ldr, ldr, nGates * sizeof(double));
   memcpy(_rhohv, rhohv, nGates * sizeof(double));
   memcpy(_phidp, phidp, nGates * sizeof(double));
-  memcpy(_tempC, tempC, nGates * sizeof(double));
 
   // replace missing LDR values with speficied value, if requested
 
@@ -554,6 +552,52 @@ void NcarParticleId::computePidBeam(int nGates,
   if (_applyMedianFilterToRhohv) {
     FilterUtils::applyMedianFilter(_rhohv, nGates, _rhohvMedianFilterLen);
   }
+
+}
+
+/////////////////////////////////////////////////////////
+// compute PID for a beam
+//
+// Passed in:
+// ---------
+//   nGates: number of gates
+//   cflag: censoring flag, pid only computed where this is false
+//   dbz: reflectivity
+//   zdr: differential reflectivity
+//   kdp: phidp slope
+//   ldr: linear depolarization ratio
+//   rhohv: correlation coeff
+//   phidp: phase difference
+//   tempC: temperature at each gate, in deg C
+//
+// Input fields at a gate should be set to _missingDouble
+// if they are not valid for that gate.
+//
+// Results:
+// --------
+// Stored in local arrays on this class. Use get() methods to retieve them.
+
+void NcarParticleId::computePidBeam(int nGates,
+                                    const double *snr,
+                                    const double *dbz,
+                                    const double *zdr,
+                                    const double *kdp,
+                                    const double *ldr,
+                                    const double *rhohv,
+                                    const double *phidp,
+                                    const double *tempC)
+  
+{
+
+  // prepare
+  
+  prepareForPid(nGates,
+                snr, dbz, zdr, kdp,
+                ldr, rhohv, phidp);
+  
+  // copy temperature data, which is not handled by prepareForPid()
+
+  memcpy(_tempC, tempC, nGates * sizeof(double));
 
   // compute PID on all gates
 
@@ -638,6 +682,15 @@ void NcarParticleId::computePid(double snr,
 
 {
 
+  if (snr == _missingDouble || snr < _snrThreshold) {
+    pid = 0;
+    pid2 = 0;
+    interest = 0.0;
+    interest2 = 0.0;
+    confidence = 0.0;
+    return;
+  }
+    
   // compute interest for each particle type
   
   for (int ii = 0; ii < (int) _particleList.size(); ii++) {
@@ -882,17 +935,17 @@ int NcarParticleId::loadTempProfile(time_t dataTime)
       return 0;
     }
 
+    if (_debug) {
+      cerr << "WARNING - NcarParticleId::loadTempProfile" << endl;
+      cerr << "  Cannot retrieve sounding, url: "
+           << _params.PID_sounding_spdb_url << endl;
+      cerr << "                     dataTime: "
+           << DateTime::strm(dataTime) << endl;
+      cerr << "  Using thresholds file instead: "
+           << _params.PID_thresholds_file_path << endl;
+    }
+    
   } // if (_params.PID_use_soundings_from_spdb)
-  
-  if (_debug) {
-    cerr << "WARNING - NcarParticleId::loadTempProfile" << endl;
-    cerr << "  Cannot retrieve sounding, url: "
-         << _params.PID_sounding_spdb_url << endl;
-    cerr << "                     dataTime: "
-         << DateTime::strm(dataTime) << endl;
-    cerr << "  Using thresholds file instead: "
-         << _params.PID_thresholds_file_path << endl;
-  }
   
   // alternatively get profile from thresholds file
   

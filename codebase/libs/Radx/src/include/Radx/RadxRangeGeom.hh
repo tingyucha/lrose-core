@@ -70,6 +70,11 @@ public:
   RadxRangeGeom& operator=(const RadxRangeGeom &rhs);
   
   /////////////////////////////////////////////////////////////////
+  // Check for equality
+
+  bool operator==(const RadxRangeGeom &rhs);
+
+  /////////////////////////////////////////////////////////////////
   /// copy the geometry from another object
   
   void copyRangeGeom(const RadxRangeGeom &master);
@@ -112,7 +117,25 @@ public:
   /// get the gate index for the given range
 
   inline size_t getGateIndex(const double range_km) const
-    { return (size_t)(((range_km - _startRangeKm)/ _gateSpacingKm) + 0.5); }
+    {
+      int gateIndex = (int)(((range_km - _startRangeKm)/ _gateSpacingKm) + 0.5);
+      if (gateIndex < 0) {
+        gateIndex = 0;
+      }
+      return gateIndex;
+    }
+
+  inline size_t getGateIndex(const double range_km,
+                             size_t maxGates) const
+    {
+      int gateIndex = (int)(((range_km - _startRangeKm)/ _gateSpacingKm) + 0.5);
+      if (gateIndex < 0) {
+        gateIndex = 0;
+      } else if (gateIndex > (int) maxGates - 1) {
+        gateIndex = maxGates - 1;
+      }
+      return gateIndex;
+    }
 
   //@}
 

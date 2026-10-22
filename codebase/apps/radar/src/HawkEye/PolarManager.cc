@@ -47,7 +47,7 @@
 #include <string>
 #include <cmath>
 #include <iostream>
-#include <H5Cpp.h>
+#include <Ncxx/H5x.hh>
 #include <QActionGroup>
 #include <QApplication>
 #include <QButtonGroup>
@@ -99,7 +99,7 @@
 #include <Radx/RadxPath.hh>
 
 using namespace std;
-using namespace H5;
+using namespace H5x;
 
 PolarManager* PolarManager::m_pInstance = NULL;
 
@@ -133,7 +133,7 @@ PolarManager::PolarManager(const Params &params,
   _rhiMode = false;
 
   _nGates = 1000;
-  _maxRangeKm = _params.max_range_km;
+  _maxRangeKm = 1.0;
   
   _archiveMode = false;
   _archiveRetrievalPending = false;
@@ -158,9 +158,9 @@ PolarManager::PolarManager(const Params &params,
   _fwdPeriod = NULL;
 
   _timeControl = NULL;
-  _timeControlPlaced = false;
   _timeLayout = NULL;
   _timeSlider = NULL;
+  _timeControlPlaced = false;
 
   _setArchiveMode(_params.begin_in_archive_mode);
   _archiveStartTime.set(_params.archive_start_time);
@@ -245,7 +245,7 @@ void PolarManager::timerEvent(QTimerEvent *event)
   // the widget sizes are off until we get to this point.  There's probably
   // a better way to do this, but I couldn't figure anything out.
 
-  if (_firstTimerEvent) {
+  if (_timerEventCount == 0) {
 
     _ppi->resize(_ppiFrame->width(), _ppiFrame->height());
     
@@ -266,9 +266,25 @@ void PolarManager::timerEvent(QTimerEvent *event)
       _archiveRetrievalPending = true;
     }
 
-    _firstTimerEvent = false;
-
   } // if (_firstTimerEvent)
+
+  _timerEventCount++;
+
+  // read Sprite update of click point info from FMQ
+  
+  bool gotNew = false;
+  if (_readClickPointFmq(gotNew) == 0) {
+    if (gotNew) {
+      if (_params.debug) {
+        cerr << "====>> gotNewClickInfo" << endl;
+      }
+      if (_ppi) {
+        _ppi->setClickPoint(_clickPointFmq.getAzimuth(),
+                            _clickPointFmq.getElevation(),
+                            _clickPointFmq.getRangeKm());
+      }
+    }
+  }
 
   // handle event
   
@@ -276,13 +292,20 @@ void PolarManager::timerEvent(QTimerEvent *event)
     
     if (_archiveMode) {
       if (_archiveRetrievalPending) {
-        _handleArchiveData(event);
+        _handleArchiveData(/*event*/);
         _archiveRetrievalPending = false;
       }
     } else {
       _handleRealtimeData(event);
     }
 
+  }
+
+  // get the time control into the right place
+  // we need to let the windows fully draw
+
+  if (_timerEventCount > 10) {
+    _placeTimeControl();
   }
 
   // check for image creation
@@ -335,7 +358,7 @@ void PolarManager::keyPressEvent(QKeyEvent * e)
   char keychar = e->text().toLatin1().data()[0];
   int key = e->key();
 
-  if (_params.debug) {
+  if (_params.debug >= Params::DEBUG_VERBOSE) {
     cerr << "Clicked char: " << keychar << ":" << (int) keychar << endl;
     cerr << "         key: " << hex << key << dec << endl;
   }
@@ -557,7 +580,7 @@ void PolarManager::_setupWindows()
   if (_archiveMode) {
     _showTimeControl();
   }
-   _setSweepPanelVisibility();
+  _setSweepPanelVisibility();
 
 }
 
@@ -605,17 +628,19 @@ void PolarManager::_createActions()
   // show time control window
   _showTimeControlAct = new QAction(tr("Show time control window"), this);
   _showTimeControlAct->setStatusTip(tr("Show time control window"));
-  connect(_showTimeControlAct, SIGNAL(triggered()), _timeControl,
-          SLOT(show()));
-
+  connect(_showTimeControlAct, SIGNAL(triggered()),
+          this, SLOT(_showTimeControl()));
+  // connect(_showTimeControlAct, SIGNAL(triggered()), _timeControl,
+  //         SLOT(show()));
+  
   // realtime mode
   _realtimeAct = new QAction(tr("Set realtime mode"), this);
   _realtimeAct->setStatusTip(tr("Turn realtime mode on/off"));
   _realtimeAct->setCheckable(true);
   _realtimeAct->setChecked(!_params.begin_in_archive_mode);
   connect(_realtimeAct, SIGNAL(triggered(bool)),
-	  this, SLOT(_setRealtime(bool)));
-
+          this, SLOT(_setRealtime(bool)));
+  
   // unzoom display
   _unzoomAct = new QAction(tr("Unzoom"), this);
   _unzoomAct->setStatusTip(tr("Unzoom to original view"));
@@ -777,14 +802,14 @@ void PolarManager::_createSweepRadioButtons()
   int fsizem2 = _params.label_font_size - 2;
   font.setPixelSize(fsize);
   fontm2.setPixelSize(fsizem2);
-  
+
   // radar and site name
   
   char buf[256];
   _sweepRButtons = new vector<QRadioButton *>();
 
   for (int ielev = 0; ielev < (int) _sweepManager.getNSweeps(); ielev++) {
-    
+
     std::snprintf(buf, 256, "%.2f", _sweepManager.getFixedAngleDeg(ielev));
     QRadioButton *radio1 = new QRadioButton(buf); 
     radio1->setFont(fontm2);
@@ -911,10 +936,11 @@ void PolarManager::_handleRealtimeData(QTimerEvent * event)
       }
 
       if (_params.debug >= Params::DEBUG_EXTRA) {
-        cerr << "  Got a ray, time, el, az: "
+        cerr << "  Got a ray, time, el, az, nGates: "
              << DateTime::strm(ray->getTimeSecs()) << ", "
              << ray->getElevationDeg() << ", "
-             << ray->getAzimuthDeg() << endl;
+             << ray->getAzimuthDeg() << ", "
+             << ray->getNGates() << endl;
       }
 
       // update the status panel
@@ -1026,20 +1052,6 @@ int PolarManager::loadArchiveFileList()
     _urlOK = false;
     return -1;
 
-    /*
-    if (_archiveFileList.size() > 0) {
-      cerr << "Trying previously opened file ..." << endl;
-      // try to read from previous Open file chooser
-      try {
-        _getArchiveData();
-      } catch (FileIException ex) {
-        cerr << "   failed. " << endl;
-        return -1;
-      }
-    } else {
-      return -1;
-    }
-    */
   }
 
   setArchiveFileList(timeList.getPathList(), false);
@@ -1051,7 +1063,7 @@ int PolarManager::loadArchiveFileList()
 ///////////////////////////////////////
 // handle data in archive mode
 
-void PolarManager::_handleArchiveData(QTimerEvent * event)
+void PolarManager::_handleArchiveData(/*QTimerEvent * event*/)
 
 {
   
@@ -1073,7 +1085,7 @@ void PolarManager::_handleArchiveData(QTimerEvent * event)
   // get data
   try {
     _getArchiveData();
-  } catch (FileIException ex) {
+  } catch (FileIException &ex) {
     this->setCursor(Qt::ArrowCursor);
     _timeControl->setCursor(Qt::ArrowCursor);
     return;
@@ -1160,6 +1172,10 @@ int PolarManager::_getArchiveData()
 
   _selectedTimeLabel->setText(text);
 
+  // adjust angles for elevation surveillance if needed
+
+  _vol.setAnglesForElevSurveillance();
+
   // compute the fixed angles from the rays
   // so that we reflect reality
   
@@ -1203,11 +1219,6 @@ void PolarManager::_applyDataEdits()
   _plotArchiveData();
 }
 
-/*
-RadxVol PolarManager::getDataVolume() {
-  return _vol;
-}
-*/
 /////////////////////////////
 // plot data in archive mode
 
@@ -1232,7 +1243,7 @@ void PolarManager::_plotArchiveData()
     cerr << "  No rays found" << endl;
     return;
   }
-  
+
   const vector<RadxSweep *> &sweeps = _vol.getSweeps();
   if (sweeps.size() < 1) {
     cerr << "ERROR - _plotArchiveData" << endl;
@@ -1286,12 +1297,15 @@ void PolarManager::_handleRay(RadxPlatform &platform, RadxRay *ray)
   
 {
 
+  if (ray->getNGates() < 1) {
+    return;
+  }
+
   // do we need to reconfigure the PPI?
 
   _nGates = ray->getNGates();
   double maxRange = ray->getStartRangeKm() + _nGates * ray->getGateSpacingKm();
-  
-  if ((maxRange - _maxRangeKm) > 0.001) {
+  if (!_params.set_max_range && (maxRange > _maxRangeKm)) {
     _maxRangeKm = maxRange;
     _ppi->configureRange(_maxRangeKm);
     _rhi->configureRange(_maxRangeKm);
@@ -1330,11 +1344,7 @@ void PolarManager::_handleRay(RadxPlatform &platform, RadxRay *ray)
         if (fabs(val - missingVal) < 0.0001) {
           data[igate] = -9999.0;
         } else {
-	  //<<<<<<< HEAD
           data[igate] = val;
-        
-	  //=======
-	    //data.push_back(*fdata);  // ==> We know the data value here; determine min and max of values
           if (!haveColorMap) {
             // keep track of min and max data values
 	    // just display something.  The color scale can be edited as needed, later.
@@ -1356,12 +1366,7 @@ void PolarManager::_handleRay(RadxPlatform &platform, RadxRay *ray)
           }
         } // end else not missing value
       } // end for each gate
-      // fill the remainder with missing 
-      //for (int igate = nGates; igate < _nGates; igate++) {
-      //  data.push_back(-9999);
-	//>>>>>>> forVivek
-      //}
-
+      
       if (!haveColorMap) {                              
         _fields[ifield]->setColorMapRange(min, max);
         _fields[ifield]->changeColorMap(); // just change bounds on existing map
@@ -1374,8 +1379,7 @@ void PolarManager::_handleRay(RadxPlatform &platform, RadxRay *ray)
   // draw beam on the PPI or RHI, as appropriate
 
   if (ray->getSweepMode() == Radx::SWEEP_MODE_RHI ||
-      ray->getSweepMode() == Radx::SWEEP_MODE_SUNSCAN_RHI ||
-      ray->getSweepMode() == Radx::SWEEP_MODE_ELEVATION_SURVEILLANCE) {
+      ray->getSweepMode() == Radx::SWEEP_MODE_SUNSCAN_RHI) {
 
     _rhiMode = true;
 
@@ -1399,6 +1403,13 @@ void PolarManager::_handleRay(RadxPlatform &platform, RadxRay *ray)
 
     _rhiMode = false;
 
+    // check for elevation surveillance sweep mode
+    // in this case, set azimuth to rotation if georef is available
+
+    if (ray->getSweepMode() == Radx::SWEEP_MODE_ELEVATION_SURVEILLANCE) {
+      ray->setAnglesForElevSurveillance();
+    }
+
     // Store the ray location using the azimuth angle and the PPI location
     // table
 
@@ -1411,7 +1422,7 @@ void PolarManager::_handleRay(RadxPlatform &platform, RadxRay *ray)
     _prevEl = -9999.0;
 
     // Add the beam to the display
-    
+
     _ppi->addBeam(ray, _startAz, _endAz, fieldData, _fields);
 
   }
@@ -1425,7 +1436,7 @@ void PolarManager::_storeRayLoc(const RadxRay *ray,
                                 const double az,
                                 const double beam_width)
 {
-  LOG(DEBUG) << "az = " << az << " beam_width = " << beam_width;
+  LOG(DEBUG_VERBOSE) << "az = " << az << " beam_width = " << beam_width;
 
   // Determine the extent of this ray
 
@@ -1464,7 +1475,7 @@ void PolarManager::_storeRayLoc(const RadxRay *ray,
   if (_startAz >= 360) _startAz -= 360.0;
   if (_endAz >= 360) _endAz -= 360.0;
     
-  LOG(DEBUG) << " startAz = " << _startAz << " endAz = " << _endAz;
+  LOG(DEBUG_VERBOSE) << " startAz = " << _startAz << " endAz = " << _endAz;
 
   // compute start and end indices, using modulus to keep with array bounds
 
@@ -1526,7 +1537,7 @@ void PolarManager::_storeRayLoc(const RadxRay *ray,
 void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
 {
 
-  LOG(DEBUG) << "enter" << " start_index=" << start_index <<
+  LOG(DEBUG_VERBOSE) << "enter" << " start_index=" << start_index <<
     " end_index = " << end_index;
 
   if ((start_index < 0) || (start_index > RayLoc::RAY_LOC_N)) {
@@ -1549,7 +1560,7 @@ void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
     // If this location isn't active, we can skip it
 
     if (!loc.active) {
-      // LOG(DEBUG) << "loc NOT active";
+      // LOG(DEBUG_VERBOSE) << "loc NOT active";
       ++i;
       continue;
     }
@@ -1580,9 +1591,9 @@ void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
 
       // The overlap area covers the end of the current beam.  Reduce the
       // current beam down to just cover the area before the overlap area.
-      LOG(DEBUG) << "Case 1a:";
-      LOG(DEBUG) << " i = " << i;
-      LOG(DEBUG) << "clearing from start_index=" << start_index <<
+      LOG(DEBUG_VERBOSE) << "Case 1a:";
+      LOG(DEBUG_VERBOSE) << " i = " << i;
+      LOG(DEBUG_VERBOSE) << "clearing from start_index=" << start_index <<
 	  " to loc_end_index=" << loc_end_index;
       
       for (int j = start_index; j <= loc_end_index; ++j) {
@@ -1594,8 +1605,8 @@ void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
 
       // Update the end indices for the remaining locations in the current
       // beam
-      LOG(DEBUG) << "Case 1b:";
-      LOG(DEBUG) << "setting endIndex to " << start_index - 1 << " from loc_start_index=" << loc_start_index <<
+      LOG(DEBUG_VERBOSE) << "Case 1b:";
+      LOG(DEBUG_VERBOSE) << "setting endIndex to " << start_index - 1 << " from loc_start_index=" << loc_start_index <<
 	  " to start_index=" << start_index;
       
       for (int j = loc_start_index; j < start_index; ++j)
@@ -1606,9 +1617,9 @@ void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
       // The current beam is bigger than the overlap area.  This should never
       // happen, so go ahead and just clear out the locations for the current
       // beam.
-      LOG(DEBUG) << "Case 2:";
-      LOG(DEBUG) << " i = " << i;
-      LOG(DEBUG) << "clearing from loc_start_index=" << loc_start_index <<
+      LOG(DEBUG_VERBOSE) << "Case 2:";
+      LOG(DEBUG_VERBOSE) << " i = " << i;
+      LOG(DEBUG_VERBOSE) << "clearing from loc_start_index=" << loc_start_index <<
 	  " to loc_end_index=" << loc_end_index;
       
       for (int j = loc_start_index; j <= loc_end_index; ++j) {
@@ -1620,9 +1631,9 @@ void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
       // The overlap area covers the beginning of the current beam.  Reduce the
       // current beam down to just cover the area after the overlap area.
 
-	LOG(DEBUG) << "Case 3a:";
-	LOG(DEBUG) << " i = " << i;
-	LOG(DEBUG) << "clearing from loc_start_index=" << loc_start_index <<
+	LOG(DEBUG_VERBOSE) << "Case 3a:";
+	LOG(DEBUG_VERBOSE) << " i = " << i;
+	LOG(DEBUG_VERBOSE) << "clearing from loc_start_index=" << loc_start_index <<
 	  " to end_index=" << end_index;
 
       for (int j = loc_start_index; j <= end_index; ++j) {
@@ -1633,8 +1644,8 @@ void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
       // Update the start indices for the remaining locations in the current
       // beam
 
-      LOG(DEBUG) << "Case 3b:";
-      LOG(DEBUG) << "setting startIndex to " << end_index + 1 << " from end_index=" << end_index <<
+      LOG(DEBUG_VERBOSE) << "Case 3b:";
+      LOG(DEBUG_VERBOSE) << "setting startIndex to " << end_index + 1 << " from end_index=" << end_index <<
 	  " to loc_end_index=" << loc_end_index;
       
       for (int j = end_index + 1; j <= loc_end_index; ++j) {
@@ -1645,9 +1656,9 @@ void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
       
       // The current beam is completely covered by the overlap area.  Clear
       // out all of the locations for the current beam.
-      LOG(DEBUG) << "Case 4:";
-      LOG(DEBUG) << " i = " << i;
-      LOG(DEBUG) << "clearing from loc_start_index=" << loc_start_index <<
+      LOG(DEBUG_VERBOSE) << "Case 4:";
+      LOG(DEBUG_VERBOSE) << " i = " << i;
+      LOG(DEBUG_VERBOSE) << "clearing from loc_start_index=" << loc_start_index <<
 	  " to loc_end_index=" << loc_end_index;
       
       for (int j = loc_start_index; j <= loc_end_index; ++j) {
@@ -1660,7 +1671,7 @@ void PolarManager::_clearRayOverlap(const int start_index, const int end_index)
 
   } /* endwhile - i */
   
-  LOG(DEBUG) << "exit ";
+  LOG(DEBUG_VERBOSE) << "exit ";
   
 }
 
@@ -1747,7 +1758,6 @@ void PolarManager::_changeField(int fieldId, bool guiMode)
   refreshBoundaries();
 }
 
-// PolarManager::colorMapRedefineReceived(string, ColorMap)
 // TODO: need to add the background changed, etc. 
 void PolarManager::colorMapRedefineReceived(string fieldName, ColorMap newColorMap,
 					    QColor gridColor,
@@ -1755,7 +1765,8 @@ void PolarManager::colorMapRedefineReceived(string fieldName, ColorMap newColorM
 					    QColor annotationColor,
 					    QColor backgroundColor) {
 
-  LOG(DEBUG) << "enter";
+  LOG(DEBUG_VERBOSE) << "enter";
+
   // connect the new color map with the field                                                       
   // find the fieldName in the list of FieldDisplays                                                
   bool found = false;
@@ -1785,16 +1796,16 @@ void PolarManager::colorMapRedefineReceived(string fieldName, ColorMap newColorM
     _ppi->gridRingsColor(gridColor);
     _changeField(fieldId, false);
   }
-  LOG(DEBUG) << "exit";
+  LOG(DEBUG_VERBOSE) << "exit";
 }
 
 void PolarManager::setVolume() { // const RadxVol &radarDataVolume) {
 
-  LOG(DEBUG) << "enter";
+  LOG(DEBUG_VERBOSE) << "enter";
 
   _applyDataEdits(); // radarDataVolume);
 
-  LOG(DEBUG) << "exit";
+  LOG(DEBUG_VERBOSE) << "exit";
 
 
 
@@ -1867,19 +1878,18 @@ void PolarManager::_locationClicked(double xkm, double ykm,
     cerr << "*** Entering PolarManager::_locationClicked()" << endl;
   }
   
-  double range = sqrt(xkm * xkm + ykm * ykm);
-  int gate = (int) 
-    ((range - ray->getStartRangeKm()) / ray->getGateSpacingKm() + 0.5);
+  double rangeKm = sqrt(xkm * xkm + ykm * ykm);
+  int gateNum = (int) 
+    ((rangeKm - ray->getStartRangeKm()) / ray->getGateSpacingKm() + 0.5);
 
-  if (gate < 0 || gate >= (int) ray->getNGates())
-  {
+  if (gateNum < 0 || gateNum >= (int) ray->getNGates()) {
     //user clicked outside of ray
     return;
   }
 
   if (_params.debug) {
     cerr << "Clicked on location: xkm, ykm: " << xkm << ", " << ykm << endl;
-    cerr << "  range, gate: " << range << ", " << gate << endl;
+    cerr << "  rangeKm, gateNum: " << rangeKm << ", " << gateNum << endl;
     cerr << "  az, el from ray: "
          << ray->getAzimuthDeg() << ", "
          << ray->getElevationDeg() << endl;
@@ -1887,20 +1897,6 @@ void PolarManager::_locationClicked(double xkm, double ykm,
       ray->print(cerr);
     }
   }
-
-  //**** testing ****
-  //  QToolTip::showText(this->mapToGlobal(QPoint(xkm, ykm)), "cindy");
-  //QToolTip::showText(mapToGlobal(QPoint(xkm, ykm)), "cindy");
-  //QToolTip::showText(mapToGlobal(QPoint(xkm, ykm)), "louise");
-  //QToolTip::showText(QPoint(xkm, ykm), "jay");
-  //int xp = _ppi->_zoomWorld.getIxPixel(xkm);
-  //int yp = _ppi->_zoomWorld.getIyPixel(ykm);
-  //QToolTip::showText(_ppi->mapToGlobal(QPoint(xp, yp)), "louigi");
-
-  //_ppi->smartBrush(xkm, ykm);
-  //qImage->convertToFormat(QImage::Format_RGB32);
-  //qImage->invertPixels()
-  // ****** end testing *****
 
   DateTime rayTime(ray->getTimeSecs());
   char text[256];
@@ -1919,11 +1915,17 @@ void PolarManager::_locationClicked(double xkm, double ykm,
   _setText(text, "%6.2f", ray->getAzimuthDeg());
   _azClicked->setText(text);
   
-  _setText(text, "%d", gate);
+  _setText(text, "%d", gateNum);
   _gateNumClicked->setText(text);
   
-  _setText(text, "%6.2f", range);
+  _setText(text, "%6.2f", rangeKm);
   _rangeClicked->setText(text);
+
+  if (_radarAltKm > -9990) {
+    double gateHtKm = _beamHt.computeHtKm(ray->getElevationDeg(), rangeKm);
+    _setText(text, "%6.2f (km)", gateHtKm);
+    _altitudeClicked->setText(text);
+  }
   
   for (size_t ii = 0; ii < _fields.size(); ii++) {
     _fields[ii]->setSelectValue(-9999.0);
@@ -1934,14 +1936,12 @@ void PolarManager::_locationClicked(double xkm, double ykm,
   for (size_t ifield = 0; ifield < rflds.size(); ifield++) {
     const RadxField *field = rflds[ifield];
   
-    //for (size_t ifield = 0; ifield < ray->getNFields(); ifield++) {
-    //const RadxField *field = ray->getField(ifield);
     const string fieldName = field->getName();
     if (fieldName.size() == 0) {
       continue;
     }
     Radx::fl32 *data = (Radx::fl32 *) field->getData();
-    double val = data[gate];
+    double val = data[gateNum];
     const string fieldUnits = field->getUnits();
     if (_params.debug >= Params::DEBUG_VERBOSE) {
       cerr << "Field name, selected name: "
@@ -1983,7 +1983,11 @@ void PolarManager::_locationClicked(double xkm, double ykm,
   // update the status panel
   
   _updateStatusPanel(ray);
-    
+
+  // write the click location to FMQ
+
+  _writeClickPointXml2Fmq(ray, rangeKm, gateNum);
+  
 }
 
 //////////////////////////////////////////////
@@ -2034,7 +2038,7 @@ void PolarManager::_createTimeControl()
   _timeSlider->setToolTip("Drag to change time selection");
   
   // active time
-
+  
   // _selectedTimeLabel = new QLabel("yyyy/MM/dd hh:mm:ss", _timePanel);
   _selectedTimeLabel = new QPushButton(_timePanel);
   _selectedTimeLabel->setText("yyyy/MM/dd hh:mm:ss");
@@ -2154,19 +2158,12 @@ void PolarManager::_showTimeControl()
     if (_timeControl->isVisible()) {
       _timeControl->setVisible(false);
     } else {
-      if (!_timeControlPlaced) {
-        _timeControl->setVisible(true);
-        QPoint pos;
-        pos.setX(x() + 
-                 (frameGeometry().width() / 2) -
-                 (_timeControl->width() / 2));
-        pos.setY(y() + frameGeometry().height());
-        _timeControl->move(pos);
-      }
       _timeControl->setVisible(true);
       _timeControl->raise();
+      _placeTimeControl();
     }
   }
+
 }
 
 /////////////////////////////////////
@@ -2174,17 +2171,19 @@ void PolarManager::_showTimeControl()
 
 void PolarManager::_placeTimeControl()
 {
-
   if (_timeControl) {
     if (!_timeControlPlaced) {
       int topFrameWidth = _timeControl->geometry().y() - _timeControl->y();
+      int topFrameHeight =
+        _timeControl->frameGeometry().height() - _timeControl->height();
       QPoint pos;
-      pos.setX(x() + 
-               (frameGeometry().width() / 2) -
-               (_timeControl->width() / 2));
-      pos.setY(y() + frameGeometry().height() + topFrameWidth);
+      pos.setX(x() + (frameGeometry().width() / 2) -
+               (_timeControl->frameGeometry().width()/2));
+      pos.setY(y() + frameGeometry().height());
       _timeControl->move(pos);
-      _timeControlPlaced = true;
+      if (topFrameWidth != 0 || topFrameHeight != 0) {
+        _timeControlPlaced = true;
+      }
     }
   }
 }
@@ -2192,14 +2191,16 @@ void PolarManager::_placeTimeControl()
 // BoundaryEditor circle (radius) slider has changed value
 void PolarManager::_circleRadiusSliderValueChanged(int value)
 {
-	if (BoundaryPointEditor::Instance()->setCircleRadius(value))  //returns true if existing circle was resized with this new radius
-		_ppi->update();
+  //returns true if existing circle was resized with this new radius
+  if (BoundaryPointEditor::Instance()->setCircleRadius(value)){
+    _ppi->update();
+  }
 }
 
 // BoundaryEditor brush (size) slider has changed value
 void PolarManager::_brushRadiusSliderValueChanged(int value)
 {
-	BoundaryPointEditor::Instance()->setBrushRadius(value);
+  BoundaryPointEditor::Instance()->setBrushRadius(value);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2292,10 +2293,13 @@ void PolarManager::_timeSliderPressed()
 // sets the directory (_boundaryDir) into which boundary files will be read/written for current radar file (_openFilePath)
 void PolarManager::setBoundaryDir()
 {
-	if (!_openFilePath.empty())
-		_boundaryDir = BoundaryPointEditor::Instance()->getBoundaryDirFromRadarFilePath(BoundaryPointEditor::Instance()->getRootBoundaryDir(), _openFilePath);
-	else
-		_boundaryDir = BoundaryPointEditor::Instance()->getRootBoundaryDir();
+  if (!_openFilePath.empty()) {
+    _boundaryDir =
+      BoundaryPointEditor::Instance()->getBoundaryDirFromRadarFilePath
+      (BoundaryPointEditor::Instance()->getRootBoundaryDir(), _openFilePath);
+  } else {
+    _boundaryDir = BoundaryPointEditor::Instance()->getRootBoundaryDir();
+  }
 }
 
 ////////////////////////////////////////////////////
@@ -2310,32 +2314,34 @@ void PolarManager::_openFile()
   QString finalPattern = "Cfradial (*.nc);; All Files (*.*);; All files (*";
   finalPattern.append(pattern.c_str());
   finalPattern.append("*)");
-
+  
   QString inputPath = QDir::currentPath();
   // get the path of the current file, if available
   if (_archiveFileList.size() > 0) {
     QDir temp(_archiveFileList[0].c_str());
     inputPath = temp.absolutePath();
   }
-
+  
   //since we are opening a new radar file, close any boundaries currently being displayed
-	BoundaryPointEditor::Instance()->clear();
-	if (_boundaryEditorDialog)
-	{
-		clearBoundaryEditorClick();
-		_boundaryEditorDialog->setVisible(false);
-	}
+  BoundaryPointEditor::Instance()->clear();
+  if (_boundaryEditorDialog) {
+    clearBoundaryEditorClick();
+    _boundaryEditorDialog->setVisible(false);
+  }
 
-	if (_ppi)
-  	_ppi->showOpeningFileMsg(true);
-
-  QString filePath =  QFileDialog::getOpenFileName(
-          this,
-          "Open Document",
-          inputPath, finalPattern);  //QDir::currentPath(),
+  if (_ppi){
+    _ppi->showOpeningFileMsg(true);
+  }
+  
+  QString filePath =
+    QFileDialog::getOpenFileName(this,
+                                 "Open Document",
+                                 inputPath, finalPattern);
+  //QDir::currentPath(),
   //"All files (*.*)");
 
-  QTimer::singleShot(10, [=]()   //wait 10ms so the QFileDialog has time to close before proceeding...
+   //wait 10ms so the QFileDialog has time to close before proceeding...
+  QTimer::singleShot(10, [=]()
   {
     if( !filePath.isNull() )
     {
@@ -2345,7 +2351,8 @@ void PolarManager::_openFile()
 
       cout << "_openFilePath=" << _openFilePath << endl;
 
-      //use _openFilePath to determine the new directory into which boundaries will be read/written
+      //use _openFilePath to determine the new directory
+      // into which boundaries will be read/written
       setBoundaryDir();
 
       // trying this ... to get the data from the file selected
@@ -2357,7 +2364,7 @@ void PolarManager::_openFile()
 
       try {
         _getArchiveData();
-      } catch (FileIException ex) {
+      } catch (FileIException &ex) {
         _ppi->showOpeningFileMsg(false);
         this->setCursor(Qt::ArrowCursor);
         // _timeControl->setCursor(Qt::ArrowCursor);
@@ -2378,8 +2385,8 @@ void PolarManager::_openFile()
     if (_params.debug >= Params::DEBUG_VERBOSE) {
       cerr << "changing to path " << absolutePath << endl;
     }
-  //  loadArchiveFileList(dir.absolutePath());
-
+    //  loadArchiveFileList(dir.absolutePath());
+    
     RadxTimeList timeList;
     timeList.setDir(absolutePath);
     timeList.setModeInterval(_archiveStartTime, _archiveEndTime);
@@ -2455,7 +2462,7 @@ void PolarManager::_saveFile()
     QByteArray qb = filename.toUtf8();
     const char *name = qb.constData();
     if (_params.debug >= Params::DEBUG_VERBOSE) {
-      LOG(DEBUG) << "selected file path : " << name;
+      LOG(DEBUG_VERBOSE) << "selected file path : " << name;
     }
 
     // TODO: hold it! the save message should
@@ -2464,9 +2471,9 @@ void PolarManager::_saveFile()
     // 
     RadxFile outFile;
     try {
-      LOG(DEBUG) << "writing to file " << name;
+      LOG(DEBUG_VERBOSE) << "writing to file " << name;
       outFile.writeToPath(_vol, name);
-    } catch (FileIException ex) {
+    } catch (FileIException &ex) {
       this->setCursor(Qt::ArrowCursor);
       return;
     }
@@ -2795,14 +2802,14 @@ void PolarManager::_createRealtimeImageFiles()
 
 void PolarManager::_createArchiveImageFiles()
 {
-  
+
   if (_params.images_creation_mode ==
       Params::CREATE_IMAGES_THEN_EXIT) {
     
     if (_archiveFileList.size() > 0) {
-      
+
       // using input file list to drive image generation
-      
+
       while (_archiveFileList.size() > 0) {
         _createImageFilesAllSweeps();
         _archiveFileList.erase(_archiveFileList.begin(), 
@@ -2881,7 +2888,7 @@ void PolarManager::_createImageFiles()
 
   _ppi->setStartOfSweep(true);
   _rhi->setStartOfSweep(true);
-  _plotArchiveData();
+  _handleArchiveData();
 
   // set times from plots
 
@@ -3007,6 +3014,25 @@ string PolarManager::_getOutputPath(bool interactive, string &outputDir, string 
 	    fileName += _params.images_file_name_delimiter;
 	    fileName += getSelectedFieldLabel();
 	  }
+    
+    // scan Id
+
+    if (_params.images_include_scan_id_in_file_name) {
+      fileName += _params.images_file_name_delimiter;
+      fileName += std::to_string(_vol.getScanId());
+    }
+
+    // scan type
+
+    if (_params.images_include_scan_type_in_file_name) {
+      fileName += _params.images_file_name_delimiter;
+      string scanType = "SUR";
+      if (_vol.getSweeps().size() > 0) {
+        Radx::SweepMode_t predomSweepMode = _vol.getPredomSweepMode();
+        scanType = Radx::sweepModeToShortStr(predomSweepMode);
+      }
+      fileName += scanType;
+    }
 
 	  // extension
 

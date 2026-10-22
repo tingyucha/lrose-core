@@ -36,9 +36,9 @@
 #ifndef TitanStormFile_HH
 #define TitanStormFile_HH
 
-
 #include <titan/storm.h>
 #include <string>
+#include <vector>
 using namespace std;
 
 class TitanStormFile
@@ -59,6 +59,7 @@ public:
   const storm_file_header_t &header() const { return _header; }
   const storm_file_params_t &params() const { return _header.params; }
   const storm_file_scan_header_t &scan() const { return _scan; }
+  const storm_file_scan_header_t *scans() const { return _scans; }
   const storm_file_global_props_t *gprops() const { return _gprops; }
   const storm_file_layer_props_t *lprops() const { return _lprops; }
   const storm_file_dbz_hist_t *hist() const { return _hist; }
@@ -67,15 +68,15 @@ public:
   const int *scan_offsets() const { return _scan_offsets; }
   int storm_num() const { return _storm_num; }
   
-  const string &header_file_path() { return _header_file_path; }
-  const string &header_file_label() { return _header_file_label; }
-  const string &data_file_path() { return _data_file_path; }
-  const string &data_file_label() { return _data_file_label; }
+  const string &header_file_path() const { return _header_file_path; }
+  const string &header_file_label() const { return _header_file_label; }
+  const string &data_file_path() const { return _data_file_path; }
+  const string &data_file_label() const { return _data_file_label; }
 
   ///////////////////////////////////////////////////////////////////
   // error string
   
-  const string &getErrStr() { return (_errStr); }
+  const string &getErrStr() const { return (_errStr); }
 
   // public functions
 
@@ -96,8 +97,8 @@ public:
   void AllocGprops(int nstorms);
   void FreeGprops();
 
-  void AllocScanOffsets(int n_scans_needed);
-  void FreeScanOffsets();
+  void AllocScanArrays(int n_scans_needed);
+  void FreeScanArrays();
 
   void FreeAll();
     
@@ -130,11 +131,10 @@ public:
 
   int ReadHeader(bool clear_error_str = true);
      
-  // read in the storm projected area runs
-  // Space for the array is allocated.
+  // Read in all the scan headers for the file.
   // returns 0 on success, -1 on failure
 
-  int ReadProjRuns(int storm_num);
+  int ReadScanHeaders();
      
   // Read in the scan info and global props for a particular scan
   // in a storm properties file.
@@ -150,6 +150,12 @@ public:
 
   int ReadProps(int storm_num);
      
+  // read in the storm projected area runs
+  // Space for the array is allocated.
+  // returns 0 on success, -1 on failure
+
+  int ReadProjRuns(int storm_num);
+     
   // seek to the end of the storm data in data file
   // returns 0 on success, -1 on failure
 
@@ -164,20 +170,33 @@ public:
   // returns 0 on success, -1 on failure
   
   int WriteHeader();
+  int WriteHeader(const storm_file_header_t &storm_file_header);
      
-  // write the storm layer property and histogram data for a storm,
-  // at the end of the file.
-  // returns 0 on success, -1 on failure
-
-  int WriteProps(int storm_num);
-
   // write scan header and global properties for a particular scan
   // in a storm properties file.
   // Performs the writes from the end of the file.
   // returns 0 on success, -1 on failure
 
+  int WriteScan(const storm_file_scan_header_t &scanHeader,
+                const storm_file_global_props_t *gprops);
+
   int WriteScan(int scan_num);
      
+  // write the storm layer property and histogram data for a storm,
+  // at the end of the file.
+  // returns 0 on success, -1 on failure
+  // side-effect: updates write offsets for later use
+  
+  int WriteProps(int storm_num,
+                 int n_storms,
+                 const storm_file_global_props_t *gprops,
+                 const storm_file_layer_props_t *lprops,
+                 const storm_file_dbz_hist_t *hist,
+                 const storm_file_run_t *runs,
+                 const storm_file_run_t *proj_runs);
+
+  int WriteProps(int storm_num);
+
   // Convert the ellipse data (orientation, major_radius and minor_radius)
   // for a a gprops struct to local (km) values.
   // This applies to structs which were derived from lat-lon grids, for
@@ -199,6 +218,12 @@ public:
   void GpropsXY2LatLon(const storm_file_scan_header_t &scan,
 		       storm_file_global_props_t &gprops);
   
+  // Truncate storm data when rerunning.
+  // Keep this scan, set subsequent scans to missing.
+  // Returns 0 on success, -1 on failure
+
+  int TruncateData(int current_scan_num);
+     
   // Truncate header file
   // Returns 0 on success, -1 on failure.
 
@@ -225,6 +250,7 @@ protected:
 
   storm_file_header_t _header;
   storm_file_scan_header_t _scan;
+  storm_file_scan_header_t *_scans;
   storm_file_global_props_t *_gprops;
   storm_file_layer_props_t *_lprops;
   storm_file_dbz_hist_t *_hist;
@@ -233,6 +259,13 @@ protected:
   si32 *_scan_offsets;
   int _storm_num;
 
+  // offsets for auxiliary storm properties
+
+  vector<int64_t> _layerOffsets;
+  vector<int64_t> _histOffsets;
+  vector<int64_t> _runsOffsets;
+  vector<int64_t> _projRunsOffsets;
+  
   // memory allocation
 
   int _max_scans;

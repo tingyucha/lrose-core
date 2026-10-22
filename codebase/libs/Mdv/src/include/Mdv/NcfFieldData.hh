@@ -95,6 +95,19 @@ public:
 
   int writeToFile(Nc3File *ncFile, string &errStr);
 
+  /// get methods
+
+  const string &getName() const { return _name; }
+  const string &getNameLong() const { return _nameLong; }
+  const string &getUnits() const { return _units; }
+
+  // get compression parameters
+
+  int getCompressionParameters(Nc3File *ncFile,
+                               bool& shuffleFilterEnabled,
+                               bool& deflateFilterEnabled,
+                               int& deflateLevel) const;
+
 protected:
     
 private:

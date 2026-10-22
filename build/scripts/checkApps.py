@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===========================================================================
 #
 # Check that all apps are installed
-# Checks against a list of expected apps
+# Checks against a list of expected apps.
 #
 #===========================================================================
 
@@ -41,13 +41,13 @@ def main():
     parser.add_option('--package',
                       dest='package', default='lrose-core',
                       help='Package name. Options are: ' + \
-                      'lrose-core (default), lrose-blaze, lrose-cyclone, lrose-cidd, samurai')
+                      'lrose-core (default), lrose-blaze, lrose-cyclone, lrose-radx, lrose-cidd, samurai')
     parser.add_option('--prefix',
                       dest='prefix', default=prefixDirDefault,
                       help='Install directory, default is ~/lrose')
     parser.add_option('--maxAge',
-                      dest='maxAge', default=86400,
-                      help='Max file age in secs')
+                      dest='maxAge', default=-1,
+                      help='Max file age in secs. Check not done if negative (default).')
 
     (options, args) = parser.parse_args()
     
@@ -148,6 +148,7 @@ def checkForApps():
     oldApps = []
     
     installBinDir = os.path.join(options.prefix, "bin")
+    maxAge = float(options.maxAge)
 
     for name in requiredApps:
 
@@ -164,10 +165,11 @@ def checkForApps():
             if (options.debug == True):
                 print("   .... found", file=sys.stderr)
             age = getFileAge(path)
-            if (age > float(options.maxAge)):
+            if ((maxAge > 0) and (age > maxAge)):
                 oldApps.append(path)
                 if (options.debug == True):
                     print("   file is old, age: ", age, file=sys.stderr)
+                    print("   maxAge: ", maxAge, file=sys.stderr)
 
 
 ########################################################################
@@ -176,7 +178,7 @@ def checkForApps():
 def getFileAge(path):
 
     stats = os.stat(path)
-    age = (time.time() - stats.st_mtime)
+    age = float(time.time() - stats.st_mtime)
     return age
 
 ########################################################################

@@ -41,6 +41,8 @@
 #include <cstring>
 using namespace std;
 
+pthread_mutex_t RadarFft::_initMutex = PTHREAD_MUTEX_INITIALIZER;
+
 // Constructors
 
 RadarFft::RadarFft()
@@ -70,6 +72,9 @@ void RadarFft::init(int n)
   _sqrtN = sqrt((double) n);
   
   // set up Fft plans
+  // protect with mutext because fftw initialization is not thread-safe
+  
+  pthread_mutex_lock(&_initMutex);
 
   if (_n > 0) {
     if (_in) fftw_free(_in);
@@ -85,6 +90,8 @@ void RadarFft::init(int n)
 
   _n = n;
 
+  pthread_mutex_unlock(&_initMutex);
+
 }
 
 RadarFft::RadarFft(int n) :
@@ -97,6 +104,9 @@ RadarFft::RadarFft(int n) :
   _sqrtN = sqrt((double) _n);
   
   // set up Fft plans
+  // protect with mutext because fftw initialization is not thread-safe
+
+  pthread_mutex_lock(&_initMutex);
 
   _in = (fftw_complex *) fftw_malloc(sizeof(fftw_complex) * _n);
   _out = (fftw_complex *) fftw_malloc(sizeof(fftw_complex) * _n);
@@ -104,6 +114,8 @@ RadarFft::RadarFft(int n) :
 
   _fftFwd = fftw_plan_dft_1d(_n, _in, _out, FFTW_FORWARD, FFTW_MEASURE);
   _fftBck = fftw_plan_dft_1d(_n, _in, _out, FFTW_BACKWARD, FFTW_MEASURE);
+
+  pthread_mutex_unlock(&_initMutex);
 
 }
 
@@ -128,6 +140,10 @@ void RadarFft::_free()
     return;
   }
 
+  // protect with mutext because fftw free is not thread-safe
+
+  pthread_mutex_lock(&_initMutex);
+
   fftw_destroy_plan(_fftFwd);
   fftw_destroy_plan(_fftBck);
   
@@ -145,6 +161,10 @@ void RadarFft::_free()
     fftw_free(_tmp);
     _tmp = NULL;
   }
+
+  _n = 0;
+
+  pthread_mutex_unlock(&_initMutex);
 
 }
 
@@ -213,10 +233,14 @@ void RadarFft::shift(RadarComplex_t *spectrum) const
 
   int nRight = _n / 2;
   int nLeft = _n - nRight;
+
+  RadarFft::copy(_tmp, spectrum, nLeft);
+  RadarFft::copy(spectrum, spectrum + nLeft, nRight);
+  RadarFft::copy(spectrum + nRight, _tmp, nLeft);
   
-  memcpy(_tmp, spectrum, nLeft * sizeof(RadarComplex_t));
-  memcpy(spectrum, spectrum + nLeft, nRight * sizeof(RadarComplex_t));
-  memcpy(spectrum + nRight, _tmp, nLeft * sizeof(RadarComplex_t));
+  // memcpy(_tmp, spectrum, nLeft * sizeof(RadarComplex_t));
+  // memcpy(spectrum, spectrum + nLeft, nRight * sizeof(RadarComplex_t));
+  // memcpy(spectrum + nRight, _tmp, nLeft * sizeof(RadarComplex_t));
 
 }
 
@@ -234,9 +258,13 @@ void RadarFft::unshift(RadarComplex_t *spectrum) const
   int nRight = _n / 2;
   int nLeft = _n - nRight;
   
-  memcpy(_tmp, spectrum, nRight * sizeof(RadarComplex_t));
-  memcpy(spectrum, spectrum + nRight, nLeft * sizeof(RadarComplex_t));
-  memcpy(spectrum + nLeft, _tmp, nRight * sizeof(RadarComplex_t));
+  RadarFft::copy(_tmp, spectrum, nRight);
+  RadarFft::copy(spectrum, spectrum + nRight, nLeft);
+  RadarFft::copy(spectrum + nLeft, _tmp, nRight);
+  
+  // memcpy(_tmp, spectrum, nRight * sizeof(RadarComplex_t));
+  // memcpy(spectrum, spectrum + nRight, nLeft * sizeof(RadarComplex_t));
+  // memcpy(spectrum + nLeft, _tmp, nRight * sizeof(RadarComplex_t));
 
 }
 
@@ -294,3 +322,95 @@ const vector<vector<double> > &RadarFft::getSinArray() const
 
 }
 
+/////////////////////////////////////////////
+// copy between RadarComplex_t and fftw_complex
+
+void RadarFft::copy(fftw_complex *dest,
+                    const RadarComplex_t *src,
+                    size_t nn)
+  
+{
+  for (size_t ii = 0; ii < nn; ii++) {
+    dest[ii][0] = src[ii].re;
+    dest[ii][1] = src[ii].im;
+  }
+}
+
+void RadarFft::copy(RadarComplex_t *dest,
+                    const fftw_complex *src,
+                    size_t nn)
+  
+{
+  for (size_t ii = 0; ii < nn; ii++) {
+    dest[ii].re = src[ii][0];
+    dest[ii].im = src[ii][1];
+  }
+}
+
+void RadarFft::copy(RadarComplex_t *dest,
+                    const RadarComplex_t *src,
+                    size_t nn)
+  
+{
+  for (size_t ii = 0; ii < nn; ii++) {
+    dest[ii] = src[ii];
+  }
+}
+
+void RadarFft::copy(fftw_complex *dest,
+                    const fftw_complex *src,
+                    size_t nn)
+  
+{
+  for (size_t ii = 0; ii < nn; ii++) {
+    dest[ii][0] = src[ii][0];
+    dest[ii][1] = src[ii][1];
+  }
+}
+
+//////////////////////////////////////////////////////
+// compute DFT
+
+void RadarFft::computeDft(const vector<double> &inReal,
+                          const vector<double> &inImag,
+                          vector<double> &outReal,
+                          vector<double> &outImag)
+  
+{
+	
+  size_t nn = inReal.size();
+
+  for (size_t kk = 0; kk < nn; kk++) {  // For each output element
+    double sumReal = 0.0;
+    double sumImag = 0.0;
+    for (size_t tt = 0; tt < nn; tt++) {  // For each input element
+      double angle = 2.0 * M_PI * tt * kk / nn;
+      sumReal +=  inReal[tt] * cos(angle) + inImag[tt] * sin(angle);
+      sumImag += -inReal[tt] * sin(angle) + inImag[tt] * cos(angle);
+    }
+    outReal[kk] = sumReal;
+    outImag[kk] = sumImag;
+  }
+
+}
+
+void RadarFft::computeDft(const vector<RadarComplex_t> &in,
+                          vector<RadarComplex_t> &out)
+  
+{
+	
+  size_t nn = in.size();
+
+  for (size_t kk = 0; kk < nn; kk++) {  // For each output element
+    double sumReal = 0.0;
+    double sumImag = 0.0;
+    for (size_t tt = 0; tt < nn; tt++) {  // For each input element
+      double angle = 2.0 * M_PI * tt * kk / nn;
+      sumReal +=  in[tt].re * cos(angle) + in[tt].im * sin(angle);
+      sumImag += -in[tt].re * sin(angle) + in[tt].im * cos(angle);
+    }
+    out[kk].re = sumReal;
+    out[kk].im = sumImag;
+  }
+  
+}

@@ -43,10 +43,12 @@
 #include <radar/IwrfTsInfo.hh>
 #include <radar/IwrfCalib.hh>
 #include <radar/MomentsFields.hh>
-#include <radar/RegressionFilter.hh>
+#include <radar/ClutFilter.hh>
+#include <radar/ForsytheRegrFilter.hh>
 #include <radar/AtmosAtten.hh>
 #include <rapformats/DsRadarCalib.hh>
-#include <radar/Sz864.hh>
+class GateData;
+class Sz864;
 using namespace std;
 
 ////////////////////////
@@ -54,13 +56,31 @@ using namespace std;
 
 class RadarMoments {
   
+friend class Cmd;
+
 public:
 
   // receiver channel identification
 
   typedef enum {
-    CHANNEL_HC, CHANNEL_VC, CHANNEL_HX, CHANNEL_VX
+    CHANNEL_HC,
+    CHANNEL_VC,
+    CHANNEL_HX,
+    CHANNEL_VX
   } channel_t;
+
+  // window types
+
+  typedef enum {
+    WINDOW_RECT,
+    WINDOW_VONHANN,
+    WINDOW_BLACKMAN,
+    WINDOW_BLACKMAN_NUTTALL,
+    WINDOW_TUKEY_10,
+    WINDOW_TUKEY_20,
+    WINDOW_TUKEY_30,
+    WINDOW_TUKEY_50
+  } window_type_t;
 
   // default constructor
 
@@ -200,8 +220,20 @@ public:
   typedef enum {
     CLUTTER_FILTER_ADAPTIVE,
     CLUTTER_FILTER_REGRESSION,
-    CLUTTER_FILTER_NOTCH
+    CLUTTER_FILTER_NOTCH,
+    CLUTTER_FILTER_TSR,
+    CLUTTER_FILTER_NONE
   } clutter_filter_type_t;
+
+  // set the estimated clutter width in MPS
+
+  void setClutterWidthMps(double val) {
+    _clutterWidthMps = val;
+  }
+
+  void setClutterInitNotchWidthMps(double val) {
+    _clutterInitNotchWidthMps = val;
+  }
 
   // use the adaptive filter (default)
   
@@ -218,11 +250,29 @@ public:
     _minSnrDbForResidueCorrection = minSnrDb;
   }
 
+  // use the TSR filter
+  
+  void setUseTsrFilter() {
+    _clutterFilterType = CLUTTER_FILTER_TSR;
+  }
+
   // use polynomial regression filter
 
-  void setUseRegressionFilter(bool interpAcrossNotch) {
+  // notch interpolation method
+  
+  typedef enum {
+    INTERP_METHOD_NONE,
+    INTERP_METHOD_LINEAR,
+    INTERP_METHOD_GAUSSIAN
+  } notch_interp_method_t;
+
+  void setUseRegressionFilter(notch_interp_method_t interpMethod,
+                              double minCnrDb = -5.0,
+                              double minCsrDb = -10.0) {
     _clutterFilterType = CLUTTER_FILTER_REGRESSION;
-    _regrInterpAcrossNotch = interpAcrossNotch;
+    _regrNotchInterpMethod = interpMethod;
+    _regrMinCnrDb = minCnrDb;
+    _regrMinCsrDb = minCsrDb;
   }
   
   // use notch filter
@@ -245,7 +295,8 @@ public:
              bool negate_phase_codes,
              double strong_to_weak_power_ratio_threshold,
              double out_of_trip_power_ratio_threshold,
-             int out_of_trip_power_n_replicas);
+             int out_of_trip_power_n_replicas,
+             bool use_regression_filter);
 
   // set min SNR threshold for computing ZDR and LDR
 
@@ -286,6 +337,12 @@ public:
   }
 
   /////////////////////////////////////////////////////////////
+  // set the antenna rate for the beam, before computing moments
+  // this can apply to regression clutter filtering
+
+  void setAntennaRate(double rate) { _antennaRate = rate; }
+  
+  /////////////////////////////////////////////////////////////
   // load up the atmospheric attenuation table,
   // given the elevation angle
 
@@ -299,53 +356,53 @@ public:
   // Single polarization
   // Horizontal channel
   
-  void computeCovarSinglePolH(RadarComplex_t *iqhc,
+  void computeCovarSinglePolH(const RadarComplex_t *iqhc,
                               MomentsFields &fields);
   
   // Single polarization
   // Vertical channel
   
-  void computeCovarSinglePolV(RadarComplex_t *iqvc,
+  void computeCovarSinglePolV(const RadarComplex_t *iqvc,
                               MomentsFields &fields);
   
   // Compute covariances
   // DP_ALT_HV_CO_ONLY
   // Transmit alternating, receive copolar only
   
-  void computeCovarDpAltHvCoOnly(RadarComplex_t *iqhc,
-                                 RadarComplex_t *iqvc,
+  void computeCovarDpAltHvCoOnly(const RadarComplex_t *iqhc,
+                                 const RadarComplex_t *iqvc,
                                  MomentsFields &fields);
 
   // Compute covariances
   // DP_ALT_HV_CO_CROSS
   // Transmit alternating, receive co/cross
   
-  void computeCovarDpAltHvCoCross(RadarComplex_t *iqhc,
-                                  RadarComplex_t *iqvc,
-                                  RadarComplex_t *iqhx,
-                                  RadarComplex_t *iqvx,
+  void computeCovarDpAltHvCoCross(const RadarComplex_t *iqhc,
+                                  const RadarComplex_t *iqvc,
+                                  const RadarComplex_t *iqhx,
+                                  const RadarComplex_t *iqvx,
                                   MomentsFields &fields);
 
   // Compute covariances
   // DP_SIM_HV
   // Dual pol, transmit simultaneous, receive fixed channels 
   
-  void computeCovarDpSimHv(RadarComplex_t *iqhc,
-                           RadarComplex_t *iqvc,
+  void computeCovarDpSimHv(const RadarComplex_t *iqhc,
+                           const RadarComplex_t *iqvc,
                            MomentsFields &fields);
     
   // Compute covariances
   // Dual pol, transmit H, receive co/cross
   
-  void computeCovarDpHOnly(RadarComplex_t *iqhc,
-                           RadarComplex_t *iqvx,
+  void computeCovarDpHOnly(const RadarComplex_t *iqhc,
+                           const RadarComplex_t *iqvx,
                            MomentsFields &fields);
 
   // Compute covariances
   // Dual pol, transmit V, receive co/cross
   
-  void computeCovarDpVOnly(RadarComplex_t *iqvc,
-                           RadarComplex_t *iqhx,
+  void computeCovarDpVOnly(const RadarComplex_t *iqvc,
+                           const RadarComplex_t *iqhx,
                            MomentsFields &fields);
   
   /////////////////////////////////////////////////////////////
@@ -355,7 +412,7 @@ public:
   // IQ passed in
   // Horizontal channel
   
-  void singlePolH(RadarComplex_t *iqhc,
+  void singlePolH(const RadarComplex_t *iqhc,
                   int gateNum,
                   bool isFiltered,
                   MomentsFields &fields);
@@ -364,7 +421,7 @@ public:
   // IQ passed in
   // Vertical channel
   
-  void singlePolV(RadarComplex_t *iqvc,
+  void singlePolV(const RadarComplex_t *iqvc,
                   int gateNum,
                   bool isFiltered,
                   MomentsFields &fields);
@@ -403,8 +460,8 @@ public:
   // Dual pol, transmit alternating, receive copolar only
   // IQ passed in
   
-  void dpAltHvCoOnly(RadarComplex_t *iqhc,
-                     RadarComplex_t *iqvc,
+  void dpAltHvCoOnly(const RadarComplex_t *iqhc,
+                     const RadarComplex_t *iqvc,
                      int gateNum,
                      bool isFiltered,
                      MomentsFields &fields);
@@ -426,10 +483,10 @@ public:
   // Dual pol, transmit alternating, receive co/cross
   // IQ passed in
   
-  void dpAltHvCoCross(RadarComplex_t *iqhc,
-                      RadarComplex_t *iqvc,
-                      RadarComplex_t *iqhx,
-                      RadarComplex_t *iqvx,
+  void dpAltHvCoCross(const RadarComplex_t *iqhc,
+                      const RadarComplex_t *iqvc,
+                      const RadarComplex_t *iqhx,
+                      const RadarComplex_t *iqvx,
                       int gateNum,
                       bool isFiltered,
                       MomentsFields &fields);
@@ -452,12 +509,18 @@ public:
                                 int gateNum,
                                 MomentsFields &fields);
   
+  // DP_ALT_HV_CO_CROSS - compute rhohv not noise corrected
+  
+  double rhohvAltHvCoCross(int nSamplesHalf,
+                           const RadarComplex_t *iqhc,
+                           const RadarComplex_t *iqvc) const;
+  
   // DP_SIM_HV
   // Dual pol, transmit simultaneous
   // IQ passed in
   
-  void dpSimHv(RadarComplex_t *iqhc,
-               RadarComplex_t *iqvc,
+  void dpSimHv(const RadarComplex_t *iqhc,
+               const RadarComplex_t *iqvc,
                int gateNum,
                bool isFiltered,
                MomentsFields &fields);
@@ -478,12 +541,18 @@ public:
                          int gateNum,
                          MomentsFields &fields);
   
+  // DP_SIM_HV - compute rhohv not noise corrected
+  
+  double rhohvDpSimHv(int nSamples,
+                      const RadarComplex_t *iqhc,
+                      const RadarComplex_t *iqvc) const;
+  
   // DP_H_ONLY
   // Dual pol, transmit H only, receive H and V
   // IQ passed in
   
-  void dpHOnly(RadarComplex_t *iqhc,
-               RadarComplex_t *iqvx,
+  void dpHOnly(const RadarComplex_t *iqhc,
+               const RadarComplex_t *iqvx,
                int gateNum,
                bool isFiltered,
                MomentsFields &fields);
@@ -504,8 +573,8 @@ public:
   // Dual pol, transmit V only, receive H and V
   // IQ passed in
   
-  void dpVOnly(RadarComplex_t *iqvc,
-               RadarComplex_t *iqhx,
+  void dpVOnly(const RadarComplex_t *iqvc,
+               const RadarComplex_t *iqhx,
                int gateNum,
                bool isFiltered,
                MomentsFields &fields);
@@ -524,9 +593,9 @@ public:
   // Single polarization
   // Staggered-PRT
   
-  void singlePolHStagPrt(RadarComplex_t *iqhc,
-                         RadarComplex_t *iqhcShort,
-                         RadarComplex_t *iqhcLong,
+  void singlePolHStagPrt(const RadarComplex_t *iqhc,
+                         const RadarComplex_t *iqhcShort,
+                         const RadarComplex_t *iqhcLong,
                          int gateNum,
                          bool isFiltered,
                          MomentsFields &fields);
@@ -555,12 +624,12 @@ public:
   // Dual pol, transmit simultaneous, receive fixed channels
   // Staggered-PRT
   
-  void dpSimHvStagPrt(RadarComplex_t *iqhc,
-                      RadarComplex_t *iqvc,
-                      RadarComplex_t *iqhcShort,
-                      RadarComplex_t *iqvcShort,
-                      RadarComplex_t *iqhcLong,
-                      RadarComplex_t *iqvcLong,
+  void dpSimHvStagPrt(const RadarComplex_t *iqhc,
+                      const RadarComplex_t *iqvc,
+                      const RadarComplex_t *iqhcShort,
+                      const RadarComplex_t *iqvcShort,
+                      const RadarComplex_t *iqhcLong,
+                      const RadarComplex_t *iqvcLong,
                       int gateNum,
                       bool isFiltered,
                       MomentsFields &fields);
@@ -598,12 +667,12 @@ public:
   // Dual pol, transmit H only, receive fixed channels
   // Staggered-PRT
   
-  void dpHOnlyStagPrt(RadarComplex_t *iqhc,
-                      RadarComplex_t *iqvx,
-                      RadarComplex_t *iqhcShort,
-                      RadarComplex_t *iqvxShort,
-                      RadarComplex_t *iqhcLong,
-                      RadarComplex_t *iqvxLong,
+  void dpHOnlyStagPrt(const RadarComplex_t *iqhc,
+                      const RadarComplex_t *iqvx,
+                      const RadarComplex_t *iqhcShort,
+                      const RadarComplex_t *iqvxShort,
+                      const RadarComplex_t *iqhcLong,
+                      const RadarComplex_t *iqvxLong,
                       int gateNum,
                       bool isFiltered,
                       MomentsFields &fields);
@@ -617,12 +686,12 @@ public:
   // Dual pol, transmit V only, receive fixed channels
   // Staggered-PRT
   
-  void dpVOnlyStagPrt(RadarComplex_t *iqvc,
-                      RadarComplex_t *iqhx,
-                      RadarComplex_t *iqvcShort,
-                      RadarComplex_t *iqhxShort,
-                      RadarComplex_t *iqvcLong,
-                      RadarComplex_t *iqhxLong,
+  void dpVOnlyStagPrt(const RadarComplex_t *iqvc,
+                      const RadarComplex_t *iqhx,
+                      const RadarComplex_t *iqvcShort,
+                      const RadarComplex_t *iqhxShort,
+                      const RadarComplex_t *iqvcLong,
+                      const RadarComplex_t *iqhxLong,
                       int gateNum,
                       bool isFiltered,
                       MomentsFields &fields);
@@ -636,16 +705,18 @@ public:
   // Single polarization, range unfolding using SZ864
   
   void singlePolHSz864(GateData &gateData,
-                      RadarComplex_t *delta12,
-                      int gateNum,
-                      int ngatesPulse,
-                      const RadarFft &fft);
+                       const RadarComplex_t *delta12,
+                       int gateNum,
+                       int ngatesPulse,
+                       const RadarFft &fft,
+                       ForsytheRegrFilter &regr,
+                       double calNoise);
   
   // Single polarization, SZ864, Filtered
   
   void singlePolHSz864Filtered(GateData &gateData,
-                              int gateNum,
-                              int ngatesPulse);
+                               int gateNum,
+                               int ngatesPulse);
   
   // apply clutter filter to IQ time series
   //
@@ -658,7 +729,11 @@ public:
   //   iqWindowed: unfiltered time series,
   //               windowed using VONHANN, BLACKMAN or BLACKMAN_NUTTALL
   //   specWindowed: if not NULL, contains the spectrum of iqWindowed
-  //   calibratedNoise: noise level at digitizer, from cal
+  //   calNoise: measured noise level, from cal, in linear units
+  //   useStoredNotch:
+  //     if false (the default) locate wx and clutter
+  //     if true, use previously located wx and clutter - this is used
+  //        if multiple channels are to be filtered
   //
   //  Outputs:
   //    iqFiltered: filtered time series
@@ -666,45 +741,99 @@ public:
   //    filterRatio: ratio of raw to unfiltered power, before applying correction
   //    spectralNoise: spectral noise estimated from the spectrum
   //    clutResidueRatio: ratio of spectral noise to calibrated noise
-  //    specRatio: ratio of filtered to unfiltered in spectrum, if non-NULL
   
   void applyClutterFilter(int nSamples,
+                          double prtSecs,
                           const RadarFft &fft,
-                          RegressionFilter &regr,
+                          ForsytheRegrFilter &regr,
                           const double *window, // active window
                           const RadarComplex_t *iqOrig, // non-windowed
                           const RadarComplex_t *iqWindowed, // windowed
-                          const RadarComplex_t *specWindowed, // windowed
-                          double calibratedNoise,
+                          double calNoise,
                           RadarComplex_t *iqFiltered,
                           RadarComplex_t *iqNotched,
                           double &filterRatio,
                           double &spectralNoise,
                           double &spectralSnr,
-                          double *specRatio = NULL);
+                          bool useStoredNotch = false);
+  
+  // apply adaptive clutter filter to IQ time series
+  //
+  // Inputs:
+  //   nSamples
+  //   prtSecs
+  //   clutFilt: adaptive filter object to use
+  //   fft: object to be used for FFT computations
+  //   iqWindowed: unfiltered time series, pre-windowed using VONHANN or BLACKMAN
+  //   calNoise: noise level at digitizer, from cal, linear units
+  //   nyquist: folding velocity in m/s
+  //   useStoredNotch:
+  //     if false (the default) locate wx and clutter
+  //     if true, use previously located wx and clutter - this is used
+  //        if multiple channels are to be filtered
+  //
+  //  Outputs:
+  //    iqFiltered: filtered time series
+  //    iqNotched: if non-NULL, notched time series
+  //    filterRatio: ratio of raw to unfiltered power, before applying correction
+  //    spectralNoise: spectral noise estimated from the spectrum
+  //    spectralSnr: ratio of spectral noise to noise power
   
   void applyAdaptiveFilter(int nSamples,
+                           double prtSecs,
+                           ClutFilter &clutFilt,
                            const RadarFft &fft,
                            const RadarComplex_t *iqWindowed,
-                           const RadarComplex_t *specWindowed,
-                           double calibratedNoise,
+                           double calNoise,
+                           double nyquist,
                            RadarComplex_t *iqFiltered,
                            RadarComplex_t *iqNotched,
                            double &filterRatio,
                            double &spectralNoise,
-                           double &clutResidueRatio,
-                           double *specRatio = NULL);
+                           double &spectralSnr,
+                           bool useStoredNotch = false);
   
-  void applyNotchFilter(int nSamples,
-                        const RadarFft &fft,
-                        const RadarComplex_t *iqWindowed,
-                        const RadarComplex_t *specWindowed,
-                        double calibratedNoise,
-                        RadarComplex_t *iqFiltered,
-                        double &filterRatio,
-                        double &spectralNoise,
-                        double &spectralSnr,
-                        double *specRatio = NULL);
+  // apply time series reflection filter to IQ time series
+  //
+  // Inputs:
+  //   nSamples
+  //   prtSecs
+  //   clutFilt: adaptive filter object to use
+  //   fft: object to be used for FFT computations
+  //   iq: unfiltered time series, no window
+  //   applyWindow: apply window to iq
+  //   calNoise: noise level at digitizer, from cal, linear units
+  //   nyquist: folding velocity in m/s
+  //   useStoredNotch:
+  //     if false (the default) locate wx and clutter
+  //     if true, use previously located wx and clutter - this is used
+  //        if multiple channels are to be filtered
+  //
+  //  Outputs:
+  //    tsrSpec: spectrum of expanded time series with reflection
+  //    tsrSpecFilt: filtered spectrum of expanded time series with reflection
+  //    iqFiltered: filtered time series
+  //    iqNotched: if non-NULL, notched time series
+  //    filterRatio: ratio of raw to unfiltered power, before applying correction
+  //    spectralNoise: spectral noise estimated from the spectrum
+  //    spectralSnr: ratio of spectral noise to noise power
+  
+  void applyTsrFilter(int nSamples,
+                      double prtSecs,
+                      ClutFilter &clutFilt,
+                      RadarFft &fft,
+                      const RadarComplex_t *iq,
+                      bool applyWindow,
+                      double calNoise,
+                      double nyquist,
+                      vector <double> &tsrSpec,
+                      vector <double> &tsrSpecFilt,
+                      RadarComplex_t *iqFiltered,
+                      RadarComplex_t *iqNotched,
+                      double &filterRatio,
+                      double &spectralNoise,
+                      double &spectralSnr,
+                      bool useStoredNotch = false);
   
   // apply polynomial regression clutter filter to IQ time series
   //
@@ -715,8 +844,10 @@ public:
   //   nSamples
   //   fft: object to be used for filling in notch
   //   regr: object to be used for polynomial computations
+  //   window: for regression filter, the input data and filtered result is
+  //           not windowed. The window is passed in for use in the FFTs
   //   iqOrig: unfiltered time series, not windowed
-  //   calibratedNoise: noise value from calibration in linear units
+  //   calNoise: measured noise value from calibration in linear units
   //
   //  Outputs:
   //    iqFiltered: filtered time series
@@ -725,28 +856,45 @@ public:
   //                 before applying correction
   //    spectralNoise: spectral noise estimated from the spectrum
   //    spectralSnr: ratio of spectral noise to noise power
-  //    specRatio: if non-NULL, contains ratio of filtered to
-  //               unfiltered spectrum
 
-  // for regression filter, the input data and filtered result is
-  // not windowed. The window is passed in for use in the FFTs
-  
   void applyRegressionFilter(int nSamples,
+                             double prtSecs,
                              const RadarFft &fft,
-                             RegressionFilter &regr,
-                             const double *window,
+                             ForsytheRegrFilter &regr,
                              const RadarComplex_t *iqOrig, // non-windowed
-                             double calibratedNoise,
-                             bool interpAcrossNotch,
+                             double calNoise,
                              RadarComplex_t *iqFiltered,
                              RadarComplex_t *iqNotched,
                              double &filterRatio,
                              double &spectralNoise,
-                             double &spectralSnr,
-                             double *specRatio = NULL);
+                             double &spectralSnr);
   
-  // apply adaptive clutter filter to staggered PRT
-  // IQ time series
+  // apply notch filter to IQ time series
+  //
+  // Inputs:
+  //   nSamples
+  //   prtSecs
+  //   fft: object to be used for FFT computations
+  //   iqWindowed: unfiltered time series, pre-windowed using VONHANN or BLACKMAN
+  //   calNoise: noise level at digitizer, from cal, linear units
+  //
+  //  Outputs:
+  //    iqFiltered: filtered time series
+  //    filterRatio: ratio of raw to unfiltered power, before applying correction
+  //    spectralNoise: spectral noise estimated from the spectrum
+  //    spectralSnr: ratio of spectral noise to noise power
+  
+  void applyNotchFilter(int nSamples,
+                        double prtSecs,
+                        const RadarFft &fft,
+                        const RadarComplex_t *iqWindowed,
+                        double calNoise,
+                        RadarComplex_t *iqFiltered,
+                        double &filterRatio,
+                        double &spectralNoise,
+                        double &spectralSnr);
+  
+  // apply clutter filter to staggered PRT IQ time series
   //
   // The following is assumed:
   //
@@ -758,120 +906,80 @@ public:
   //        iqOrigLong[nSamplesHalf]
   //        iqFiltShort[nSamplesHalf]
   //        iqFiltLong[nSamplesHalf]
-  //        spectralRatioShort[nSamplesHalf]
-  //        spectralRatioLong[nSamplesHalf]
   //   4. Input and output data is windowed appropriately for FFTs.
   //
   // The short and long sequences are filtered separately.
   // The notch is not filled in.
   //
   // Inputs:
+  //   prtSecsShort, prtSecsLong
   //   fftHalf: object to be used for FFT computations
-  //   iqOrigShort: unfiltered short-prt time series
-  //   iqOrigLong: unfiltered long-prt time series
-  //   channel: which channel - used to determine calibrated noise
-  //   interpAcrossNotch: whether to fill in notch
+  //   regrHalf: regression filter object
+  //   iqShort: unfiltered short-prt time series
+  //   iqLong: unfiltered long-prt time series
+  //   calNoise: measured noise from cal, linear units
+  //   useStoredNotch:
+  //     if false (the default) locate wx and clutter
+  //     if true, use previously located wx and clutter - this is used
+  //        if multiple channels are to be filtered
   //
   //  Outputs:
   //    iqFiltShort: filtered short-prt time series
   //    iqFiltLong: filtered long-prt time series
-  //    filterRatio: ratio of raw to unfiltered power,
-  //    before applying correction
-  //    spectralNoise: spectral noise estimated from the spectrum
-  //    spectralSnr: ratio of spectral noise to noise power
-  //    specRatioShort: filtered/unfiltered ratio, short PRT, if non-NULL
-  //    specRatioLong: filtered/unfiltered ratio, long PRT, if non-NULL
-  
-  void applyAdapFilterStagPrt(int nSamplesHalf,
-                              const RadarFft &fftHalf,
-                              const RadarComplex_t *iqShort,
-                              const RadarComplex_t *iqLong,
-                              double calibratedNoise,
-                              RadarComplex_t *iqFiltShort,
-                              RadarComplex_t *iqFiltLong,
-                              double &filterRatio,
-                              double &spectralNoise,
-                              double &spectralSnr,
-                              double *spectralRatioShort = NULL,
-                              double *spectralRatioLong = NULL);
-  
-  // apply polynomial regression clutter filter to IQ time series
-  //
-  // NOTE: IQ data should not be windowed.
-  //
-  // Inputs:
-  //   nSamples
-  //   fftHalf: fft object for short and long half time series, length nSamples/2
-  //   regr: object to be used for polynomial computations
-  //   iqOrig: unfiltered time series, not windowed
-  //   channel: which channel - used to determine calibrated noise
-  //
-  //  Outputs:
-  //    iqFiltered: filtered time series
+  //    iqNotchedShort: notched short-prt time series
+  //    iqNotchedLong: notched long-prt time series
   //    filterRatio: ratio of raw to unfiltered power, before applying correction
   //    spectralNoise: spectral noise estimated from the spectrum
   //    spectralSnr: ratio of spectral noise to noise power
-  //    specRatio: if non-NULL, contains ratio of filtered to unfiltered spectrum
-  //
-  //  Memory allocation by calling routine:
-  //    regr - initialized to size nSamples
-  //    iqOrig[nSamples]
-  //    iqFiltered[nSamples]
-  //    specRatio[nSamples] - if non-NULL
   
-  void applyRegrFilterStagPrt(int nSamples,
+  void applyClutFiltStagPrt(int nSamplesHalf,
+                            double prtSecsShort,
+                            double prtSecsLong,
+                            const RadarFft &fftHalf,
+                            ForsytheRegrFilter &regrHalf,
+                            const RadarComplex_t *iqShort,
+                            const RadarComplex_t *iqLong,
+                            double calNoise,
+                            RadarComplex_t *iqFiltShort,
+                            RadarComplex_t *iqFiltLong,
+                            RadarComplex_t *iqNotchedShort,
+                            RadarComplex_t *iqNotchedLong,
+                            double &filterRatio,
+                            double &spectralNoise,
+                            double &spectralSnr,
+                            bool useStoredNotch = false);
+  
+  void applyAdapFilterStagPrt(int nSamplesHalf,
+                              double prtSecsShort,
+                              double prtSecsLong,
                               const RadarFft &fftHalf,
-                              RegressionFilter &regr,
-                              const RadarComplex_t *iqOrig,
-                              double calibratedNoise,
-                              bool interpAcrossNotch,
-                              RadarComplex_t *iqFiltered,
+                              const RadarComplex_t *iqShort,
+                              const RadarComplex_t *iqLong,
+                              double calNoise,
+                              RadarComplex_t *iqFiltShort,
+                              RadarComplex_t *iqFiltLong,
+                              RadarComplex_t *iqNotchedShort,
+                              RadarComplex_t *iqNotchedLong,
                               double &filterRatio,
                               double &spectralNoise,
                               double &spectralSnr,
-                              double *specRatio = NULL);
+                              bool useStoredNotch = false);
   
-  // apply polynomial regression clutter filter to IQ time series
-  //
-  // NOTE: IQ data should not be windowed.
-  //
-  // Inputs:
-  //   nSamples
-  //   nExpanded = length of expanded time series with inserted 0's
-  //             = (nSamples / 2) * (m + n)
-  //   fftExp: object to be used for FFT computations
-  //   regr: object to be used for polynomial computations
-  //   iqOrig: unfiltered time series, not windowed
-  //   channel: which channel - used to determine calibrated noise
-  //
-  //  Outputs:
-  //    iqFiltered: filtered time series
-  //    filterRatio: ratio of raw to unfiltered power,
-  //                 before applying correction
-  //    spectralNoise: spectral noise estimated from the spectrum
-  //    spectralSnr: ratio of spectral noise to noise power
-  //    specRatio: if non-NULL, contains ratio of filtered
-  //               to unfiltered spectrum
-  //
-  //  Memory allocation by calling routine:
-  //    fftExp - initialized to size nExpanded
-  //    regr - initialized to size nSamples
-  //    iqOrig[nSamples]
-  //    iqFiltered[nSamples]
-  //    specRatio[nSamples] - if non-NULL
-
-  void applyRegrFilterStagPrt(int nSamples,
-                              int nExpanded,
-                              const RadarFft &fftExp,
-                              RegressionFilter &regr,
-                              const RadarComplex_t *iqOrig,
-                              double calibratedNoise,
-                              bool interpAcrossNotch,
-                              RadarComplex_t *iqFiltered,
+  void applyRegrFilterStagPrt(int nSamplesHalf,
+                              double prtSecsShort,
+                              double prtSecsLong,
+                              const RadarFft &fftHalf,
+                              ForsytheRegrFilter &regrHalf,
+                              const RadarComplex_t *iqShort,
+                              const RadarComplex_t *iqLong,
+                              double calNoise,
+                              RadarComplex_t *iqFiltShort,
+                              RadarComplex_t *iqFiltLong,
+                              RadarComplex_t *iqNotchedShort,
+                              RadarComplex_t *iqNotchedLong,
                               double &filterRatio,
                               double &spectralNoise,
-                              double &spectralSnr,
-                              double *specRatio = NULL);
+                              double &spectralSnr);
 
   //////////////////////////////////////////////////////////////////////
   // Compute the spectral snr
@@ -885,7 +993,7 @@ public:
                           const RadarFft &fft,
                           const RadarComplex_t *iqWindowed,
                           RadarComplex_t *specWindowed,
-                          double calibratedNoise,
+                          double calNoise,
                           double &spectralNoise,
                           double &spectralSnr);
   
@@ -966,33 +1074,14 @@ public:
                              int staggeredN,
                              const RadarComplex_t *iqExpanded,
                              RadarComplex_t *iqCondensed);
-  
-  // Applies previously computed filter ratios, in the spectral
-  // domain, to a time series
-  //
-  // Inputs:
-  //   nSamples
-  //   fft: object to be used for FFT computations
-  //   iq: input time series to be adjusted for filtering
-  //   specRatio: ratio of filtered to unfiltered in spectrum
-  //
-  //  Outputs:
-  //    iqFiltered: filtered time series
-  //    iqNotched: if not NULL, notched time series
-  
-  void applyFilterRatio(int nSamples,
-                        const RadarFft &fft,
-                        const RadarComplex_t *iq,
-                        const double *specRatio,
-                        RadarComplex_t *iqFiltered,
-                        RadarComplex_t *iqNotched);
-  
+
   // apply clutter filter for SZ 864
   
   void applyClutterFilterSz(int nSamples,
+                            double prtSecs,
                             const RadarFft &fft,
                             GateData &gateData,
-                            double calibratedNoise,
+                            double calNoise,
                             double &filterRatio,
                             double &spectralNoise,
                             double &clutResidueRatio);
@@ -1005,6 +1094,10 @@ public:
                                      int staggeredN);
 
   int computeNExpandedStagPrt(int nSamples);
+
+  // compute unambig range from PRT
+  
+  static double computeUnambigRangeKm(double prtSecs);
 
   // Clutter phase alignment - single pol
 
@@ -1128,6 +1221,11 @@ public:
 
   double computeNcp(RadarComplex_t *iq);
 
+  // initialize window from type
+
+  static void initWindow(window_type_t windowType,
+                         int nSamples, double *window);
+  
   // initialize rectangular window
 
   static void initWindowRect(int nSamples, double *window);
@@ -1216,25 +1314,56 @@ public:
 
   // get the calibrated noise power given the channel
   
-  double getCalNoisePower(channel_t channel);
+  double getCalNoisePower(channel_t channel) const;
 
   // get the estimated noise power given the channel
   
-  double getEstNoisePower(channel_t channel);
+  double getEstNoisePower(channel_t channel) const;
 
   // get the receiver gain given the channel
   
-  double getReceiverGain(channel_t channel);
+  double getReceiverGain(channel_t channel) const;
 
   // get the base dbz at 1km given the channel
   
-  double getBaseDbz1km(channel_t channel);
+  double getBaseDbz1km(channel_t channel) const;
 
+  // range geometry
+  
+  double getStartRangeKm() const { return _startRangeKm; }
+  double getGateSpacingKm() const { return _gateSpacingKm; }
+  double getUnambigRangeKm() const { return _unambigRangeKm; }
+
+  // wavelength
+
+  double getWavelengthMeters() const { return _wavelengthMeters; }
+  
+  // prt
+  
+  double getPrt() const { return _prt; }
+
+  // get staggered configuration
+  
+  bool getIsStagPrt() const { return _isStagPrt; }
+  double getPrtShort() const { return _prtShort; }
+  double getPrtLong() const { return _prtLong; }
+  int getStaggeredM() const { return _staggeredM; }
+  int getStaggeredN() const { return _staggeredN; }
+  
   // get nyquist after object has been initialized/used
-
+  
   double getNyquist() const { return _nyquist; }
   double getNyquistPrtShort() const { return _nyquistPrtShort; }
   double getNyquistPrtLong() const { return _nyquistPrtLong; }
+  double getNyquistPrtMean() const { return _nyquistPrtMean; }
+
+  // get clutter-to-signal ratio, in dB,
+  // from 3rd order regression filter
+
+  double getRegrCnrDb() const { return _regrCnrDb; }
+  double getRegrCsrDb() const { return _regrCsrDb; }
+  double getRegrInterpRatioDb() const { return _regrInterpRatioDb; }
+  size_t getRegrPolyOrder() const { return _regrPolyOrder; }
 
   // De-trend a time series in preparation
   // for windowing and FFT.
@@ -1259,21 +1388,25 @@ public:
   // prepare for noise detection by computing the
   // lag0 power and the velocity phase
 
-  void singlePolHNoisePrep(double lag0_hc,
+  void singlePolHNoisePrep(int gateNum,
+                           double lag0_hc,
                            RadarComplex_t lag1_hc,
                            MomentsFields &fields);
   
-  void singlePolVNoisePrep(double lag0_vc,
+  void singlePolVNoisePrep(int gateNum,
+                           double lag0_vc,
                            RadarComplex_t lag1_vc,
                            MomentsFields &fields);
   
-  void dpAltHvCoOnlyNoisePrep(double lag0_hc,
+  void dpAltHvCoOnlyNoisePrep(int gateNum,
+                              double lag0_hc,
                               double lag0_vc,
                               RadarComplex_t lag2_hc,
                               RadarComplex_t lag2_vc,
                               MomentsFields &fields);
   
-  void dpAltHvCoCrossNoisePrep(double lag0_hc,
+  void dpAltHvCoCrossNoisePrep(int gateNum,
+                               double lag0_hc,
                                double lag0_hx,
                                double lag0_vc,
                                double lag0_vx,
@@ -1281,28 +1414,33 @@ public:
                                RadarComplex_t lag2_vc,
                                MomentsFields &fields);
   
-  void dpSimHvNoisePrep(double lag0_hc,
+  void dpSimHvNoisePrep(int gateNum,
+                        double lag0_hc,
                         double lag0_vc,
                         RadarComplex_t lag1_hc,
                         RadarComplex_t lag1_vc,
                         MomentsFields &fields);
   
-  void dpHOnlyNoisePrep(double lag0_hc,
+  void dpHOnlyNoisePrep(int gateNum,
+                        double lag0_hc,
                         double lag0_vx,
                         RadarComplex_t lag1_hc,
                         MomentsFields &fields);
   
-  void dpVOnlyNoisePrep(double lag0_vc,
+  void dpVOnlyNoisePrep(int gateNum,
+                        double lag0_vc,
                         double lag0_hx,
                         RadarComplex_t lag1_vc,
                         MomentsFields &fields);
   
-  void singlePolHStagPrtNoisePrep(RadarComplex_t *iqhc,
+  void singlePolHStagPrtNoisePrep(int gateNum,
+                                  RadarComplex_t *iqhc,
                                   RadarComplex_t *iqhcShort,
                                   RadarComplex_t *iqhcLong,
                                   MomentsFields &fields);
   
-  void dpSimHvStagPrtNoisePrep(RadarComplex_t *iqhc,
+  void dpSimHvStagPrtNoisePrep(int gateNum,
+                               RadarComplex_t *iqhc,
                                RadarComplex_t *iqvc,
                                RadarComplex_t *iqhcShort,
                                RadarComplex_t *iqvcShort,
@@ -1310,27 +1448,6 @@ public:
                                RadarComplex_t *iqvcLong,
                                MomentsFields &fields);
 
-
-  // compute ripple from mitch switch
-  //
-  // The Mitch switch presents a different face to the transmit pulse
-  // every alternate H and V pulse. This can lead to a difference in
-  // power or phase for each alternate pulse, which in turn can lead
-  // to spikes in the spectrum at 0.25 of the main PRF (or 0.5 of the
-  // H PRF).
-  
-  void computeMitchSwitchRipple(RadarComplex_t *iqhc,
-                                RadarComplex_t *iqvc,
-                                RadarComplex_t *iqhx,
-                                RadarComplex_t *iqvx,
-                                RadarComplex_t &rippleHc,
-                                RadarComplex_t &rippleVc,
-                                RadarComplex_t &rippleHx,
-                                RadarComplex_t &rippleVx,
-                                double &snrHc,
-                                double &snrVc,
-                                double &snrHx,
-                                double &snrVx);
 
 protected:
 private:
@@ -1359,8 +1476,12 @@ private:
   bool _computeCpaUsingAlt; // use alternative cpa method
 
   // clutter filtering parameters
-  
+
+  ClutFilter _clutFilter;
+  ClutFilter _clutFilterShortPrt, _clutFilterLongPrt;
   clutter_filter_type_t _clutterFilterType;
+  double _clutterWidthMps;
+  double _clutterInitNotchWidthMps;
 
   bool _applySpectralResidueCorrection;
   double _minSnrDbForResidueCorrection; // if SNR is below this, do not correct
@@ -1376,8 +1497,32 @@ private:
   int _weatherPos;
   int _clutterPos;
 
-  bool _regrInterpAcrossNotch; // interpolate across the notch - regression filter
-  double _notchWidthMps;       // notch width in meters per sec - notch filter
+  ////////////////////
+  // regression filter
+
+  double _regrMinCnrDb; /* regression filter - 
+                         * minimum CNR - clutter-to-noise-ratio -
+                         * for applying the filter */
+  
+  double _regrMinCsrDb; /* regression filter - 
+                         * minimum CSR - clutter-to-signal-ratio -
+                         * for applying the filter */
+  
+  notch_interp_method_t _regrNotchInterpMethod; /* interpolating across the notch */
+
+  size_t _regrPolyOrder; /* regression filter - polynomial order used */
+
+  double _regrCnrDb; /* regression filter - clutter-to-noise ratio
+                      * from 3 central spectral points */
+
+  double _regrCsrDb; /* regression filter - clutter-to-signal ratio
+                      * from 3 central spectral points */
+
+  double _regrInterpRatioDb; /* regression filter - power ratio from
+                              * interpolating across the notch */
+
+  double _notchWidthMps; /* notch filter -
+                          * notch width in meters per sec */
 
   // SNR thresholds for ZDR and LDR
   
@@ -1389,9 +1534,11 @@ private:
   double _wavelengthMeters;
   double _prt;
   double _nyquist;
+  double _unambigRangeKm;
 
   // staggered PRT
 
+  bool _isStagPrt;
   double _prtShort;
   double _prtLong;
   int _staggeredM;
@@ -1400,6 +1547,7 @@ private:
   int _nGatesPrtLong;
   double _nyquistPrtShort;
   double _nyquistPrtLong;
+  double _nyquistPrtMean;
   double _nyquistShortPlusLong;
   double _nyquistStagNominal;
   int _LL;
@@ -1445,7 +1593,7 @@ private:
 
   double *_atmosAttenCorr;
 
-  // calibration
+  // results of calibration
   
   double _calNoisePowerHc;
   double _calNoisePowerHx;
@@ -1471,7 +1619,7 @@ private:
   double _calibXmitPowerDbmH;
   double _calibXmitPowerDbmV;
 
-  // estimated noise power
+  // noise power estimated using NoiseLocator class
   
   double _estNoisePowerHc;
   double _estNoisePowerHx;
@@ -1490,7 +1638,11 @@ private:
 
   double _measXmitPowerDbmH;
   double _measXmitPowerDbmV;
+
+  // antenna rate
   
+  double _antennaRate;
+
   // moments
 
   static const double _minDetectableSnr;
@@ -1506,6 +1658,7 @@ private:
 
   bool _applySz;
   Sz864 *_sz;
+  bool _szUseRegressionFilter;
 
   // computing time series power smoothness
   
@@ -1515,6 +1668,8 @@ private:
 
   void _init();
 
+  static void _normalizeWindowPwr(int nSamples, double *window);
+  
   void _computeRangeCorrection(double startRangeKm,
                                double gateSpacingKm);
 
@@ -1554,27 +1709,8 @@ private:
 				    double rawPower,
 				    double filteredPower,
 				    double powerRemoved,
-                                    double calibratedNoise);
+                                    double calNoise);
 
-  void _fillNotchRegrFilter(int nSamples,
-                            const RadarFft &fft,
-                            const RadarComplex_t *iqOrig,
-                            const RadarComplex_t *iqRegr,
-                            RadarComplex_t *iqFiltered,
-                            double *specRatio);
-
-  void _adapFiltHalfTseries(int nSamplesHalf,
-                            const RadarFft &fftHalf,
-                            const RadarComplex_t *iq,
-                            double calibratedNoise,
-                            double nyquist,
-                            bool adjustForPowerResidue,
-                            RadarComplex_t *iqFiltered,
-                            double &filterRatio,
-                            double &spectralNoise,
-                            double &spectralSnr,
-                            double *specRatio);
-  
   static void _interpAcrossNotch(int nSamples, double *regrSpec);
 
   static void _interpAcrossStagNotches(int nSamples,
@@ -1583,19 +1719,8 @@ private:
                                        int staggeredN,
                                        double *regrSpec);
 
-  void _adjustRegressionFilter(int nSamples,
-                               const RadarFft &fft,
-                               const double *window,
-                               const RadarComplex_t *iqOrig,
-                               const RadarComplex_t *iqRegr,
-                               double calibratedNoise,
-                               bool interpAcrossNotch,
-                               RadarComplex_t *iqFiltered,
-                               double &filterRatio,
-                               double &spectralNoise,
-                               double &spectralSnr,
-                               double *specRatio);
-  
+  void _regrDoInterpAcrossNotch(vector<double> &unfiltSpec);
+
   static void _compute3PtMedian(const RadarComplex_t *iq,
                                 RadarComplex_t &median);
 
@@ -1613,12 +1738,32 @@ private:
 
   inline static double _constrain(double xx, double min, double max)
   {
-    if (!isfinite(xx)) return min;
+    if (!std::isfinite(xx)) return min;
     if (xx < min) return min;
     if (xx > max) return max;
     return xx;
   }
 
+  // deprecated
+  // Applies previously computed filter ratios, in the spectral
+  // domain, to a time series
+  //
+  // Inputs:
+  //   nSamples
+  //   fft: object to be used for FFT computations
+  //   iq: input time series to be adjusted for filtering
+  //
+  //  Outputs:
+  //    iqFiltered: filtered time series
+  //    iqNotched: if not NULL, notched time series
+  
+  void _applyFilterRatio(int nSamples,
+                         const RadarFft &fft,
+                         const RadarComplex_t *iq,
+                         const double *specRatio,
+                         RadarComplex_t *iqFiltered,
+                         RadarComplex_t *iqNotched);
+  
 };
 
 #endif

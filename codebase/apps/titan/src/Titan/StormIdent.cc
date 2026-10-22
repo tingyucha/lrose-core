@@ -482,10 +482,10 @@ int StormIdent::_processScan(int scan_num, time_t scan_time,
     return -1;
   }
 
-  // read in sounding
+  // read in temperature profile
 
   Sounding &sndg = Sounding::inst();
-  sndg.retrieveTempProfile(scan_time);
+  sndg.retrieveTempProfile(_inputMdv.mdvx);
 
   // identify storms
   
@@ -517,6 +517,10 @@ int StormIdent::_processScan(int scan_num, time_t scan_time,
       }
     }
   }
+
+  // clear memory
+
+  _inputMdv.clear();
 
   return 0;
   
@@ -631,6 +635,9 @@ void StormIdent::_loadStormParams(storm_file_params_t *sparams)
     sparams->precip_computation_mode = TITAN_PRECIP_FROM_LOWEST_AVAILABLE_REFL;
     sparams->precip_plane_ht = _params.base_threshold;
   }
+
+  sparams->low_convectivity_threshold = _params.low_convectivity_threshold;
+  sparams->high_convectivity_threshold = _params.high_convectivity_threshold;
 
 }
 

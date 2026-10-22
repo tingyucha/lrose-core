@@ -30,14 +30,15 @@
 //
 ///////////////////////////////////////////////////////////////
 //
-// Data manager for time series data
-// DsrDataMgr analyses time series data from vertical scans
+// Data manager for Dsr moments data.
 //
 ////////////////////////////////////////////////////////////////
 
 #include "DsrDataMgr.hh"
 
 #include <toolsa/toolsa_macros.h>
+#include <toolsa/pmu.h>
+#include <toolsa/uusleep.h>
 
 using namespace std;
 
@@ -47,11 +48,9 @@ const double DsrDataMgr::_missingTest = -9998.0;
 // Constructor
 
 DsrDataMgr::DsrDataMgr(const string &prog_name,
-		       const Params &params,
-		       StatsMgr &statsMgr) :
-  _progName(prog_name),
-  _params(params),
-  _statsMgr(statsMgr)
+                       const Args &args,
+		       const Params &params) :
+        StatsMgr(prog_name, args, params)
   
 {
   
@@ -86,9 +85,6 @@ DsrDataMgr::~DsrDataMgr()
 
 {
 
-  if (_reader) {
-    delete _reader;
-  }
 
 }
 
@@ -251,21 +247,21 @@ void DsrDataMgr::_processBeam()
     elev = 180.0 - elev;
   }
   if (elev < _params.min_elevation) {
-    _statsMgr.clearStats360();
+    // _statsMgr.clearStats();
     return;
   }
 
   // at start, print headers
 
   if (_totalBeamCount == 0) {
-    _statsMgr.setStartTime(beamFTime);
+    setStartTime(beamFTime);
   }
-  _statsMgr.setEndTime(beamFTime);
+  setEndTime(beamFTime);
   _totalBeamCount++;
   
-  _statsMgr.setPrt(1.0 / _inputRadarParams.pulseRepFreq);
-  _statsMgr.setEl(beam.elevation);
-  _statsMgr.setAz(beam.azimuth);
+  setPrt(1.0 / _inputRadarParams.pulseRepFreq);
+  setEl(beam.elevation);
+  setAz(beam.azimuth);
 
   // process the moments
   
@@ -274,7 +270,7 @@ void DsrDataMgr::_processBeam()
 
   // if we have done a full rotation, process the data
 
-  _statsMgr.checkCompute();
+  checkCompute();
 
 }
 
@@ -339,7 +335,7 @@ string DsrDataMgr::_getMomentsParamsName(Params::moments_id_t paramId)
 
   for (int ii = 0; ii < _params.input_fields_n; ii++) {
     if (_params._input_fields[ii].id == paramId) {
-      return _params._input_fields[ii].dsr_name;
+      return _params._input_fields[ii].moments_name;
     }
   } // ii 
 
@@ -358,7 +354,7 @@ int DsrDataMgr::_getMomentsParamsIndex(const string &dsrName)
   // find the params index of a moments field
 
   for (int ii = 0; ii < _params.input_fields_n; ii++) {
-    string paramName = _params._input_fields[ii].dsr_name;
+    string paramName = _params._input_fields[ii].moments_name;
     if (paramName == dsrName) {
       return ii;
     }
@@ -411,7 +407,6 @@ void DsrDataMgr::_loadMomentsData()
   _loadMomentsData(_dbz);
   _loadMomentsData(_vel);
   _loadMomentsData(_width);
-  _loadMomentsData(_zdrc);
   _loadMomentsData(_zdrm);
   _loadMomentsData(_ldrh);
   _loadMomentsData(_ldrv);
@@ -430,7 +425,7 @@ void DsrDataMgr::_loadMomentsData(moments_field_t &field)
 
   // allocate data array
 
-  if (_nGates > field.data_.size()) {
+  if (_nGates > (int) field.data_.size()) {
     field.data_.free();
     field.data = (double *) field.data_.alloc(_nGates);
   }
@@ -525,7 +520,7 @@ void DsrDataMgr::_processMoments()
 
     // add to layer statss
 
-    _statsMgr.addDataPoint(range, mdata);
+    addDataPoint(range, mdata);
     
   } // igate
 

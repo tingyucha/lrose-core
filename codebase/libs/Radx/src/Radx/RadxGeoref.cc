@@ -38,6 +38,7 @@
 #include <Radx/RadxTime.hh>
 #include <Radx/RadxXml.hh>
 #include <Radx/ByteOrder.hh>
+#include <cmath>
 using namespace std;
 
 /////////////////////////////////////////////////////////
@@ -90,6 +91,10 @@ void RadxGeoref::_init()
   _rollRate = Radx::missingMetaDouble;
   _driveAngle1 = Radx::missingMetaDouble;
   _driveAngle2 = Radx::missingMetaDouble;
+  _trackRelRot = Radx::missingMetaDouble;
+  _trackRelTilt = Radx::missingMetaDouble;
+  _trackRelAz = Radx::missingMetaDouble;
+  _trackRelEl = Radx::missingMetaDouble;
 
 }
 
@@ -135,6 +140,10 @@ void RadxGeoref::setToZero()
   _rollRate = 0.0;
   _driveAngle1 = 0.0;
   _driveAngle2 = 0.0;
+  _trackRelRot = 0.0;
+  _trackRelTilt = 0.0;
+  _trackRelAz = 0.0;
+  _trackRelEl = 0.0;
 
 }
 
@@ -192,6 +201,10 @@ void RadxGeoref::incrementIfNotMissing(RadxGeoref &count)
   if (_rollRate != Radx::missingMetaDouble) count._rollRate++;
   if (_driveAngle1 != Radx::missingMetaDouble) count._driveAngle1++;
   if (_driveAngle2 != Radx::missingMetaDouble) count._driveAngle2++;
+  if (_trackRelRot != Radx::missingMetaDouble) count._trackRelRot++;
+  if (_trackRelTilt != Radx::missingMetaDouble) count._trackRelTilt++;
+  if (_trackRelAz != Radx::missingMetaDouble) count._trackRelAz++;
+  if (_trackRelEl != Radx::missingMetaDouble) count._trackRelEl++;
 
 }
 
@@ -232,6 +245,10 @@ void RadxGeoref::print(ostream &out) const
   out << "  rollRate: " << _rollRate << endl;
   out << "  driveAngle1: " << _driveAngle1 << endl;
   out << "  driveAngle2: " << _driveAngle2 << endl;
+  out << "  trackRelRot: " << _trackRelRot << endl;
+  out << "  trackRelTilt: " << _trackRelTilt << endl;
+  out << "  trackRelAz: " << _trackRelAz << endl;
+  out << "  trackRelEl: " << _trackRelEl << endl;
   out << "==========================================" << endl;
 
 }
@@ -274,6 +291,10 @@ void RadxGeoref::convert2Xml(string &xml, int level /* = 0 */)  const
   xml += RadxXml::writeDouble("rollRate", level + 1, _rollRate);
   xml += RadxXml::writeDouble("driveAngle1", level + 1, _driveAngle1);
   xml += RadxXml::writeDouble("driveAngle2", level + 1, _driveAngle2);
+  xml += RadxXml::writeDouble("trackRelRot", level + 1, _trackRelRot);
+  xml += RadxXml::writeDouble("trackRelTilt", level + 1, _trackRelTilt);
+  xml += RadxXml::writeDouble("trackRelAz", level + 1, _trackRelAz);
+  xml += RadxXml::writeDouble("trackRelEl", level + 1, _trackRelEl);
 
   xml += RadxXml::writeEndTag("RadxGeoref", level);
 
@@ -295,6 +316,10 @@ void RadxGeoref::serialize(RadxMsg &msg)
   
   _loadMetaNumbersToMsg();
   msg.addPart(_metaNumbersPartId, &_metaNumbers, sizeof(msgMetaNumbers_t));
+
+  // assemble the message from the parts
+
+  msg.assemble();
 
 }
 
@@ -385,6 +410,10 @@ void RadxGeoref::_loadMetaNumbersToMsg()
   _metaNumbers.rollRate = _rollRate;
   _metaNumbers.driveAngle1 = _driveAngle1;
   _metaNumbers.driveAngle2 = _driveAngle2;
+  _metaNumbers.trackRelRot = _trackRelRot;
+  _metaNumbers.trackRelTilt = _trackRelTilt;
+  _metaNumbers.trackRelAz = _trackRelAz;
+  _metaNumbers.trackRelEl = _trackRelEl;
 
 }
 
@@ -445,6 +474,10 @@ int RadxGeoref::_setMetaNumbersFromMsg(const msgMetaNumbers_t *metaNumbers,
   _rollRate = _metaNumbers.rollRate;
   _driveAngle1 = _metaNumbers.driveAngle1;
   _driveAngle2 = _metaNumbers.driveAngle2;
+  _trackRelRot = _metaNumbers.trackRelRot;
+  _trackRelTilt = _metaNumbers.trackRelTilt;
+  _trackRelAz = _metaNumbers.trackRelAz;
+  _trackRelEl = _metaNumbers.trackRelEl;
 
   return 0;
 
@@ -457,3 +490,148 @@ void RadxGeoref::_swapMetaNumbers(msgMetaNumbers_t &meta)
 {
   ByteOrder::swap64(&meta, sizeof(msgMetaNumbers_t));
 }
+
+///////////////////////////////////////////////////////////////////
+// compute (elevation, azimuth) from attitude, rotation, tilt
+// For a Y-prime radar e.g. HCR
+// angles are passed in/out in degrees
+
+void RadxGeoref::computeAzElYPrime(double pitch, double roll, double hdg, 
+                                   double rot, double tilt,
+                                   double &el, double &az)
+{
+
+  // precompute sin/cos
+  
+  double sinPitch = sin(Radx::toRadians(pitch));
+  double cosPitch = cos(Radx::toRadians(pitch));
+    
+  double sinRoll = sin(Radx::toRadians(roll));
+  double cosRoll = cos(Radx::toRadians(roll));
+    
+  double sinHdg = sin(Radx::toRadians(hdg));
+  double cosHdg = cos(Radx::toRadians(hdg));
+
+  double sinRot = sin(Radx::toRadians(rot));
+  double cosRot = cos(Radx::toRadians(rot));
+    
+  double sinTilt = sin(Radx::toRadians(tilt));
+  double cosTilt = cos(Radx::toRadians(tilt));
+
+  // compute unit vector relative to aircraft
+  
+  double x_a = sinRot * cosTilt;
+  double y_a = sinTilt;
+  double z_a = cosRot * cosTilt;
+
+  // compute matrix elements after multiplication
+  // for 3 axis transformation
+  
+  double mf11 = cosHdg * cosRoll + sinHdg * sinPitch * sinRoll;
+  double mf12 = sinHdg * cosPitch;
+  double mf13 = cosHdg * sinRoll - sinHdg * sinPitch * cosRoll;
+
+  double mf21 = -sinHdg * cosRoll + cosHdg * sinPitch * sinRoll;
+  double mf22 = cosHdg * cosPitch;
+  double mf23 = -sinHdg * sinRoll - cosHdg * sinPitch * cosRoll;
+
+  double mf31 = -cosPitch * sinRoll;
+  double mf32 = sinPitch;
+  double mf33 = cosPitch * cosRoll;
+
+  // Compute unit vector in earth coords
+  
+  double xx = mf11 * x_a + mf12 * y_a + mf13 * z_a;
+  double yy = mf21 * x_a + mf22 * y_a + mf23 * z_a;
+  double zz = mf31 * x_a + mf32 * y_a + mf33 * z_a;
+
+  // compute az and el
+
+  el = Radx::toDegrees(asin(zz));
+  az = Radx::toDegrees(atan2(xx, yy));
+
+  // if el is NAN then it is either +90 or -90
+
+  if (std::isnan(el)) {
+    if (zz > 0) {
+      el = 90.0;
+      az = 0.0;
+    } else if (zz < 0) {
+      el = -90.0;
+      az = 0.0;
+    }
+  }
+
+}
+
+///////////////////////////////////////////////////////////////////
+// compute (rotation, tilt) from attitude, elevation, azimuth
+// For a Y-prime radar e.g. HCR
+// angles are passed in/out in degrees
+
+void RadxGeoref::computeRotTiltYPrime(double pitch, double roll, double hdg, 
+                                      double el, double az,
+                                      double &rot, double &tilt)
+{
+
+  // precompute sin/cos
+  
+  double sinPitch = sin(Radx::toRadians(pitch));
+  double cosPitch = cos(Radx::toRadians(pitch));
+    
+  double sinRoll = sin(Radx::toRadians(roll));
+  double cosRoll = cos(Radx::toRadians(roll));
+
+  double sinHdg = sin(Radx::toRadians(hdg));
+  double cosHdg = cos(Radx::toRadians(hdg));
+
+  double sinEl = sin(Radx::toRadians(el));
+  double cosEl = cos(Radx::toRadians(el));
+    
+  double sinAz = sin(Radx::toRadians(az));
+  double cosAz = cos(Radx::toRadians(az));
+
+  // compute unit vector relative to aircraft
+
+  double xx = sinAz * cosEl;
+  double yy = cosAz * cosEl;
+  double zz = sinEl;
+
+  // compute matrix elements after multiplication
+  // for 3 axis transformation
+  
+  double mr11 = cosRoll * cosHdg + sinRoll * sinPitch * sinHdg;
+  double mr12 = -cosRoll * sinHdg + sinRoll * sinPitch * cosHdg;
+  double mr13 = -sinRoll * cosPitch;
+
+  double mr21 = cosPitch * sinHdg;
+  double mr22 = cosPitch * cosHdg;
+  double mr23 = sinPitch;
+
+  double mr31 = sinRoll * cosHdg - cosRoll * sinPitch * sinHdg;
+  double mr32 = -sinRoll * sinHdg - cosRoll * sinPitch * cosHdg;
+  double mr33 = cosRoll * cosPitch;
+
+  // Compute unit vector in earth coords
+
+  double x_a = mr11 * xx + mr12 * yy + mr13 * zz;
+  double y_a = mr21 * xx + mr22 * yy + mr23 * zz;
+  double z_a = mr31 * xx + mr32 * yy + mr33 * zz;
+
+  // compute rot and tilt
+
+  tilt = Radx::toDegrees(asin(y_a));
+  rot = Radx::toDegrees(atan2(x_a, z_a));
+
+  if (std::isnan(tilt)) {
+    if (y_a > 0) {
+      tilt = 90.0;
+      rot = 0.0;
+    } else if (y_a < 0) {
+      tilt = -90.0;
+      rot = 0.0;
+    }
+  }
+
+}
+

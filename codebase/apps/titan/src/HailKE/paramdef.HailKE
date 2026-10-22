@@ -1,0 +1,115 @@
+////////////////////////////////////////////////////////////////////////////////
+// parameter definitions for HailKE
+//
+//  Terri L. Betancourt, RAP, NCAR, P.O.Box 3000, Boulder, CO, 80307-3000, USA
+//  October 2001
+//
+////////////////////////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "DEBUGGING AND PROCESS CONTROL";
+}
+
+paramdef boolean {
+  p_default = {false};
+  p_descr = "Debug option";
+  p_help = "If set, debug messages will be printed";
+} debug;
+
+paramdef string {
+  p_default = "primary";
+  p_descr = "Process instance.";
+  p_help = "Used for procmap registration and auto restarting";
+} instance;
+
+typedef enum {
+  LATEST_DATA, FILE_LIST, TIME_LIST, ONE_TIME
+} trigger_mode_t;
+
+paramdef enum trigger_mode_t {
+  p_default = {LATEST_DATA};
+  p_descr = "Operating mode";
+  p_help = "In LATEST_DATA mode, the program waits for new data in radar_url\n"
+           "In TIME_LIST mode, the operates on radar_url data between the\n"
+           "             -start and -end time options on the command line.\n"
+           "In FILE_LIST mode, the program operates on the list of files\n"
+           "             specified by the -f option on the command line.\n"
+           "In ONE_TIME mode, the program operates on the radar_url data file\n"
+           "            which is first before the issue time specified\n"
+           "            by the -once option on the command line.\n";
+} trigger_mode;
+
+commentdef {
+  p_header = "RADAR DATA INPUT";
+};
+
+paramdef string {
+  p_default = "mdvp:://$(HOST)::mdv/radar";
+  p_descr = "Required URL for input radar data, "
+            "e.g., mdvp:://$(HOST)::mdv/radar";
+  p_help = "This is not used in FILELIST mode where "
+           "the file paths are specified on the command line.";
+} radar_url;
+
+paramdef string {
+  p_default = "DBZ";
+  p_descr = "Reflectivity field name for input from radar data.";
+} dbz_field_name;
+
+commentdef {
+  p_header = "HAIL KINETIC ENERGY CALCULATIONS";
+}
+
+paramdef struct ZM_coefficients_t {
+  p_descr = "Coefficients for Z-M relationship";
+  p_help = "Uses the Z-M relationship Z=a*pow(M,b)\n"
+           "  Where: Z is reflectivity in (mm ** 6) / (m ** 3)\n"
+           "         M is mass flux in (g / (m ** 2)sec\n"
+           "  Note:  Z is NOT in Dbz, rather,  Dbz=10*log_10(Z)";
+  p_field_type = {float, float};
+  p_field_name = {a, b};
+  p_default = { 35.9, 1.4 };
+} ZM_coefficients;
+
+paramdef struct ZE_coefficients_t {
+  p_descr = "Coefficients for Z-E relationship";
+  p_help = "Uses the Z-E relationship Z=a*pow(E,b)\n"
+           "  Where: Z is reflectivity in (mm ** 6) / (m ** 3)\n"
+           "         E is kinetic energy flux in (J / (m ** 2)sec\n"
+           "  Note:  Z is NOT in Dbz, rather,  Dbz=10*log_10(Z)";
+  p_field_type = {float, float};
+  p_field_name = {a, b};
+  p_default = { 40.0, 1.16 };
+} ZE_coefficients;
+
+paramdef float {
+  p_descr = "Freezing level (in Km).";
+  p_default = {4.5};
+} freezing_level;
+
+paramdef float {
+  p_descr = "Reference height above freezing level (in Km).";
+  p_help = "H(r) = freezing level + reference height above freezing.";
+  p_default = {2.0};
+} reference_height_above_freezing;
+
+paramdef float {
+  p_descr = "Hail threshold for reflectivity values at H(r).";
+  p_help = "Reflectivity values below this threshold will be ignored.\n";
+  p_default = {45.0};
+} reference_height_threshold;
+
+paramdef float {
+  p_descr = "Hail threshold for reflectivity values at the base level H(min).";
+  p_help = "Reflectivity values below this threshold will be ignored.\n";
+  p_default = {55.0};
+} base_height_threshold;
+
+commentdef {
+  p_header = "MDV OUTPUT DATASET";
+}
+
+paramdef string {
+  p_default = "mdvp:://$(HOST)::mdv/output";
+  p_descr = "URL for output dataset, e.g., mdvp:://$(HOST)::mdv/output";
+} output_url;

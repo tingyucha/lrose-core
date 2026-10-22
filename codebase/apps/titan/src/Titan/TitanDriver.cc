@@ -109,10 +109,14 @@ TitanDriver::TitanDriver(int argc, char **argv) :
 
   // create file lock
 
-  _fileLock = new FileLock(_progName, _params);
-  if (!_fileLock->OK) {
-    OK = false;
-    return;
+  if (_params.mode == Params::REALTIME) {
+    _fileLock = new FileLock(_progName, _params);
+    if (!_fileLock->OK) {
+      OK = false;
+      return;
+    }
+  } else {
+    _fileLock = nullptr;
   }
   
   return;
@@ -294,7 +298,7 @@ int TitanDriver::_runRetrack ()
 
   char *stormPath;
 
-  while ((stormPath = input.next()) != NULL) {
+  while ((stormPath = input.next()) != nullptr) {
     
     if (_params.debug) {
       cerr << "Retracking file: " << stormPath << endl;

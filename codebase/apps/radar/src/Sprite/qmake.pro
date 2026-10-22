@@ -1,5 +1,5 @@
 # packages needed
-#  libqt5
+#  libqt6
 
 TEMPLATE = app
 TARGET = Sprite
@@ -15,8 +15,8 @@ HEADERS += Args.hh
 HEADERS += ColorMap.hh
 HEADERS += Params.hh
 HEADERS += ScaledLabel.hh
-HEADERS += SpectraMgr.hh
-HEADERS += SpectraWidget.hh
+HEADERS += SpriteMgr.hh
+HEADERS += SpriteWidget.hh
 HEADERS += Sprite.hh
 HEADERS += TsReader.hh
 HEADERS += WorldPlot.hh
@@ -27,8 +27,8 @@ SOURCES += ColorMap.cc
 SOURCES += Main.cc
 SOURCES += Params.cc
 SOURCES += ScaledLabel.cc
-SOURCES += SpectraMgr.cc
-SOURCES += SpectraWidget.cc
+SOURCES += SpriteMgr.cc
+SOURCES += SpriteWidget.cc
 SOURCES += Sprite.cc
 SOURCES += TsReader.cc
 SOURCES += WorldPlot.cc
@@ -58,9 +58,7 @@ LIBS += -ldataport
 LIBS += -ltdrp
 
 LIBS += -lNcxx 
-LIBS += -lnetcdf_c++ 
 LIBS += -lnetcdf 
-LIBS += -lhdf5_cpp 
 LIBS += -lhdf5_hl 
 LIBS += -lhdf5 
 LIBS += -lz 

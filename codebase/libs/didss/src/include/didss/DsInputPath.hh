@@ -88,10 +88,14 @@ class DsInputPath {
   
 public:
 
+  // maps for archive mode
+  
   typedef multimap<string, time_t, less<string> > PathTimeMap;
   typedef pair<string, time_t > PathTimePair;
   typedef PathTimeMap::iterator PathTimeIter;
 
+  // maps for realtime mode
+  
   typedef multimap<time_t, string, less<time_t> > TimePathMap;
   typedef pair<time_t, string > TimePathPair;
   typedef TimePathMap::iterator TimePathIter;
@@ -238,6 +242,14 @@ public:
 
   void setSubString(const string &subString);
 
+  ///////////////////////////////////////
+  // set a substring that must NOT be in the filename
+  // for it to be considered valid.
+  // If set, only files without this string in
+  // their full path will be returned.
+
+  void setIgnoreString(const string &ignoreString);
+
   ///////////////////////////////////////////////////////////
   // set the directory scan sleep interval - secs
   //
@@ -280,6 +292,18 @@ public:
   // Defaults to 20.
 
   void setMaxRecursionDepth(int max_depth);
+
+  ///////////////////////////////////////////////////////////
+  // set the valid month range
+  //
+  // Limit the dates to within this month range, inclusively.
+  // If minMonth is less than or equal to maxMonth, then the
+  // range is from the min to the max, inclusively.
+  // If minMonth is greater than maxMonth, then the
+  // range is from the min to 12, and then 1 to the max, inclusively.
+  // i.e. the valid range wraps.
+
+  void setValidMonthRange(int minMonth, int maxMonth);
 
   ///////////////////////////////////////////////////////////
   // When set, only scan subdirs that look like daily subdirs
@@ -523,8 +547,8 @@ public:
   const string &getSearchExt() { return _search_ext; } 
   mode_t getMode() { return _mode; };
 
-  const PathTimeMap &getPathTimes() { return _pathTimeList; }
-  const vector<string> &getPathList() const { return _pathList; }
+  const PathTimeMap &getPathTimes() { return _archivePathMap; }
+  const vector<string> &getPathList() const { return _archivePathList; }
   
 protected:
 
@@ -533,9 +557,12 @@ private:
   string _input_dir;
   string _prog_name;
   string _search_ext;
-
+  
   bool _check_sub_str; // TRUE if filenames must contain a substring
   string _sub_str;     // The substring to check for.
+  
+  bool _check_ignore_str; // TRUE if filenames must no contain a substring
+  string _ignore_str;     // The ignore substring to check for.
   
   mode_t _mode;
   int _max_file_age;
@@ -548,6 +575,9 @@ private:
   bool _follow_links;
   bool _debug;
 
+  bool _checkMonth;
+  int _minMonth, _maxMonth;
+
   bool _use_ldata_info;
   bool _latest_file_only;
   time_t _latest_time_used;
@@ -557,19 +587,17 @@ private:
   bool _use_inotify;
   int _inotifyFd;
   map<int, string> _watchList;
-  deque<string> _inotifyFileQueue;
 
   DsInput_heartbeat_t _heartbeat_func;
   
-  vector<string> _pathList;
+  vector<string> _archivePathList;
   int _pathPosn;
 
-  PathTimeMap _pathTimeList;
+  PathTimeMap _archivePathMap;
  
-  TimePathMap _timePathList;
-  TimePathMap _prevPathTimeList;
-  TimePathIter _timePathPosn;
-
+  TimePathMap _realtimePathMap;
+  TimePathMap _prevRealtimeMap;
+  
   mutable LdataInfo _ldata;
   mutable string _returned_path;
 
@@ -586,16 +614,16 @@ private:
 				     time_t start_time, time_t end_time,
 				     int depth);
 
-  void _load_pathlist_day(const string &input_dir,
-			  int day_num,
-			  time_t start_time,
-			  time_t end_time,
-			  bool &have_valid_time_format,
-			  bool &have_forecast_format);
-
-  void _load_gen(const string &gendir_path,
-		 time_t start_time,
-		 time_t end_time);
+  void _load_pathlist_archive_day(const string &input_dir,
+                                  int day_num,
+                                  time_t start_time,
+                                  time_t end_time,
+                                  bool &have_valid_time_format,
+                                  bool &have_forecast_format);
+  
+  void _load_gen_archive(const string &gendir_path,
+                         time_t start_time,
+                         time_t end_time);
 
   int _nextArchive();
 
@@ -611,12 +639,13 @@ private:
   bool _hasExt(const string &path, string ext);
 
   bool _hasSubStr(const string &path);
+  bool _hasIgnoreStr(const string &path);
 
   bool _scanThisDir(char* name, int age);
 
-  void _insertPathPair(const string &path, time_t file_time);
+  void _insertArchivePathPair(const string &path, time_t file_time);
 
-  void _insertTimePair(time_t file_time, const string &path);
+  void _insertRealtimePair(time_t file_time, const string &path);
 
   void _fillLdataInfo(const char *latest_path);
 

@@ -29,7 +29,7 @@
 #include <string>
 #include <iostream>
 #include "SiiPalette.hh"
-#include "ColorMap.hh"
+#include <qtplot/ColorMap.hh>
 #include "ColorTableManager.hh"
 
 using namespace std;
@@ -56,7 +56,7 @@ public:
 
   /// Destructor
 
-  ~SoloDefaultColorWrapper();
+  virtual ~SoloDefaultColorWrapper();
  
   // Find the ColorMap by the palette name                                                                            
   // e.g. lookupColorTable("carbone17");                                               

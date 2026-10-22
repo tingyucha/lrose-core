@@ -45,8 +45,8 @@ using namespace std;
 // Call allocArrays() before using.
 
 GateData::GateData() :
-        flds(fields),
-        fldsF(fieldsF)
+        flds(&fields),
+        fldsF(&fieldsF)
 
 {
   
@@ -72,7 +72,7 @@ GateData::~GateData()
   _freeArrays();
 }
 
-// clear the field data
+// set the field data to missing
 
 void GateData::initFields()
 
@@ -83,20 +83,31 @@ void GateData::initFields()
   specVcComputed = false;
 }
 
+// set the field data to zero
+
+void GateData::initFieldsToZero()
+
+{
+  fields.initToZero();
+  fieldsF.initToZero();
+  specHcComputed = false;
+  specVcComputed = false;
+}
+
 // set field references
 
 void GateData::setFieldsToNormalTrip()
   
 {
-  flds = fields;
-  fldsF = fieldsF;
+  flds = &fields;
+  fldsF = &fieldsF;
 }
 
 void GateData::setFieldsToSecondTrip()
 
 {
-  flds = secondTrip;
-  fldsF = secondTripF;
+  flds = &secondTrip;
+  fldsF = &secondTripF;
 }
 
 //////////////////////////////////////
@@ -126,6 +137,8 @@ void GateData::_initArraysToNull()
 
   iqhcNotched = NULL;
   iqvcNotched = NULL;
+  iqhxNotched = NULL;
+  iqvxNotched = NULL;
 
   iqhcPrtShortOrig = NULL;
   iqhcPrtLongOrig = NULL;
@@ -156,6 +169,16 @@ void GateData::_initArraysToNull()
   iqhxPrtLongF = NULL;
   iqvxPrtShortF = NULL;
   iqvxPrtLongF = NULL;
+
+  iqhcPrtShortNotched = NULL;
+  iqvcPrtShortNotched = NULL;
+  iqhxPrtShortNotched = NULL;
+  iqvxPrtShortNotched = NULL;
+
+  iqhcPrtLongNotched = NULL;
+  iqvcPrtLongNotched = NULL;
+  iqhxPrtLongNotched = NULL;
+  iqvxPrtLongNotched = NULL;
 
   iqStrong = NULL;
   iqWeak = NULL;
@@ -226,6 +249,8 @@ void GateData::allocArrays(int nSamples,
 
     _allocArray(iqhcNotched, _iqhcNotched, _nSamples);
     _allocArray(iqvcNotched, _iqvcNotched, _nSamples);
+    _allocArray(iqhxNotched, _iqhxNotched, _nSamples);
+    _allocArray(iqvxNotched, _iqvxNotched, _nSamples);
 
   } else {
 
@@ -233,9 +258,11 @@ void GateData::allocArrays(int nSamples,
     _freeArray(iqvcF, _iqvcF);
     _freeArray(iqhxF, _iqhxF);
     _freeArray(iqvxF, _iqvxF);
-
+    
     _freeArray(iqhcNotched, _iqhcNotched);
     _freeArray(iqvcNotched, _iqvcNotched);
+    _freeArray(iqhxNotched, _iqhxNotched);
+    _freeArray(iqvxNotched, _iqvxNotched);
 
   }
 
@@ -297,6 +324,16 @@ void GateData::allocArrays(int nSamples,
     _allocArray(iqvxPrtShortF, _iqvxPrtShortF, _nSamplesHalf);
     _allocArray(iqvxPrtLongF, _iqvxPrtLongF, _nSamplesHalf);
     
+    _allocArray(iqhcPrtShortNotched, _iqhcPrtShortNotched, _nSamples);
+    _allocArray(iqvcPrtShortNotched, _iqvcPrtShortNotched, _nSamples);
+    _allocArray(iqhxPrtShortNotched, _iqhxPrtShortNotched, _nSamples);
+    _allocArray(iqvxPrtShortNotched, _iqvxPrtShortNotched, _nSamples);
+
+    _allocArray(iqhcPrtLongNotched, _iqhcPrtLongNotched, _nSamples);
+    _allocArray(iqvcPrtLongNotched, _iqvcPrtLongNotched, _nSamples);
+    _allocArray(iqhxPrtLongNotched, _iqhxPrtLongNotched, _nSamples);
+    _allocArray(iqvxPrtLongNotched, _iqvxPrtLongNotched, _nSamples);
+
   } else {
     
     _freeArray(iqhcPrtShortF, _iqhcPrtShortF);
@@ -309,6 +346,16 @@ void GateData::allocArrays(int nSamples,
     _freeArray(iqvxPrtShortF, _iqvxPrtShortF);
     _freeArray(iqvxPrtLongF, _iqvxPrtLongF);
     
+    _freeArray(iqhcPrtShortNotched, _iqhcPrtShortNotched);
+    _freeArray(iqvcPrtShortNotched, _iqvcPrtShortNotched);
+    _freeArray(iqhxPrtShortNotched, _iqhxPrtShortNotched);
+    _freeArray(iqvxPrtShortNotched, _iqvxPrtShortNotched);
+
+    _freeArray(iqhcPrtLongNotched, _iqhcPrtLongNotched);
+    _freeArray(iqvcPrtLongNotched, _iqvcPrtLongNotched);
+    _freeArray(iqhxPrtLongNotched, _iqhxPrtLongNotched);
+    _freeArray(iqvxPrtLongNotched, _iqvxPrtLongNotched);
+
   }
 
   if (_isSz) {
@@ -368,6 +415,8 @@ void GateData::_freeArrays()
 
   _freeArray(iqhcNotched, _iqhcNotched);
   _freeArray(iqvcNotched, _iqvcNotched);
+  _freeArray(iqhxNotched, _iqhxNotched);
+  _freeArray(iqvxNotched, _iqvxNotched);
 
   _freeArray(iqhcPrtShortOrig, _iqhcPrtShortOrig);
   _freeArray(iqhcPrtLongOrig, _iqhcPrtLongOrig);
@@ -399,6 +448,16 @@ void GateData::_freeArrays()
   _freeArray(iqvxPrtShortF, _iqvxPrtShortF);
   _freeArray(iqvxPrtLongF, _iqvxPrtLongF);
 
+  _freeArray(iqhcPrtShortNotched, _iqhcPrtShortNotched);
+  _freeArray(iqvcPrtShortNotched, _iqvcPrtShortNotched);
+  _freeArray(iqhxPrtShortNotched, _iqhxPrtShortNotched);
+  _freeArray(iqvxPrtShortNotched, _iqvxPrtShortNotched);
+
+  _freeArray(iqhcPrtLongNotched, _iqhcPrtLongNotched);
+  _freeArray(iqvcPrtLongNotched, _iqvcPrtLongNotched);
+  _freeArray(iqhxPrtLongNotched, _iqhxPrtLongNotched);
+  _freeArray(iqvxPrtLongNotched, _iqvxPrtLongNotched);
+  
   _freeArray(iqStrong, _iqStrong);
   _freeArray(iqWeak, _iqWeak);
   _freeArray(iqStrongF, _iqStrongF);

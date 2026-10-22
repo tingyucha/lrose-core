@@ -36,6 +36,7 @@
 #include <toolsa/sincos.h>
 #include <cmath>
 #include <iomanip>
+#include <complex>
 
 #ifndef RAD_TO_DEG
 #define RAD_TO_DEG 57.29577951308092
@@ -260,6 +261,22 @@ RadarComplex_t RadarComplex::mean(RadarComplex_t sum, double nn)
   return mean;
 }
 
+// phase shift in the time domain
+// add the phase shift provided in radians
+
+void RadarComplex::timeDomainPhaseShift(const RadarComplex_t *orig,
+                                        int len,
+                                        double shiftRadians,
+                                        RadarComplex_t *shifted)
+  
+{
+  for (int ii = 0; ii < len; ii++) {
+    double expon = ii * shiftRadians;
+    RadarComplex_t shifter(cos(expon), sin(expon));
+    shifted[ii] = RadarComplex::complexProduct(shifter, orig[ii]);
+  }
+}
+
 // normalize in place - set magnitude to 1.0
 
 void RadarComplex::normalize(RadarComplex_t &cc)
@@ -465,6 +482,31 @@ void RadarComplex::loadMag(const RadarComplex_t *in, double *mag, int len)
 
 }
 
+/////////////////////////////////////////////
+// clear an array of RadarComplex_t
+
+void RadarComplex::clear(RadarComplex_t *cc,
+                         size_t nn)
+  
+{
+  for (size_t ii = 0; ii < nn; ii++) {
+    cc[ii].clear();
+  }
+}
+
+/////////////////////////////////////////////
+// copy an array of RadarComplex_t
+
+void RadarComplex::copy(RadarComplex_t *dest,
+                        const RadarComplex_t *src,
+                        size_t nn)
+  
+{
+  for (size_t ii = 0; ii < nn; ii++) {
+    dest[ii] = src[ii];
+  }
+}
+
 ///////////////////////////////
 // print IQ time series
 //
@@ -563,6 +605,68 @@ void RadarComplex::printVector(ostream &out,
 	<< setw(10) << angle << endl;
   }
   out.flush();
+
+}
+
+///////////////////////////////
+// interpolate between 2 values
+// load vector of specified length
+
+std::vector<std::complex<double>>
+  _interpolateAngles(const std::complex<double>& start,
+                     const std::complex<double>& end,
+                     std::size_t n)
+{
+
+  if (std::abs(start) == 0.0 || std::abs(end) == 0.0) {
+    throw std::invalid_argument(
+            "Complex angle representations must have nonzero magnitude");
+  }
+
+  // Normalize so that only phase is used.
+  const std::complex<double> z0 = start / std::abs(start);
+  const std::complex<double> z1 = end   / std::abs(end);
+
+  // Signed angular difference in [-pi, pi].
+  const double angleDelta = std::arg(z1 * std::conj(z0));
+
+  std::vector<std::complex<double>> result;
+  result.reserve(n);
+
+  for (std::size_t i = 1; i <= n; ++i) {
+    const double fraction =
+      static_cast<double>(i) / static_cast<double>(n + 1);
+
+    // Rotate z0 through the required fraction of the angular difference.
+    result.push_back(
+      z0 * std::polar(1.0, fraction * angleDelta)
+    );
+  }
+
+  return result;
+
+}
+
+void RadarComplex::interpAndLoadVec(const RadarComplex_t &start,
+                                    const RadarComplex_t &end,
+                                    int nInterp,
+                                    vector<RadarComplex_t> &interpVec)
+  
+{
+
+  // use std::complex version
+  
+  std::complex<double> cstart(start.re, start.im);
+  std::complex<double> cend(end.re, end.im);
+  std::vector<std::complex<double>> interpAng = 
+    _interpolateAngles(cstart, cend, nInterp);
+
+  // copy to RadxComplex
+  
+  interpVec.resize(nInterp);
+  for (size_t ii = 0; ii < interpVec.size(); ii++) {
+    interpVec[ii].set(interpAng[ii].real(), interpAng[ii].imag());
+  }
 
 }
 

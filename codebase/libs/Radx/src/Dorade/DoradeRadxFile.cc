@@ -46,6 +46,8 @@
 #include <Radx/RadxGeoref.hh>
 #include <Radx/RadxPath.hh>
 #include <Radx/ByteOrder.hh>
+#include <Radx/Radx.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <cstring>
 #include <cmath>
 #include <cerrno>
@@ -138,6 +140,8 @@ void DoradeRadxFile::clear()
   _sedsBlockSize = 0;
   
   _writeFileNameMode = FILENAME_WITH_START_TIME_ONLY;
+
+  _isTailRadar = false;
 
 }
 
@@ -243,13 +247,13 @@ int DoradeRadxFile::_writeSweepToDir(RadxVol &vol,
   string outDir(dir);
   if (addYearSubDir) {
     char yearStr[BUFSIZ];
-    sprintf(yearStr, "%s%.4d", PATH_SEPARATOR, ftime.getYear());
+    safe_snprintf(yearStr, "%s%.4d", PATH_SEPARATOR, ftime.getYear());
     outDir += yearStr;
   }
   if (addDaySubDir) {
     char dayStr[BUFSIZ];
-    sprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
-            ftime.getYear(), ftime.getMonth(), ftime.getDay());
+    safe_snprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
+                  ftime.getYear(), ftime.getMonth(), ftime.getDay());
     outDir += dayStr;
   }
 
@@ -632,10 +636,10 @@ string DoradeRadxFile::computeFileName(int volNum,
   }
 
   char outName[BUFSIZ];
-  sprintf(outName, "swp.%d%02d%02d%02d%02d%02d.%s.%d.%.1f_%s_v%03d",
-          year - 1900, month, day, hour, min, sec,
-          instrumentName.c_str(), millisecs, fixedAngle,
-          scanType.c_str(), volNum);
+  safe_snprintf(outName, "swp.%d%02d%02d%02d%02d%02d.%s.%d.%.1f_%s_v%03d",
+                year - 1900, month, day, hour, min, sec,
+                instrumentName.c_str(), millisecs, fixedAngle,
+                scanType.c_str(), volNum);
 
   return outName;
 
@@ -1078,17 +1082,21 @@ int DoradeRadxFile::_readSweepFile(const string &path)
 
     // read in block
     
-    if (fread(block, 1, nBytes, _file) != (size_t) nBytes) {
+    size_t nRead = fread(block, 1, nBytes, _file);
+    if (nRead != (size_t) nBytes) {
       int errNum = errno;
       _addErrStr("ERROR - DoradeRadxFile::_readSweepFile()");
       _addErrStr("  Cannot read data block");
       _addErrStr("  ID: ", id);
       _addErrInt("  len: ", nBytes);
+      _addErrInt("  nRead: ", nRead);
       _addErrStr("  File path: ", path);
       _addErrStr(strerror(errNum));
-      delete[] block;
-      _close();
-      return -1;
+      if (idStr != "RKTB") {
+        delete[] block;
+        _close();
+        return -1;
+      }
     }
 
     // handle block
@@ -1172,9 +1180,9 @@ int DoradeRadxFile::_getVolumePaths(const string &path,
   if (rhour == 0) {
     RadxTime prevDate(rtime.utime() - RadxTime::RADX_SECS_IN_DAY);
     char prevDir[RadxPath::RADX_MAX_PATH_LEN];
-    sprintf(prevDir, "%s%s%.4d%.2d%.2d",
-            parentDir.c_str(), RadxPath::RADX_PATH_DELIM,
-            prevDate.getYear(), prevDate.getMonth(), prevDate.getDay());
+    safe_snprintf(prevDir, "%s%s%.4d%.2d%.2d",
+                  parentDir.c_str(), RadxPath::RADX_PATH_DELIM,
+                  prevDate.getYear(), prevDate.getMonth(), prevDate.getDay());
     _addToPathList(prevDir, 23, 23, pathList);
   }
 
@@ -1183,9 +1191,9 @@ int DoradeRadxFile::_getVolumePaths(const string &path,
   if (rhour == 23) {
     RadxTime nextDate(rtime.utime() + RadxTime::RADX_SECS_IN_DAY);
     char nextDir[RadxPath::RADX_MAX_PATH_LEN];
-    sprintf(nextDir, "%s%s%.4d%.2d%.2d",
-            parentDir.c_str(), RadxPath::RADX_PATH_DELIM,
-            nextDate.getYear(), nextDate.getMonth(), nextDate.getDay());
+    safe_snprintf(nextDir, "%s%s%.4d%.2d%.2d",
+                  parentDir.c_str(), RadxPath::RADX_PATH_DELIM,
+                  nextDate.getYear(), nextDate.getMonth(), nextDate.getDay());
     _addToPathList(nextDir, 0, 0, pathList);
   }
 
@@ -1813,6 +1821,7 @@ int DoradeRadxFile::_handleRay(int nBytes, const char *block)
       break;
     case DoradeData::SCAN_MODE_AIR:
       ray->setSweepMode(Radx::SWEEP_MODE_ELEVATION_SURVEILLANCE);
+      _isTailRadar = true;
       break;
     default:
       ray->setSweepMode(Radx::SWEEP_MODE_AZIMUTH_SURVEILLANCE);
@@ -2395,6 +2404,12 @@ int DoradeRadxFile::_loadReadVolume()
   if (_radarName.find("ELDR") != string::npos) {
     _readVol->setPrimaryAxis(Radx::PRIMARY_AXIS_Y_PRIME);
   } 
+
+  if (_isTailRadar) {
+    _readVol->setPlatformType(Radx::PLATFORM_TYPE_AIRCRAFT_TAIL);
+    _readVol->setPrimaryAxis(Radx::PRIMARY_AXIS_Y_PRIME);
+  }
+
   // if the extension_num contains a value
   // override the primary axis. 
   // the primary axis enum type starts at zero, but a zero
@@ -2732,17 +2747,21 @@ int DoradeRadxFile::printNative(const string &path, ostream &out,
 
     // read in block
     
-    if (fread(block, 1, nBytes, _file) != (size_t) nBytes) {
+    size_t nRead = fread(block, 1, nBytes, _file);
+    if (nRead != (size_t) nBytes) {
       int errNum = errno;
       _addErrStr("ERROR - DoradeRadxFile::printNative()");
       _addErrStr("  Cannot read data block");
       _addErrStr("  ID: ", id);
       _addErrInt("  len: ", nBytes);
+      _addErrInt("  nRead: ", nRead);
       _addErrStr("  File path: ", path);
       _addErrStr(strerror(errNum));
-      delete[] block;
-      _close();
-      return -1;
+      if (idStr != "RKTB") {
+        delete[] block;
+        _close();
+        return -1;
+      }
     }
 
     // print block
@@ -3476,12 +3495,12 @@ void DoradeRadxFile::_printPacked(ostream &out, int count, double val) const
     out << "MISS ";
   } else {
     if (fabs(val) > 0.01) {
-      sprintf(outstr, "%.3f ", val);
+      safe_snprintf(outstr, "%.3f ", val);
       out << outstr;
     } else if (val == 0.0) {
       out << "0.0 ";
     } else {
-      sprintf(outstr, "%.3e ", val);
+      safe_snprintf(outstr, "%.3e ", val);
       out << outstr;
     }
   }
@@ -3502,8 +3521,8 @@ int DoradeRadxFile::_writeComment()
   commStr.resize(499);
   strncpy(_ddComment.comment, commStr.c_str(), 499);
   if (strlen(_ddComment.comment) == 0) {
-    sprintf(_ddComment.comment, "%s",
-            "Written by DoradeRadxFile object");
+    safe_snprintf(_ddComment.comment, "%s",
+                  "Written by DoradeRadxFile object");
   }
 
   // byte swap as needed
@@ -3554,7 +3573,7 @@ int DoradeRadxFile::_writeSuperSwib(int fileSize)
   _ddSwib.volume_time_stamp = _writeVol->getStartTimeSecs();
   _ddSwib.num_params = _writeVol->getFields().size();
 
-  strncpy(_ddSwib.radar_name, _writeVol->getInstrumentName().c_str(), 8);
+  Radx::copyString(_ddSwib.radar_name, _writeVol->getInstrumentName(), 8);
   double delta_start = _writeVol->getStartNanoSecs() / 1.0e9;
   double delta_stop = _writeVol->getEndNanoSecs() / 1.0e9;
 
@@ -3644,9 +3663,9 @@ int DoradeRadxFile::_writeVolume()
     _ddVol.maximum_bytes = 32768;
   }
 
-  strncpy(_ddVol.proj_name, _writeVol->getTitle().c_str(), 20);
-  strncpy(_ddVol.flight_num, _writeVol->getReferences().c_str(), 8);
-  strncpy(_ddVol.gen_facility, _writeVol->getSource().c_str(), 8);
+  Radx::copyString(_ddVol.proj_name, _writeVol->getTitle(), 20);
+  Radx::copyString(_ddVol.flight_num, _writeVol->getReferences(), 8);
+  Radx::copyString(_ddVol.gen_facility, _writeVol->getSource(), 8);
 
   RadxTime startTime(_writeVol->getStartTimeSecs());
   _ddVol.year = startTime.getYear();
@@ -3705,8 +3724,8 @@ int DoradeRadxFile::_writeRadar()
     cal = *_writeVol->getRcalibs()[0];
   }
 
-  strncpy(_ddRadar.radar_name, _writeVol->getInstrumentName().c_str(), 8);
-  strncpy(_ddRadar.site_name, _writeVol->getSiteName().c_str(), 20);
+  Radx::copyString(_ddRadar.radar_name, _writeVol->getInstrumentName(), 8);
+  Radx::copyString(_ddRadar.site_name, _writeVol->getSiteName(), 20);
 
   _ddRadar.radar_const = cal.getRadarConstantH();
 
@@ -3871,10 +3890,10 @@ int DoradeRadxFile::_writeRadar()
       // check for missing data values
       double prt2 = ray.getPrtSec();
       if (prt2 != Radx::missingMetaDouble) {
-        _ddRadar.prt2 = prt2 * 1000.0 / ray.getPrtRatio(); // msecs
+        _ddRadar.prt2 = (prt2 * 1000.0) / ray.getPrtRatio(); // msecs
       }
     }
-    //    double pulseWidthUsec = ray.getPulseWidthUsec();
+    //double pulseWidthUsec = ray.getPulseWidthUsec();
     //double pulseWidthMeters = (pulseWidthUsec / 1.0e6) * Radx::LIGHT_SPEED * 0.5;
     //_ddRadar.pulse_width = pulseWidthMeters;
     //double pulseWidthUsec = ray.getPulseWidthUsec();
@@ -3957,7 +3976,7 @@ int DoradeRadxFile::_writeLidar()
   
   DoradeData::init(_ddLidar);
 
-  strncpy(_ddLidar.lidar_name, _writeVol->getInstrumentName().c_str(), 8);
+  Radx::copyString(_ddLidar.lidar_name, _writeVol->getInstrumentName(), 8);
   _ddLidar.lidar_const = _writeVol->getLidarConstant();
   _ddLidar.pulse_energy = _writeVol->getLidarPulseEnergyJ();
   _ddLidar.peak_power = _writeVol->getLidarPeakPowerW();
@@ -4119,11 +4138,11 @@ int DoradeRadxFile::_writeParameter(int fieldNum)
   DoradeData::parameter_t parm;
   DoradeData::init(parm);
   
-  strncpy(parm.parameter_name, field.getName().c_str(), 8);
-  strncpy(parm.param_description, field.getLongName().c_str(), 40);
-  strncpy(parm.param_units, field.getUnits().c_str(), 8);
-  strncpy(parm.config_name, field.getStandardName().c_str(), 8);
-  strncpy(parm.threshold_field, field.getThresholdFieldName().c_str(), 8);
+  Radx::copyString(parm.parameter_name, field.getName(), 8);
+  Radx::copyString(parm.param_description, field.getLongName(), 40);
+  Radx::copyString(parm.param_units, field.getUnits(), 8);
+  Radx::copyString(parm.config_name, field.getStandardName(), 8);
+  Radx::copyString(parm.threshold_field, field.getThresholdFieldName(), 8);
 
   parm.interpulse_time = 1;
   parm.xmitted_freq = 1;
@@ -4395,7 +4414,7 @@ int DoradeRadxFile::_writeSweepInfo(int sweepNum)
   
   DoradeData::init(_ddSweep);
 
-  strncpy(_ddSweep.radar_name, _writeVol->getInstrumentName().c_str(), 8);
+  Radx::copyString(_ddSweep.radar_name, _writeVol->getInstrumentName(), 8);
 
   _ddSweep.sweep_num = sweep.getSweepNumber();
   _ddSweep.num_rays = sweep.getEndRayIndex() - sweep.getStartRayIndex() + 1;
@@ -4677,7 +4696,7 @@ int DoradeRadxFile::_writeRayData(int rayNum, int fieldNum)
   
   DoradeData::paramdata_t pdat;
   DoradeData::init(pdat);
-  strncpy(pdat.pdata_name, field.getName().c_str(), 8);
+  Radx::copyString(pdat.pdata_name, field.getName(), 8);
   pdat.nbytes = sizeof(pdat) + nBytesOut;
 
   // byte swap as needed
@@ -5247,5 +5266,3 @@ double DoradeRadxFile::_getScale(const string &name)
   return scale;
 
 }
-
-

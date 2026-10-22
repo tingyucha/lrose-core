@@ -1,4 +1,4 @@
-# LROSE 32-bit package dependencies - CIDD
+# LROSE-CIDD 32-bit package dependencies - LINUX ONLY
 
 **NOTE:** the following procedures require **root** or **sudo** privileges.
 
@@ -46,6 +46,23 @@ Then run:
     libtiff-devel.i686 libpng-devel.i686 \
     libstdc++-devel.i686 libtiff-devel.i686 \
     zlib-devel.i686 expat-devel.i686 flex-devel.i686 \
+    fftw-devel.i686 bzip2-devel.i686 \
+    gnuplot ImageMagick-devel ImageMagick-c++-devel \
+    xorg-x11-fonts-100dpi xorg-x11-fonts-ISO8859-1-100dpi \
+    xorg-x11-fonts-75dpi xorg-x11-fonts-ISO8859-1-75dpi \
+    xorg-x11-fonts-misc
+```
+
+## Manually install packages for CENTOS/RHEL 9
+
+```
+  dnf install -y --allowerasing \
+    xrdb \
+    glibc-devel.i686 libX11-devel.i686 libXext-devel.i686 \
+    libcurl-devel.i686 \
+    libtiff-devel.i686 libpng-devel.i686 \
+    libstdc++-devel.i686 libtiff-devel.i686 \
+    zlib-devel.i686 expat-devel.i686 \
     fftw-devel.i686 bzip2-devel.i686 \
     gnuplot ImageMagick-devel ImageMagick-c++-devel \
     xorg-x11-fonts-100dpi xorg-x11-fonts-ISO8859-1-100dpi \

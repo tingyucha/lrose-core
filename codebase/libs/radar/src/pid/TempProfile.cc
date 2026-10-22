@@ -43,6 +43,7 @@
 #include <Spdb/SoundingGet.hh>
 #include <rapformats/Sndg.hh>
 #include <physics/thermo.h>
+#include <physics/IcaoStdAtmos.hh>
 using namespace std;
 
 const double TempProfile::missingValue = -9999.0;
@@ -119,7 +120,7 @@ int TempProfile::loadFromSpdb(const string &url,
       // failed - move back in time and try again
       searchTime -= 3600;
       if (_debug) {
-        cerr << "TempProfile::getTempProfile, url: " << url << endl;
+        cerr << "TempProfile::loadFromSpdb, url: " << url << endl;
         cerr << "ERROR - could not retrieve sounding" << endl;
         cerr << "  Moving back to search time: "
              << DateTime::strm(searchTime) << endl;
@@ -133,7 +134,7 @@ int TempProfile::loadFromSpdb(const string &url,
       // failed - move back in time and try again
       searchTime -= 3600;
       if (_debug) {
-        cerr << "TempProfile::getTempProfile, url: " << url << endl;
+        cerr << "TempProfile::loadFromSpdb, url: " << url << endl;
         cerr << "ERROR - check failed" << endl;
         cerr << "  Moving back to search time: "
              << DateTime::strm(searchTime) << endl;
@@ -146,7 +147,7 @@ int TempProfile::loadFromSpdb(const string &url,
     soundingTime = _soundingTime;
     
     if (_debug) {
-      cerr << "TempProfile::getTempProfile, url: " << url << endl;
+      cerr << "TempProfile::loadFromSpdb, url: " << url << endl;
       cerr << "  Got profile at time: "
            << DateTime::strm(_soundingTime) << endl;
     }
@@ -314,12 +315,22 @@ int TempProfile::_getTempProfile(time_t searchTime)
 
 {
 
-  // read in sounding
+  IcaoStdAtmos stdAtmos;
+
+  // set the data type if specified
 
   int dataType = 0;
   if (_soundingLocationName.size() > 0) {
-    dataType = Spdb::hash4CharsToInt32(_soundingLocationName.c_str());
+    if (sscanf(_soundingLocationName.c_str(), "%d", &dataType) != 1) {
+      if(_soundingLocationName.size() == 4) {
+        dataType = Spdb::hash4CharsToInt32(_soundingLocationName.c_str());
+      } else {
+        dataType = Spdb::hash5CharsToInt32(_soundingLocationName.c_str());
+      }
+    }
   }
+
+  // read in sounding
 
   DsSpdb spdb;
   if (spdb.getClosest(_soundingSpdbUrl,
@@ -336,9 +347,11 @@ int TempProfile::_getTempProfile(time_t searchTime)
   
   if (_verbose) {
     cerr << "=======>> Got spdb sounding" << endl;
+    cerr << "  url: " << _soundingSpdbUrl << endl;
     cerr << "  Search time: " << DateTime::strm(searchTime) << endl;
     cerr << "  margin (secs): " << _soundingSearchTimeMarginSecs << endl;
-    cerr << "  url: " << _soundingSpdbUrl << endl;
+    cerr << "  location: " << _soundingLocationName << endl;
+    cerr << "  dataType: " << dataType << endl;
     cerr << "  Prod label: " << spdb.getProdLabel() << endl;
     cerr << "  Prod id:    " << spdb.getProdId() << endl;
     cerr << "  N Chunks:   " << spdb.getNChunks() << endl;
@@ -372,27 +385,39 @@ int TempProfile::_getTempProfile(time_t searchTime)
     }
     
     _soundingTime = sounding->launchTime;
-    
+
     int dataOffset =
       sizeof(SNDG_spdb_product_t) - sizeof(SNDG_spdb_point_t);
     SNDG_spdb_point_t *dataPtr = 
       (SNDG_spdb_point_t *) ((char *) sounding + dataOffset);
     for(int ipoint = 0; ipoint < sounding->nPoints; ipoint++ ) {
         
-      if (dataPtr->pressure > -999 &&
-          dataPtr->altitude > -999 &&
-          dataPtr->temp > -999) {
-        double pressHpa = dataPtr->pressure;
-        double htKm = dataPtr->altitude / 1000.0 + _heightCorrectionKm;
+      // compute pressure or height if one is missing
+      double pressHpa = dataPtr->pressure;
+      double htM = dataPtr->altitude;
+      if (pressHpa < 0 && htM > -999) {
+        pressHpa = stdAtmos.ht2pres(htM);
+      } else if (pressHpa > 0 && htM <= -999) {
+        htM = stdAtmos.pres2ht(pressHpa);
+      }
+      
+      if (pressHpa > 0 && htM > -999 && dataPtr->temp > -999) {
+        double htKm = htM / 1000.0 + _heightCorrectionKm;
         double tempC = dataPtr->temp;
         double rh = dataPtr->rh;
         if (_useWetBulbTemp && rh >= 0) {
           double dewptC = PHYrhdp(tempC, rh);
           double tWet = PHYtwet(pressHpa, tempC, dewptC);
           PointVal tmpPt(pressHpa, htKm, tWet);
+          if (rh >= 0) {
+            tmpPt.setRhPercent(rh);
+          }
           _profile.push_back(tmpPt);
         } else {
           PointVal tmpPt(pressHpa, htKm, tempC);
+          if (rh >= 0) {
+            tmpPt.setRhPercent(rh);
+          }
           _profile.push_back(tmpPt);
         }
       }
@@ -423,19 +448,32 @@ int TempProfile::_getTempProfile(time_t searchTime)
     const vector<Sndg::point_t> &pts = sounding.getPoints();
     for (size_t ii = 0; ii < pts.size(); ii++) {
       const Sndg::point_t &pt = pts[ii];
-      if (pt.pressure > -9999 &&
-          pt.altitude > -999 &&
-          pt.temp > -999) {
-        double pressHpa = pt.pressure;
-        double htKm = pt.altitude / 1000.0;
+
+      // compute pressure or height if one is missing
+      double pressHpa = pt.pressure;
+      double htM = pt.altitude;
+      if (pressHpa < 0 && htM > -999) {
+        pressHpa = stdAtmos.ht2pres(htM);
+      } else if (pressHpa > 0 && htM <= -999) {
+        htM = stdAtmos.pres2ht(pressHpa);
+      }
+      
+      if (pressHpa > 0 && htM > -999 && pt.temp > -999) {
+        double htKm = htM / 1000.0;
         double tempC = pt.temp;
         double dewptC = pt.dewpt;
         if (_useWetBulbTemp && dewptC > -999) {
           double tWet = PHYtwet(pressHpa, tempC, dewptC);
           PointVal tmpPt(pressHpa, htKm, tWet);
+          if (pt.rh >= 0) {
+            tmpPt.setRhPercent(pt.rh);
+          }
           _profile.push_back(tmpPt);
         } else {
           PointVal tmpPt(pressHpa, htKm, tempC);
+          if (pt.rh >= 0) {
+            tmpPt.setRhPercent(pt.rh);
+          }
           _profile.push_back(tmpPt);
         }
       }

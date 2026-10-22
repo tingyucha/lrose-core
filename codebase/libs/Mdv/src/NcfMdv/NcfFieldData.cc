@@ -37,6 +37,7 @@
 //////////////////////////////////////////////////////////////
 
 #include <Ncxx/Ncxx.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <toolsa/TaStr.hh>
 #include <Mdv/NcfMdv.hh>
 #include <Mdv/NcfFieldData.hh>
@@ -203,12 +204,27 @@ int NcfFieldData::addToNc(Nc3File *ncFile, Nc3Dim *timeDim,
   if (_debug) {
     cerr << "adding field: " << fieldName << endl;
   }
-
+  
+  // check that field name does not conflict
+  
+  string testName(fieldName);
+  for (int ii = 1; ii < 100; ii++) {
+    Nc3Var *testVar = ncFile->get_var(testName.c_str());
+    if (testVar == NULL) {
+      // var does not yet exist, so name can be used
+      fieldName = testName;
+      break;
+    }
+    char numStr[128];
+    snprintf(numStr, 128, "_%.2d", ii);
+    testName = fieldName + numStr;
+  }
+  
   _ncVar =
     ncFile->add_var(fieldName.c_str(), _ncType, timeDim,
                     _vlevelInfo->getNcZdim(), _gridInfo->getNcYdim(),
                     _gridInfo->getNcXdim());
-
+  
   if (_ncVar == NULL) {
     errStr += "WARNING - NcfFieldData::addToNc\n";
     errStr += "  Cannot add variable to Nc file object\n";
@@ -290,12 +306,19 @@ int NcfFieldData::addToNc(Nc3File *ncFile, Nc3Dim *timeDim,
     _addOffset = 0.0;
     _scaleFactor = 1.0;
 
-    iret |= !_ncVar->add_att(NcfMdv::valid_min, _minOut);
-    iret |= !_ncVar->add_att(NcfMdv::valid_max, _maxOut);
+    iret |= !_ncVar->add_att(NcfMdv::valid_min, -3.4028e38f);
+    iret |= !_ncVar->add_att(NcfMdv::valid_max, 3.4028e38f);
     iret |= !_ncVar->add_att(NcfMdv::FillValue, _missing);
 
   }
 
+  // min and max values
+
+  iret |= !_ncVar->add_att(NcfMdv::min_value, _fhdrFl32.min_value);
+  iret |= !_ncVar->add_att(NcfMdv::max_value, _fhdrFl32.max_value);
+
+  // name and units
+  
   if ( _ncfStandardName.size() > 0) {
     iret |= !_ncVar->add_att(NcfMdv::standard_name,
                              _ncfStandardName.c_str());
@@ -306,19 +329,25 @@ int NcfFieldData::addToNc(Nc3File *ncFile, Nc3Dim *timeDim,
 
   // Add auxiliary variables if necessay
 
-  if (_gridInfo->getProjType() != Mdvx::PROJ_LATLON ) {
+  if (_gridInfo->getProjType() == Mdvx::PROJ_LATLON ) {
+
+    iret |= !_ncVar->add_att(NcfMdv::grid_mapping_name, NcfMdv::latitude_longitude);
+
+  } else {
 
     char auxVarNames[1024];
     
-    if (_outputLatlonArrays) {
-      sprintf(auxVarNames, "%s %s",
-              _gridInfo->getNcLonVar()->name(),
-              _gridInfo->getNcLatVar()->name());
+    if (_outputLatlonArrays &&
+        _gridInfo->getNcLonVar() != NULL &&
+        _gridInfo->getNcLatVar() != NULL) {
+      safe_snprintf(auxVarNames, "%s %s",
+                    _gridInfo->getNcLonVar()->name(),
+                    _gridInfo->getNcLatVar()->name());
       iret |= !_ncVar->add_att(NcfMdv::coordinates, auxVarNames);
     }
 
     if (_gridInfo->getNcProjVar() != NULL) {
-      sprintf(auxVarNames, "%s", _gridInfo->getNcProjVar()->name());
+      safe_snprintf(auxVarNames, "%s", _gridInfo->getNcProjVar()->name());
       iret |= !_ncVar->add_att(NcfMdv::grid_mapping, auxVarNames);
     }
 
@@ -357,7 +386,7 @@ int NcfFieldData::addToNc(Nc3File *ncFile, Nc3Dim *timeDim,
   
   if (_ncFormat == Nc3File::Netcdf4 || _ncFormat == Nc3File::Netcdf4Classic) {
     if (_setChunking(ncFile, errStr)) {
-      cerr << "WARNING: NcfFieldData::addToNcf" << endl;
+      cerr << "WARNING: NcfFieldData::addToNc" << endl;
       cerr << "  Chunking failed" << endl;
       return -1;
     }
@@ -368,7 +397,7 @@ int NcfFieldData::addToNc(Nc3File *ncFile, Nc3Dim *timeDim,
   if (_compress &&
       (_ncFormat == Nc3File::Netcdf4 || _ncFormat == Nc3File::Netcdf4Classic)) {
     if (_setCompression(ncFile, errStr)) {
-      cerr << "WARNING: NcfFieldData::addToNcf" << endl;
+      cerr << "WARNING: NcfFieldData::addToNc" << endl;
       cerr << "  Compression will not be used" << endl;
     }
   }
@@ -526,6 +555,35 @@ int NcfFieldData::_setCompression(Nc3File *ncFile,
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// Get compression parameters
+// returns 0 on success, -1 on failure
+
+int NcfFieldData::getCompressionParameters(Nc3File *ncFile,
+                                           bool& shuffleFilterEnabled,
+                                           bool& deflateFilterEnabled,
+                                           int& deflateLevel) const
+  
+{
+
+  int fileId = ncFile->id();
+  int varId = _ncVar->id();
+  int shuffle, control, level;
+
+  if (nc_inq_var_deflate(fileId, varId, &shuffle, &control, &level) == NC_NOERR) {
+    shuffleFilterEnabled = static_cast<bool> (shuffle);
+    deflateFilterEnabled = static_cast<bool> (control);
+    deflateLevel = level;
+    return 0;
+  } else {
+    shuffleFilterEnabled = 0;
+    deflateFilterEnabled = 0;
+    deflateLevel = 0;
+    return -1;
+  }
+
+}
+
+///////////////////////////////////////////////////////////////////////////
 // Set chunking
 // We want to be able to read in a single vertical plan efficiently
 // So we want to chunk a plane at a time.
@@ -591,4 +649,3 @@ int NcfFieldData::_setChunking(Nc3File *ncFile,
   return 0;
 
 }
-

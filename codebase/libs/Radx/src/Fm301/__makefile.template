@@ -1,0 +1,56 @@
+# *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* 
+# ** Copyright UCAR (c) 1992 - 2010 
+# ** University Corporation for Atmospheric Research(UCAR) 
+# ** National Center for Atmospheric Research(NCAR) 
+# ** Research Applications Laboratory(RAL) 
+# ** P.O.Box 3000, Boulder, Colorado, 80307-3000, USA 
+# ** 2010/10/7 23:12:35 
+# *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* 
+###########################################################################
+#
+# Makefile for Fm301 modules for Radx
+#
+# Mike Dixon, EOL, NCAR, Boulder, Co, USA, 80307
+#
+# Sept 2026
+#
+###########################################################################
+
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_macros
+
+TARGET_FILE = ../libRadx.a
+
+LOC_INCLUDES = -I../include $(NETCDF4_INCS)
+LOC_CFLAGS = 
+
+HDRS = \
+	../include/Radx/Fm301RadxFile.hh
+
+CPPC_SRCS = \
+	Fm301RadxFileParams.cc \
+	Fm301RadxFile.cc \
+	Fm301RadxFile_read.cc \
+	Fm301RadxFile_write.cc \
+	RadxFm301Str.cc
+
+#
+# general targets
+#
+
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_lib_module_targets
+
+#
+# local targets
+#
+
+Fm301RadxFileParams.cc: paramdef.Fm301RadxFile
+	tdrp_gen -f paramdef.Fm301RadxFile -c++ -class Fm301RadxFileParams -lib Radx -add_ncar_copyright
+	/bin/mv -f Fm301RadxFileParams.hh ../include/Radx
+
+clean_tdrp:
+	$(RM) Fm301RadxFileParams.cc ../include/Radx/Fm301RadxFileParams.hh
+
+
+depend: depend_generic
+
+# DO NOT DELETE THIS LINE -- make depend depends on it.

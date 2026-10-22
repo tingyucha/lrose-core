@@ -48,6 +48,7 @@
 #include <Radx/ByteOrder.hh>
 #include <Radx/RadxRemap.hh>
 #include <Radx/RadxRcalib.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <Radx/RadxStr.hh>
 #include <Radx/RadxReadDir.hh>
 #include <cstring>
@@ -164,6 +165,7 @@ void NexradRadxFile::clear()
   _vcpVelRes = 0.5;
   _vcpShortPulse = true;
   _vcpPpis.clear();
+  _prevSweepNum = -1;
 
   _startRangeKmLong = 0.5;
   _gateSpacingKmLong = 1.0;
@@ -217,13 +219,13 @@ int NexradRadxFile::writeToDir(const RadxVol &vol,
   string outDir(dir);
   if (addYearSubDir) {
     char yearStr[BUFSIZ];
-    sprintf(yearStr, "%s%.4d", PATH_SEPARATOR, ftime.getYear());
+    safe_snprintf(yearStr, "%s%.4d", PATH_SEPARATOR, ftime.getYear());
     outDir += yearStr;
   }
   if (addDaySubDir) {
     char dayStr[BUFSIZ];
-    sprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
-            ftime.getYear(), ftime.getMonth(), ftime.getDay());
+    safe_snprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
+                  ftime.getYear(), ftime.getMonth(), ftime.getDay());
     outDir += dayStr;
   }
 
@@ -503,6 +505,9 @@ int NexradRadxFile::readFromPath(const string &path,
     _volumeNumber = volNum;
   }
 
+  // set site_id if possible
+  _siteName = Radx::makeString(title.site_id, 4);
+
   // if possible initialize position etc from file path
   
   NexradLoc loc;
@@ -512,7 +517,7 @@ int NexradRadxFile::readFromPath(const string &path,
     _altitudeM = loc.getHtMeters();
     _instrumentName = loc.getName();
   }
-  
+
   // loop looking for message headers
 
   RadxBuf buf;
@@ -573,16 +578,27 @@ int NexradRadxFile::readFromPath(const string &path,
 
         _checkIsLongRange(ray);
         
-        // add ray to vol
+        // add ray to vol, make sure sweep numbers are increasing
         
-        _readVol->addRay(ray);
-        
-        if (_verbose) {
-          cerr << "Adding msg 31 ray, el, az: "
-               << ray->getElevationDeg() << ", " << ray->getAzimuthDeg() << endl;
+        if ((ray->getSweepNumber() >= _prevSweepNum) || _readPreserveSweeps) {
+          _readVol->addRay(ray);
+          _prevSweepNum = ray->getSweepNumber();
+          if (_verbose) {
+            cerr << "Adding msg 31 ray, sweepNum, el, az: "
+                 << ray->getSweepNumber() << ", "
+                 << ray->getElevationDeg() << ", "
+                 << ray->getAzimuthDeg() << endl;
+          }
+        } else {
+          if (_verbose) {
+            cerr << "ERROR - sweep number decreased, msg 31 ray, sweepNum, el, az: "
+                 << ray->getSweepNumber() << ", "
+                 << ray->getElevationDeg() << ", "
+                 << ray->getAzimuthDeg() << endl;
+          }
         }
-
       }
+
     } else if (msgHdr.message_type == NexradData::DIGITAL_RADAR_DATA_1) {
 
       // create ray from message
@@ -593,9 +609,25 @@ int NexradRadxFile::readFromPath(const string &path,
 
         _checkIsLongRange(ray);
 
-        // add ray to vol
+        // add ray to vol, make sure sweep numbers are increasing
         
-        _readVol->addRay(ray);
+        if ((ray->getSweepNumber() >= _prevSweepNum) || _readPreserveSweeps) {
+          _readVol->addRay(ray);
+          _prevSweepNum = ray->getSweepNumber();
+          if (_verbose) {
+            cerr << "Adding msg 31 ray, sweepNum, el, az: "
+                 << ray->getSweepNumber() << ", "
+                 << ray->getElevationDeg() << ", "
+                 << ray->getAzimuthDeg() << endl;
+          }
+        } else {
+          if (_verbose) {
+            cerr << "ERROR - sweep number decreased, msg 31 ray, sweepNum, el, az: "
+                 << ray->getSweepNumber() << ", "
+                 << ray->getElevationDeg() << ", "
+                 << ray->getAzimuthDeg() << endl;
+          }
+        }
         
         if (_verbose) {
           cerr << "Adding msg 1 ray, el, az: "
@@ -640,9 +672,7 @@ int NexradRadxFile::readFromPath(const string &path,
     _computeFixedAngles();
   }
 
-  // copy DBZ from long range to short range sweeps for split cuts
-
-  // _copyDbzFromLongRangeSweeps();
+  // combine fields from sweeps as appropriate
 
   if (_readPreserveSweeps) {
 
@@ -655,9 +685,9 @@ int NexradRadxFile::readFromPath(const string &path,
     _readVol->remapRangeGeom(_startRangeKmShort, _gateSpacingKmShort, true);
     
     // combine fields as appropriate for sweeps with the same
-    // fixed angle
+    // fixed angle - these are the NEXRAD split cuts
     
-    _readVol->combineSweepsAtSameFixedAngleAndGeom(!_readRemoveLongRange);
+    _readVol->combineNexradSplitCuts(!_readRemoveLongRange);
     
     // remove long or short range data as appropriate
     
@@ -683,14 +713,8 @@ int NexradRadxFile::readFromPath(const string &path,
     ordered.push_back("ZDR");
     ordered.push_back("PHI");
     ordered.push_back("RHO");
-    ordered.push_back("REF-s0");
-    ordered.push_back("REF-s1");
-    ordered.push_back("REF-s2");
-    ordered.push_back("REF-s3");
-    ordered.push_back("REF-s4");
-    ordered.push_back("REF-s5");
-    ordered.push_back("REF-s6");
-    ordered.push_back("REF-s7");
+    ordered.push_back("CFP");
+    ordered.push_back("PURPLE_HAZE");
   }
   _readVol->reorderFieldsByName(ordered);
 
@@ -1170,54 +1194,44 @@ int NexradRadxFile::_handleAdaptationData(const RadxBuf &msgBuf)
   NexradData::swap(_adap);
 
   if (_adap.beamwidth < 0.25 || _adap.beamwidth > 5) {
-    // TODO - fix adaptation data from ICD - dixon
-    _antGainHDb = 46.0;
-    _antGainVDb = 46.0;
     _beamWidthH = 0.89;
     _beamWidthV = 0.89;
-    return -1;
+  } else {
+    _beamWidthH = _adap.beamwidth;
+    _beamWidthV = _adap.beamwidth;
   }
 
-  _antGainHDb = _adap.antenna_gain;
-  _antGainVDb = _adap.antenna_gain;
 
-  _beamWidthH = _adap.beamwidth;
-  _beamWidthV = _adap.beamwidth;
+  if (_adap.antenna_gain < 40 || _adap.antenna_gain > 50) {
+    _antGainHDb = 45.5;
+    _antGainVDb = 45.5;
+  } else {
+    _antGainHDb = _adap.antenna_gain;
+    _antGainVDb = _adap.antenna_gain;
+  }
 
   _xmitFreqGhz = _adap.tfreq_mhz / 1000.0;
   _prtIndex = _adap.deltaprf - 1;
 
   _siteName = Radx::makeString(_adap.site_name, 4);
 
-  _latitude = _adap.slatdeg + _adap.slatmin / 60.0 + _adap.slatsec / 3600.0;
+  double latitude = _adap.slatdeg + _adap.slatmin / 60.0 + _adap.slatsec / 3600.0;
   if (_adap.slatdir[0] == 'S') {
-    _latitude *= -1.0;
+    latitude *= -1.0;
   }
-
-  _longitude = _adap.slondeg + _adap.slonmin / 60.0 + _adap.slonsec / 3600.0;
+  if (latitude >= -90.0 && latitude <= 90.0) {
+    _latitude = latitude;
+  }
+  
+  double longitude = _adap.slondeg + _adap.slonmin / 60.0 + _adap.slonsec / 3600.0;
   if (_adap.slondir[0] == 'W') {
-    _longitude *= -1.0;
+    longitude *= -1.0;
+  }
+  if (longitude >= -180.0 && longitude <= 360.0) {
+    _longitude = longitude;
   }
 
-  int iret = 0;
-  
-  if (_adap.antenna_gain < 30 || _adap.antenna_gain > 50) {
-    _addErrStr("ERROR - NexradRadxFile::_handleAdaptationData");
-    _addErrStr("  bad value for antenna gain");
-    _addErrDbl("  antenna_gain: ", _adap.antenna_gain, "%lg", false);
-    _addErrStr("  bad adaptation data");
-    iret = -1;
-  }
-  
-  if (_adap.beamwidth < 0.25 || _adap.beamwidth > 5) {
-    _addErrStr("ERROR - NexradRadxFile::_handleAdaptationData");
-    _addErrStr("  bad value for beam width");
-    _addErrDbl("  beam_width: ", _adap.beamwidth, "%lg", false);
-    _addErrStr("  bad adaptation data");
-    iret = -1;
-  }
-
-  return iret;
+  return 0;
 
 }
 
@@ -1527,6 +1541,7 @@ void NexradRadxFile::_handleFieldType31(RadxRay *ray,
   string units;
   string standard_name;
   string long_name;
+  bool isVel = false;
   if (fieldName == "REF") {
     units = "dBZ";
     standard_name = "equivalent_reflectivity_factor";
@@ -1535,6 +1550,7 @@ void NexradRadxFile::_handleFieldType31(RadxRay *ray,
     units = "m/s";
     standard_name = "radial_velocity_of_scatterers_away_from_instrument";
     long_name = "radial_velocity";
+    isVel = true;
   } else if (fieldName == "SW") {
     units = "m/s";
     standard_name = "doppler_spectrum_width";
@@ -1554,6 +1570,10 @@ void NexradRadxFile::_handleFieldType31(RadxRay *ray,
     standard_name = "cross_correlation_ratio_hv";
     long_name = "cross_correlation";
     _isDualPol = true;
+  } else if (fieldName == "CFP") {
+    units = "dBZ";
+    standard_name = "equivalent_reflectivity_factor";
+    long_name = "clutter_reflectivity_removed";
   }
 
   // check byte width
@@ -1592,6 +1612,7 @@ void NexradRadxFile::_handleFieldType31(RadxRay *ray,
   int nGatesOut = nGatesIn;
   vector<Radx::si08> sdata08;
   vector<Radx::si16> sdata16;
+  RadxField *purpleHaze = NULL;
   if (byteWidth == 2) {
     vector<Radx::ui16> udata16;
     Radx::ui16 *bdata = (Radx::ui16 *) (msgStart + dataOffset);
@@ -1609,6 +1630,10 @@ void NexradRadxFile::_handleFieldType31(RadxRay *ray,
     }
     _loadSignedData(udata08, sdata08, doGateInterp);
     nGatesOut = sdata08.size();
+    if (isVel) {
+      // purple haze indicated gates with censored vel
+      purpleHaze = _createPurpleHaze(udata08, startRangeKm, gateSpacingKm);
+    }
   }
 
   double scaleNexrad = fieldHdr.scale;
@@ -1623,7 +1648,7 @@ void NexradRadxFile::_handleFieldType31(RadxRay *ray,
 
     double scaleRadx = 1.0 / scaleNexrad;
     double offsetRadx = (128.0 - offsetNexrad) / scaleNexrad;
-
+    
     field->setTypeSi08(Radx::missingSi08, scaleRadx, offsetRadx);
     field->addDataSi08(nGatesOut, sdata08.data());
 
@@ -1647,6 +1672,9 @@ void NexradRadxFile::_handleFieldType31(RadxRay *ray,
 
   ray->setRangeGeom(startRangeKm, gateSpacingKm);
   ray->addField(field);
+  if (purpleHaze != NULL) {
+    ray->addField(purpleHaze);
+  }
 
   if (_verbose) {
     double maxRange = startRangeKm + nGatesOut * gateSpacingKm;
@@ -1859,7 +1887,7 @@ int NexradRadxFile::_finalizeReadVolume()
 
   _readVol->setScanId(_vcpNum);
   char vcpStr[128];
-  sprintf(vcpStr, "vcp-%d", _vcpNum);
+  safe_snprintf(vcpStr, "vcp-%d", _vcpNum);
   _readVol->setScanName(vcpStr);
   _readVol->setVolumeNumber(_volumeNumber);
   _readVol->setInstrumentType(_instrumentType);
@@ -2634,12 +2662,12 @@ void NexradRadxFile::_printPacked(ostream &out, int count, double val) const
     out << "MISS ";
   } else {
     if (fabs(val) > 0.01) {
-      sprintf(outstr, "%.3f ", val);
+      safe_snprintf(outstr, "%.3f ", val);
       out << outstr;
     } else if (val == 0.0) {
       out << "0.0 ";
     } else {
-      sprintf(outstr, "%.3e ", val);
+      safe_snprintf(outstr, "%.3e ", val);
       out << outstr;
     }
   }
@@ -2676,9 +2704,9 @@ string NexradRadxFile::_computeFileName(int volNum,
   }
 
   char outName[BUFSIZ];
-  sprintf(outName, "nexrad.%04d%02d%02d_%02d%02d%02d_%s_v%03d_%s.msg31",
-          year, month, day, hour, min, sec,
-          instrumentName.c_str(), volNum, scanType.c_str());
+  safe_snprintf(outName, "nexrad.%04d%02d%02d_%02d%02d%02d_%s_v%03d_%s.msg31",
+                year, month, day, hour, min, sec,
+                instrumentName.c_str(), volNum, scanType.c_str());
 
   return outName;
 
@@ -2696,7 +2724,7 @@ int NexradRadxFile::_writeMetaDataHdrs(const RadxVol &vol)
   NexradData::vol_title_t title;
   memset(&title, 0, sizeof(title));
   char text[128];
-  sprintf(text, "AR2V0002.%.3d", vol.getVolumeNumber()); 
+  safe_snprintf(text, "AR2V0002.%.3d", vol.getVolumeNumber()); 
   memcpy(title.filetype, text, 12);
 
   int julianDate = vol.getEndTimeSecs() / 86400;
@@ -2704,6 +2732,14 @@ int NexradRadxFile::_writeMetaDataHdrs(const RadxVol &vol)
   double msecsInDay = (secsInDay + vol.getEndNanoSecs() / 1.0e9) * 1.0e3;
   title.julian_date = julianDate + 1;
   title.millisecs_past_midnight = (int) (msecsInDay + 0.5);
+  const string site_name = vol.getSiteName();
+  if (site_name.length() >= 4) {
+    text[0] = site_name[0];
+    text[1] = site_name[1];
+    text[2] = site_name[2];
+    text[3] = site_name[3];
+    memcpy(title.site_id, text, 4);
+  }
 
   if (_verbose) {
     NexradData::print(title, cerr);
@@ -2721,6 +2757,10 @@ int NexradRadxFile::_writeMetaDataHdrs(const RadxVol &vol)
   // ADAPTATION DATA HEADER
   if(_adap.beamwidth == 0)
   {
+    const string site_name = vol.getSiteName();
+    for (size_t i=0; i<site_name.size(); i++) {
+      _adap.site_name[i] = site_name[i];
+    }
     _adap.antenna_gain = vol.getRadarAntennaGainDbH();
     _adap.beamwidth = vol.getRadarBeamWidthDegH();
     const vector<double> &freqHz = vol.getFrequencyHz();
@@ -3055,7 +3095,7 @@ int NexradRadxFile::_writeMsg31(const RadxVol &writeVol,
   NexradData::message_31_vol_t vol;
   memset(&vol, 0, sizeof(vol));
   char blockText[32];
-  strncpy(blockText, "RVOL", 4);
+  memcpy(blockText, "RVOL", 4);
   memcpy(&vol, blockText, 4);
   vol.block_size = sizeof(vol);
   vol.ver_major = 1;
@@ -3099,7 +3139,7 @@ int NexradRadxFile::_writeMsg31(const RadxVol &writeVol,
 
   NexradData::message_31_elev_t elev;
   memset(&elev, 0, sizeof(elev));
-  strncpy(blockText, "RELV", 4);
+  memcpy(blockText, "RELV", 4);
   memcpy(&elev, blockText, 4);
   elev.block_size = sizeof(elev);
   elev.dbz0 = dbz0;
@@ -3112,7 +3152,7 @@ int NexradRadxFile::_writeMsg31(const RadxVol &writeVol,
 
   NexradData::message_31_radial_t radial;
   memset(&radial, 0, sizeof(radial));
-  strncpy(blockText, "RRAD", 4);
+  memcpy(blockText, "RRAD", 4);
   memcpy(&radial, blockText, 4);
   radial.block_size = sizeof(radial);
 
@@ -3182,6 +3222,14 @@ int NexradRadxFile::_writeMsg31(const RadxVol &writeVol,
     haveRho = false;
   }
 
+  bool haveCfp = true;
+  RadxBuf cfpBuf;
+  NexradData::message_31_field_t cfpFhdr;
+  if (_loadField(copy, "CFP", "CFP,CLUT",
+                 1, 2.0, 66.0, cfpFhdr, cfpBuf)) {
+    haveCfp = false;
+  }
+  
   // compute lengths and offsets
 
   int refLen = 0;
@@ -3230,6 +3278,14 @@ int NexradRadxFile::_writeMsg31(const RadxVol &writeVol,
     hdr.data_block_offset[hdr.n_data_blocks] = offset;
     hdr.n_data_blocks++;
     offset += rhoLen;
+  }
+
+  int cfpLen = 0;
+  if (haveCfp) {
+    cfpLen = sizeof(NexradData::message_31_field_t) + cfpBuf.getLen();
+    hdr.data_block_offset[hdr.n_data_blocks] = offset;
+    hdr.n_data_blocks++;
+    offset += cfpLen;
   }
 
   hdr.radial_length = offset;
@@ -3286,6 +3342,12 @@ int NexradRadxFile::_writeMsg31(const RadxVol &writeVol,
     msgBuf.add(rhoBuf.getPtr(), rhoBuf.getLen());
   }
   
+  if (haveCfp) {
+    NexradData::swap(cfpFhdr);
+    msgBuf.add(&cfpFhdr, sizeof(cfpFhdr));
+    msgBuf.add(cfpBuf.getPtr(), cfpBuf.getLen());
+  }
+
   // pad out to minimum size if too small
   
   size_t minLen = (NexradData::PACKET_SIZE -
@@ -3718,7 +3780,7 @@ int NexradRadxFile::_unzipFile(const string &path)
   char tmpName[128];
   long long now = time(NULL);
   long long pid = getpid();
-  sprintf(tmpName, "NexradRadxFile.%s.%lld.%lld", rpath.getFile().c_str(), now, pid);
+  safe_snprintf(tmpName, "NexradRadxFile.%s.%lld.%lld", rpath.getFile().c_str(), now, pid);
   tmpPath += tmpName;
 
   // open output file
@@ -3739,7 +3801,6 @@ int NexradRadxFile::_unzipFile(const string &path)
     _addErrStr("ERROR - NexradRadxFile::readFromPath");
     _addErrStr("  Cannot write uncompressed data to tmp file");
     _addErrStr("  Path: ", tmpPath);
-    fclose(in);
     return -1;
   }
   
@@ -3951,3 +4012,33 @@ void NexradRadxFile::_interp1kmGates(int nGates,
 
 }
 
+////////////////////////////////////////////////
+// create purple haze field
+// this indicates gates with censored velocity
+
+RadxField *NexradRadxFile::_createPurpleHaze(const vector<Radx::ui08> &udata08,
+                                             double startRangeKm,
+                                             double gateSpacingKm)
+
+{
+
+  RadxField *purp = new RadxField("PURPLE_HAZE", "");
+  purp->setLongName("vel_censored_flag_aka_purple_haze");
+  purp->setStandardName("vel_censored_flag");
+  purp->setComment("1 = censored");
+  purp->setRangeGeom(startRangeKm, gateSpacingKm);
+  purp->setTypeSi08(-127, 1, 0);
+  
+  vector<Radx::si08> haze;
+  for (size_t ii = 0; ii < udata08.size(); ii++) {
+    if (udata08[ii] == 1) {
+      haze.push_back(1);
+    } else {
+      haze.push_back(-127);
+    }
+  }
+  purp->addDataSi08(haze.size(), haze.data());
+
+  return purp;
+  
+}

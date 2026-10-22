@@ -40,11 +40,13 @@
 
 #include <string>
 #include <vector>
+#include <set>
 #include <Radx/Radx.hh>
 #include <Radx/RadxPlatform.hh>
 #include <Radx/RadxField.hh>
 #include <Radx/RadxArray.hh>
 #include <Radx/RadxTime.hh>
+#include <Radx/Fm301RadxFileParams.hh>
 class RadxSweep;
 class RadxRay;
 class RadxRcalib;
@@ -150,6 +152,28 @@ public:
 
   void setDebug(bool val);
 
+  /// Set the volume convention, to override the default.
+
+  void setConvention(const string &val) { _convention = val; }
+
+  /// Set the volume sub conventions, to override the default.
+
+  void setSubConventions(const string &val) { _subconventions = val; }
+
+  /// Set the WMO attributes
+
+  void setFm301Params(const Fm301RadxFileParams *val)
+  {
+    _fm301Params = val;
+  }
+  void setWmoWsi(const string &val) { _wmoWsi = val; }
+  void setWmoId(const string &val) { _wmoId = val; }
+  void setWmoCfProfile(const string &val) { _wmoCfProfile = val; }
+  void setWmoDataCategory(const string &val) { _wmoDataCategory = val; }
+  void setWmoDataPolicy(const string &val) { _wmoDataPolicy = val; }
+  void setWmoOriginatingCentre(const string &val) { _wmoOriginatingCentre = val; }
+  void setWmoOriginatingSubCentre(const string &val) { _wmoOriginatingSubCentre = val; }
+
   /// Set the volume version, if available. Use this for the project name.
 
   void setVersion(const string &val) { _version = val; }
@@ -251,6 +275,10 @@ public:
   /// Set the scan strategy id (VCP), if available.
 
   inline void setScanId(int val) { _scanId = val; }
+
+  /// Set the range resolution, if available.
+
+  inline void setRangeResolution(const string &val) { _rangeResolution = val; }
 
   /// Set the volume number.
   /// This increments with every volume, and may wrap.
@@ -425,6 +453,12 @@ public:
                         double longitudeDeg,
                         double altitudeKm);
 
+  /// override the radar altitude ONLY
+  /// this also sets the altitude in any georeference objects
+  /// attached to the rays
+
+  void overrideAltitude(double altitudeKm);
+
   /// set the radar location from the start ray,
   // if georefs are active
 
@@ -594,6 +628,12 @@ public:
 
   int renameField(const string &oldName, const string &newName);
   
+  /// Set the nyquist velocity, in m/s, for this ray, if known.
+  /// This should be the nyquist for the primary velocity field
+  /// if there are more than 1 velocity field.
+
+  void setNyquistMps(double val);
+
   /// Set folding behavior on for the specified field.
   /// If the field folds, then when the value exceeds foldLimitUpper,
   /// it wraps to foldLimitLower, and vice versa.
@@ -608,6 +648,33 @@ public:
                     double foldLimitLower,
                     double foldLimitUpper);
 
+  // override default sweep mode labels
+  // these are used in file names
+
+  void setSweepModeNotSetLabel(const string &val) { _sweepModeNotSetLabel = val; }
+  void setSweepModeSectorLabel(const string &val) { _sweepModeSectorLabel = val; }
+  void setSweepModeCoplaneLabel(const string &val) { _sweepModeCoplaneLabel = val; }
+  void setSweepModeRhiLabel(const string &val) { _sweepModeRhiLabel = val; }
+  void setSweepModeVertLabel(const string &val) { _sweepModeVertLabel = val; }
+  void setSweepModeIdleLabel(const string &val) { _sweepModeIdleLabel = val; }
+  void setSweepModeAzSurLabel(const string &val) { _sweepModeAzSurLabel = val; }
+  void setSweepModeElSurLabel(const string &val) { _sweepModeElSurLabel = val; }
+  void setSweepModeSunLabel(const string &val) { _sweepModeSunLabel = val; }
+  void setSweepModeSunRhiLabel(const string &val) { _sweepModeSunRhiLabel = val; }
+  void setSweepModeCalLabel(const string &val) { _sweepModeCalLabel = val; }
+  void setSweepModeManLabel(const string &val) { _sweepModeManLabel = val; }
+  void setSweepModeDbsLabel(const string &val) { _sweepModeDbsLabel = val; }
+  void setSweepModeTrajLabel(const string &val) { _sweepModeTrajLabel = val; }
+  void setSweepModeParLabel(const string &val) { _sweepModeParLabel = val; }
+  void setSweepModeAparForeDopplerRhiLabel(const string &val)
+  { _sweepModeAparForeDopplerRhiLabel = val; }
+  void setSweepModeAparAftDopplerRhiLabel(const string &val)
+  { _sweepModeAparAftDopplerRhiLabel = val; }
+  void setSweepModeAparDualpolRhiLabel(const string &val)
+  { _sweepModeAparDualpolRhiLabel = val; }
+  void setSweepModeAparSectorPpiLabel(const string &val)
+  { _sweepModeAparSectorPpiLabel = val; }
+  
   /// Load volume information from the rays.
   ///
   /// This sets the volume number and the start and end times.
@@ -690,6 +757,10 @@ public:
 
   void computeFixedAnglesFromRays(bool force = true, 
                                   bool useMean = true);
+
+  /// Compute mean fixed angle for the volume from the rays.
+  
+  double computeMeanFixedAngleFromRays() const;
 
   /// Compute sweep scan rates from ray data - in deg/sec.
   ///
@@ -829,6 +900,11 @@ public:
 
   void sortSweepsByFixedAngle();
   
+  // combine sweeps with same fixed angle, reordering the rays accordingly.
+  // the sweep fixed angles must agree within the diff
+  
+  void combineSweepsByFixedAngle(double maxFixedAngleDiff);
+
   /////////////////////////////////////////////////////////////////
   /// Sort rays by number
 
@@ -954,6 +1030,12 @@ public:
 
   void reverseSweepOrder();
 
+  /// trim to selected sweep angles
+  /// also rounds the sweep angles to match the selected angles
+  
+  void trimSweepsToSelectedAngles(vector<double> &selectedAngles,
+                                  double angleTolerance);
+
   /// Apply a time offset, in seconds to all rays in the volume
   /// This applies to the rays currently in the volume, not to
   /// any future reads.
@@ -977,11 +1059,22 @@ public:
   /// Also sets the fixed angle for the rays in the sweep
   
   void setFixedAngleDeg(int sweepNum, double fixedAngle);
-
-  /// combine rays from sweeps with common fixed angle and
-  /// gate geometry, but with different fields
   
-  void combineSweepsAtSameFixedAngleAndGeom(bool keepLongRange = false);
+  /// For NEXRAD volumes, combine fields from consecutive sweeps
+  /// with the same elevation angle.
+  /// These are the so-called split-cut sweeps.
+  /// The non-Doppler sweeps occur first, followed by the Doppler sweep.
+  /// The non-Doppler sweeps have REF, ZDR, RHO, PHI and CDP.
+  /// The Doppler sweeps have REF, VEL and SW.
+  /// We use the REF from the non-Doppler sweeps.
+  /// We copy in VEL and SW from the Doppler sweeps.
+
+  void combineNexradSplitCuts(bool keepLongRange = false);
+
+  /// For Leosphere volumes, combine RHI rays: keep the azimuth the same
+  /// and allow the elevation to increase greater than 90 degrees.
+
+  void combineRhi();  
 
   /// Make fields uniform in the volume.
   /// This ensures that all rays in the volume have the same fields
@@ -1080,6 +1173,33 @@ public:
                                  Radx::si32 missingValue);
 
   
+  /// censor data from within a range ring
+  ///
+  /// This is primarily intended to remove a test pulse from
+  /// otherwise good data.
+  ///
+  /// Inputs:
+  ///
+  ///  minRingRangeKm: min range for censoring
+  ///  maxRingRangeKm: max range for censoring
+  ///  checkNoDataInMargin: ensure there is no non-missing data
+  ///                       in the range margin
+  ///  checkFieldName: name of field to check for non-missing data
+  ///  marginKm: margin before min range, and beyond max range,
+  ///            to check for non-missing data
+  ///  censorAllFields: censor data in all fields
+  ///                   otherwise only censor the listed fields
+  ///  specifiedFieldNames: vector of field names to be censored
+  ///
+  
+  void censorRangeRing(double minRingRangeKm,
+                       double maxRingRangeKm,
+                       bool checkForDataInMargin,
+                       const string &checkFieldName,
+                       double marginKm,
+                       bool censorAllFields,
+                       const vector<string> &specifiedFieldNames);
+
   //@}
 
   //////////////////////////////////////////////////////////////////
@@ -1136,9 +1256,12 @@ public:
   ///   y = x * scale + offset
   /// After operation, field type is unchanged.
   /// Nothing is done if field does not exist.
+  /// If field folds, ensure the result is within the folding region.
   
   void applyLinearTransform(const string &name,
-                            double scale, double offset);
+                            double scale, double offset,
+                            bool fieldFolds = false,
+                            double foldingValue = 0.0);
 
   /// Converts field type, and optionally changes the
   /// names.
@@ -1180,6 +1303,11 @@ public:
                     const string &standardName,
                     const string &longName);
   
+  /// computeFieldStats is used to combine data from multiple rays
+  /// into a combined dwell. The fields from the individual rays
+  /// will have been added into a volume, just for the purpose
+  /// of this combination step.
+  ///
   /// compute field stats for all field for
   /// all rays currently in the volume
   ///
@@ -1203,7 +1331,7 @@ public:
   RadxRay *computeFieldStats
     (RadxField::StatsMethod_t globalMethod,
      vector<RadxField::NamedStatsMethod> namedMethods,  
-     double maxFractionMissing = 0.25);
+     double maxFractionMissing = 0.66);
 
   //@}
 
@@ -1211,6 +1339,25 @@ public:
   /// \name Get methods - except for platform parameters
   //@{
 
+  /// Get convention. May be used for project name.
+
+  inline const string &getConvention() const { return _convention; }
+
+  /// Get sub conventions.
+
+  inline const string &getSubConventions() const { return _subconventions; }
+
+  // get WMO attributes
+
+  const Fm301RadxFileParams *getFm301Params() const { return _fm301Params; }
+  inline const string &getWmoWsi() const { return _wmoWsi; }
+  inline const string &getWmoId() const { return _wmoId; }
+  inline const string &getWmoCfProfile() const { return _wmoCfProfile; }
+  inline const string &getWmoDataCategory() const { return _wmoDataCategory; }
+  inline const string &getWmoDataPolicy() const { return _wmoDataPolicy; }
+  inline const string &getWmoOriginatingCentre() const { return _wmoOriginatingCentre; }
+  inline const string &getWmoOriginatingSubCentre() const { return _wmoOriginatingSubCentre; }
+  
   /// Get version. May be used for project name.
 
   inline const string &getVersion() const { return _version; }
@@ -1270,6 +1417,10 @@ public:
   /// Get scan id (VCP).
 
   inline int getScanId() const { return _scanId; }
+
+  /// Get range resolution.
+
+  inline const string getRangeResolution() const { return _rangeResolution; }
 
   /// Get volume number.
 
@@ -1331,6 +1482,10 @@ public:
   
   Radx::SweepMode_t getPredomSweepModeFromAngles() const;
 
+  // return string for specified sweep mode
+
+  string getSweepModeLabel(Radx::SweepMode_t mode) const;
+  
   /// get the predominant range geometry
 
   void getPredomRayGeom(double &startRangeKm, double &gateSpacingKm) const;
@@ -1358,6 +1513,12 @@ public:
 
   vector<string> 
     getUniqueFieldNameList(Radx::FieldRetrieval_t rtype = Radx::FIELD_RETRIEVAL_DATA) const;
+
+  /// Get the set of unique field names, compiled by
+  /// searching through all rays.
+  
+  set<string>
+    getUniqueFieldNameSet(Radx::FieldRetrieval_t rtype = Radx::FIELD_RETRIEVAL_DATA) const;
 
   /// convert all fields to same data type
   /// widening as required
@@ -1450,6 +1611,12 @@ public:
   /// Returns true if all rays are indexed, false otherwise.
   
   bool checkForIndexedRays() const;
+  
+  /// Set angles for elevation surveillance mode.
+  /// In SWEEP_MODE_ELEVATION_SURVEILLANCE mode, if georefs are
+  /// available copy rotation to azimuth, and tilt to elevation.
+  
+  void setAnglesForElevSurveillance();
   
   /// check whether volume is predominantly in RHI mode
   ///
@@ -1758,17 +1925,25 @@ private:
   };
 
   // class for combining sweeps with same fixed angle but different fields
+  // or discarding redundant doppler sweeps
 
-  class Combo {
+  class NexradSweepAction {
   public:
-    size_t target;
-    vector<size_t> sources; 
-    Combo() {
-      target = 0;
-    }
-    Combo(size_t index) {
-      target = index;
-    }
+    typedef enum {
+      USE_UNCHANGED,
+      PAIR_NONDOP_WITH_DOP,
+      DISCARD_DOP
+    } action_t;
+    action_t action;
+    size_t nonDopSweepIndex;
+    size_t dopSweepIndex;
+    NexradSweepAction(action_t act, 
+                      size_t nonDopIndex,
+                      size_t dopIndex) {
+      action = act;
+      nonDopSweepIndex = nonDopIndex;
+      dopSweepIndex = dopIndex;
+   }
   };
   
   /// sorting rays
@@ -1814,6 +1989,23 @@ private:
 
   // meta strings
 
+  string _convention;  // from CF
+  string _subconventions;  // from CF
+
+  // WMO specific attributes (from FM301)
+
+  const Fm301RadxFileParams *_fm301Params;
+  
+  string _wmoWsi;          // WIGOS station identifier
+  string _wmoId;           // Traditional WMO identifier
+  string _wmoCfProfile;    // e.g. FM 301-2022
+  string _wmoDataCategory;
+  string _wmoDataPolicy;
+  string _wmoOriginatingCentre;
+  string _wmoOriginatingSubCentre;
+
+  // other attributes
+  
   string _version;     // from CF
   string _title;       // from CF
   string _institution; // from CF
@@ -1824,6 +2016,7 @@ private:
   string _author;      // person generating the files
   string _driver;      // tool used to generate the file
   string _created;     // when data set was created
+
   string _origFormat;  // format of file read in
   string _statusXml;   // generic status specific to instrument
 
@@ -1837,12 +2030,36 @@ private:
 
   string _scanName;
   int _scanId; // VCP
+  string _rangeResolution;
 
   // predominant sweep mode for volume, by checking angles
   // surveillance, sector or rhi
 
   mutable bool _sweepModeFromAnglesChecked;
   mutable Radx::SweepMode_t _predomSweepModeFromAngles;
+
+  // sweep mode strings
+
+  string _sweepModeNotSetLabel;
+  string _sweepModeSectorLabel;
+  string _sweepModeCoplaneLabel;
+  string _sweepModeRhiLabel;
+  string _sweepModeVertLabel;
+  string _sweepModeIdleLabel;
+  string _sweepModeAzSurLabel;
+  string _sweepModeElSurLabel;
+  string _sweepModeSunLabel;
+  string _sweepModeSunRhiLabel;
+  string _sweepModeCalLabel;
+  string _sweepModeManLabel;
+  string _sweepModeDbsLabel;
+  string _sweepModeTrajLabel;
+  string _sweepModeParLabel;
+  string _sweepModeAparForeDopplerRhiLabel;
+  string _sweepModeAparAftDopplerRhiLabel;
+  string _sweepModeAparDualpolRhiLabel;
+  string _sweepModeAparSectorPpiLabel;
+  string _sweepModeFillLabel;
   
   // times
 
@@ -1928,10 +2145,12 @@ private:
   void _computeNRaysTransition();
   void _findTransitions(int nRaysMargin);
   void _setPredomSweepModeFromAngles() const;
-  void _augmentSweepFields(size_t target, size_t source);
+  void _getNexradSweepActions(vector<NexradSweepAction> &actions);
+  void _addFieldsFromDopplerSweep(RadxSweep *sweepPower,
+                                  RadxSweep *sweepDoppler);
 
   int _loadPseudoFromRealRhis();
-  int _setupAngleSearch(size_t sweepNum);
+  int _setupAngleSearch(const RadxSweep *sweep);
   int _getSearchAngleIndex(double angle);
   double _getSearchAngle(int index);
   void _populateSearchRays(int start, int end);

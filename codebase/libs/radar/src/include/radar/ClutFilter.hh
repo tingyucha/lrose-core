@@ -58,18 +58,70 @@ public:
   // Inputs:
   //   rawPowerSpec: unfiltered power spectrum
   //   nSamples: number of samples
-  //   maxClutterVel: max velocity of the clutter component
-  //                  of the signal (m/s)
-  //   initNotchWidth: width of first guess notch (m/s)
-  //   nyquist: unambiguous vel (m/s)
+  //   clutterWidthMps: spectrum width for clutter model (m/s)
+  //   initNotchWidthMps: width of first guess notch (m/s)
+  //   nyquistMps: unambiguous vel (m/s)
   //   calibratedNoise: noise power at digitizer from calibration (mW)
-  //   setNotchToNoise: if true, points within the notch will be
-  //                       set to the calibrated noise
+  //   useStoredNotch:
+  //     if false (the default) locate wx and clutter
+  //     if true, use previously located wx and clutter - this is used
+  //        if multiple channels are to be filtered
+  //
+  // Outputs:
+  //
+  //   filteredPowerSpec: power spectrum after filtering
+  //   notchedPowerSpec: power spectrum after notching, no interp
+  //
+  // After calling this method, you can use the get() methods
+  // to access the details, as follows:
+  //
+  //   getClutterFound(): true if clutter is identified in signal
+  //   getNotchStart(): spectral position of start of final filtering notch
+  //   getNotchEnd(): spectral position of end of final filtering notch
+  //   getRawPower(): mean power in unfiltered spectrum
+  //   getFilteredPower(): mean power in filtered spectrum
+  //   getPowerRemoved(): mean power removed by the filter (mW)
+  //   getSpectralNoise(): noise determined from the spectrum (mW)
+  //   getWeatherPos(): spectral location of weather peak
+  //   getClutterPos(): spectral location of clutter peak
+
+  void performAdaptive(const double *rawPowerSpec, 
+                       int nSamples,
+                       double clutterWidthMps,
+                       double initNotchWidthMps,
+                       double nyquistMps,
+                       double calibratedNoise,
+                       double *filteredPowerSpec,
+                       double *notchedPowerSpec,
+                       bool useStoredNotch = false);
+  
+  // get results of the fit - after calling non-static method
+
+  bool getClutterFound() const { return _clutterFound; }
+  int getNotchStart() const { return _notchStart; }
+  int getNotchEnd() const { return _notchEnd; }
+  double getRawPower() const{ return _rawPower; }
+  double getFilteredPower() const{ return _filteredPower; }
+  double getPowerRemoved() const{ return _powerRemoved; }
+  double getSpectralNoise() const{ return _spectralNoise; }
+  int getWeatherPos() const { return _weatherPos; }
+  int getClutterPos() const { return _clutterPos; }
+  
+  // Perform adaptive filtering on a power spectrum - static method
+  //
+  // Inputs:
+  //   rawPowerSpec: unfiltered power spectrum
+  //   nSamples: number of samples
+  //   clutterWidthMps: spectrum width for clutter model (m/s)
+  //   initNotchWidthMps: width of first guess notch (m/s)
+  //   nyquistMps: unambiguous vel (m/s)
+  //   calibratedNoise: noise power at digitizer from calibration (mW)
   //
   // Outputs:
   //
   //   clutterFound: true if clutter is identified in signal
   //   filteredPowerSpec: power spectrum after filtering
+  //   notchedPowerSpec: power spectrum after notching, no interp
   //   notchStart: spectral position of start of final filtering notch
   //   notchEnd: spectral position of end of final filtering notch
   //   rawPower: mean power in unfiltered spectrum
@@ -81,13 +133,13 @@ public:
 
   static void performAdaptive(const double *rawPowerSpec, 
                               int nSamples,
-                              double maxClutterVel,
-                              double initNotchWidth,
-                              double nyquist,
+                              double clutterWidthMps,
+                              double initNotchWidthMps,
+                              double nyquistMps,
                               double calibratedNoise,
-                              bool setNotchToNoise,
                               bool &clutterFound,
                               double *filteredPowerSpec,
+                              double *notchedPowerSpec,
                               int &notchStart,
                               int &notchEnd,
                               double &rawPower,
@@ -97,6 +149,125 @@ public:
                               int &weatherPos,
                               int &clutterPos);
   
+  // Perform time series filtering on a power spectrum
+  //
+  // Inputs:
+  //   rawPowerSpec: unfiltered power spectrum
+  //   nSamples: number of samples
+  //   clutterWidthMps: spectrum width for clutter model (m/s)
+  //   initNotchWidthMps: width of first guess notch (m/s)
+  //   nyquistMps: unambiguous vel (m/s)
+  //   calibratedNoise: noise power at digitizer from calibration (mW)
+  //   useStoredNotch:
+  //     if false (the default) locate wx and clutter
+  //     if true, use previously located wx and clutter - this is used
+  //        if multiple channels are to be filtered
+  //
+  // Outputs:
+  //
+  //   filteredPowerSpec: power spectrum after filtering
+  //   notchedPowerSpec: power spectrum after notching, no interp
+  //
+  // After calling this method, you can use the get() methods
+  // to access the details, as follows:
+  //
+  //   getClutterFound(): true if clutter is identified in signal
+  //   getNotchStart(): spectral position of start of final filtering notch
+  //   getNotchEnd(): spectral position of end of final filtering notch
+  //   getRawPower(): mean power in unfiltered spectrum
+  //   getFilteredPower(): mean power in filtered spectrum
+  //   getPowerRemoved(): mean power removed by the filter (mW)
+  //   getSpectralNoise(): noise determined from the spectrum (mW)
+  //   getWeatherPos(): spectral location of weather peak
+  //   getClutterPos(): spectral location of clutter peak
+
+  void performTsr(const double *rawPowerSpec, 
+                  int nExpanded,
+                  double *filteredPowerSpec,
+                  double *notchedPowerSpec,
+                  bool useStoredNotch = false);
+  
+  // perform notch filtering on a power spectrum
+  //
+  // Inputs:
+  //   rawPowerSpec: unfiltered power spectrum
+  //   nSamples: number of samples
+  //   notchWidthMps: notch width (m/s)
+  //   nyquistMps: unambiguous vel (m/s)
+  //   notchPower: power top be set within the notch
+  //
+  // Outputs:
+  //
+  //   filteredPowerSpec: power spectrum after filtering
+  //   notchStart: spectral position of start of final filtering notch
+  //   notchEnd: spectral position of end of final filtering notch
+  //   rawPower: mean power in unfiltered spectrum
+  //   filteredPower: mean power in filtered spectrum
+  //   powerRemoved: mean power removed by the filter (mW)
+  
+  static void performNotch(const double *rawPowerSpec, 
+                           int nSamples,
+                           double notchWidthMps,
+                           double nyquistMps,
+                           double notchPower,
+                           double *filteredPowerSpec,
+                           int &notchStart,
+                           int &notchEnd,
+			   double &rawPower,
+			   double &filteredPower,
+			   double &powerRemoved);
+
+  // find weather and clutter
+  // Divide spectrum into 8 parts, compute peaks and means
+  // for each part. Check for bi-modal spectrum.
+
+  static void locateWxAndClutter(const double *power,
+                                 int nSamples,
+                                 double clutterWidthMps,
+                                 double initNotchWidthMps,
+                                 double nyquistMps,
+                                 int &notchWidth,
+                                 bool &clutterFound,
+                                 int &clutterPos,
+                                 double &clutterPeak,
+                                 int &weatherPos,
+                                 double &weatherPeak,
+                                 double &spectralNoise);
+
+  // find clutter in TSR case
+  // Divide spectrum into 8 parts, compute peaks and means
+  // for each part. Check for bi-modal spectrum.
+  
+  void locateTsrClutter(const double *power,
+                        const double *pwrRunMean,
+                        int nExpanded,
+                        bool &clutterFound,
+                        int &clutterStart,
+                        int &clutterEnd,
+                        int &clutterPos,
+                        double &clutterPeak);
+  
+  // compute half notch using clutter model
+  // we find the spectral points at which the clutter model
+  // crosses 
+  
+  static int computeHalfNotchWidth(const double *power,
+                                   int nSamples,
+                                   double clutterWidthMps,
+                                   double initNotchWidthMps,
+                                   double nyquistMps);
+  
+  // Interpolate the notch with a gaussian
+  
+  static void fillNotchWithGaussian(const double *rawPowerSpec, 
+                                    const int nSamples,
+                                    double *notched,
+                                    const int weatherPos,
+                                    const double clutNoise,
+                                    const int maxSearchWidth,
+                                    int &clutterLowerBound,
+                                    int &clutterUpperBound);
+
   // Given a spectrum which has been filtered,
   // fill in the notch using a gaussian fit.
   // The phase information is preserved.
@@ -117,61 +288,6 @@ public:
                                  int maxNotchWidth,
                                  RadarComplex_t *filledSpec);
 
-  // perform notch filtering on a power spectrum
-  //
-  // Inputs:
-  //   rawPowerSpec: unfiltered power spectrum
-  //   nSamples: number of samples
-  //   notchWidthMps: notch width (m/s)
-  //   nyquist: unambiguous vel (m/s)
-  //   notchPower: power top be set within the notch
-  //
-  // Outputs:
-  //
-  //   filteredPowerSpec: power spectrum after filtering
-  //   notchStart: spectral position of start of final filtering notch
-  //   notchEnd: spectral position of end of final filtering notch
-  //   rawPower: mean power in unfiltered spectrum
-  //   filteredPower: mean power in filtered spectrum
-  //   powerRemoved: mean power removed by the filter (mW)
-  
-  static void performNotch(const double *rawPowerSpec, 
-                           int nSamples,
-                           double notchWidthMps,
-                           double nyquist,
-                           double notchPower,
-                           double *filteredPowerSpec,
-                           int &notchStart,
-                           int &notchEnd,
-			   double &rawPower,
-			   double &filteredPower,
-			   double &powerRemoved);
-
-  // find weather and clutter
-  // Divide spectrum into 8 parts, compute peaks and means
-  // for each part. Check for bi-modal spectrum.
-
-  static void locateWxAndClutter(const double *power,
-                                 int nSamples,
-                                 double max_clutter_vel,
-                                 double init_notch_width,
-                                 double nyquist,
-                                 int &notchWidth,
-                                 bool &clutterFound,
-                                 int &clutterPos,
-                                 double &clutterPeak,
-                                 int &weatherPos,
-                                 double &weatherPeak,
-                                 double &spectralNoise);
-
-  // estimate the spectral noise
-  //
-  // Divide spectrum into 8 parts, compute power in each part
-  // estimate the spectral noise as the mean of the power
-  // in the lowest 1/8th.
-  
-  static double estimateSpectralNoise(const double *powerSpec, int nSamples);
-  
   // fit a gaussian to a spectrum
   //
   // Inputs:
@@ -189,44 +305,100 @@ public:
                           double spectralNoise,
                           double *gaussian);
   
-  // compute noise of a power spectrum
-  // 
-  // We compute the mean power for 3 regions of the spectrum:
-  //   1. 1/8 at lower end plus 1/8 at upper end
-  //   2. 1/4 at lower end
-  //   3. 1/4 at uppoer end
-  // We estimate the noise to be the least of these 3 values
-  // because if there is a weather echo it will not affect both ends
-  // of the spectrum unless the width is very high, in which case we
-  // probably have a bad signal/noise ratio anyway.
-  //
-  // Inputs:
-  //   powerSpec: power spectrum
-  //   nSamples
-  //
-  // Outputs:
-  //   noiseMean: mean of the noise in the relevant 1/4 of the spectrum
-  //   noiseSdev: standard deviation of the same
-  
-  static void computeSpectralNoise(const double *powerSpec,
-                                   int nSamples,
-                                   double &noiseMean,
-                                   double &noiseSdev);
-  
-  /////////////////////////////////////////////////////
   // Compute noise from a power spectrum
   //
-  // Divide spectrum into sections and compute the mean power
-  // for each section.
+  // Divide spectrum into runs and compute the mean power
+  // for each run, incrementing by one index at a time.
   //
   // The noise power is estimated as the mimumum of the section
   // powers.
   
   static double computeSpectralNoise(const double *powerSpec,
-				     int nSamples);
+                                     int nSamples);
   
+  //////////////////////////////////////////////
+  // Compute a gaussian clutter model, based
+  // on an observed power spectrum.
+  //
+  // Powers are linear - i.e. not dBm.
+  //
+  // Assume:
+  // (a) Spectrum is shifted so DC is centered.
+  // (b) Clutter is centered - i.e. 0 vel.
+  // (c) Clutter width is supplied.
+  //
+  // The model will match the peak of the spectrum at DC.
+  // If the peak is not at DC, the model will be set to missing.
+  // Missing power values are set to 1.0e-12 = -120 dBm. 
+  //
+  // The caller manages the memory for gaussianModel.
+  //
+  // Returns 0 if clutter is found, -1 otherwise.
+  
+  static int computeGaussianClutterModel(const double *powerSpectrum,
+                                         int nSamples, 
+                                         double widthMps,
+                                         double nyquistMps,
+                                         double *gaussianModel,
+                                         bool force = false);
+  
+  /////////////////////////////////////////////////////////////////
+  // Shift a spectrum, in place, so that DC is in the center.
+  // Swaps left and right sides.
+  // DC location location starts at index 0.
+  // After the shift:
+  //   if n is odd,  the DC location is at the center index
+  //   if n is even, the DC location is at index n/2
+  
+  static void shift(RadarComplex_t *spectrum, int nSamples);
+  static void shift(double *spectrum, int nSamples);
+
+  /////////////////////////////////////////////////////////////////
+  // Unshift a spectrum, in place, to undo a previous shift.
+  // Swaps left and right sides.
+  // After the shift, DC is at index 0.
+  
+  static void unshift(RadarComplex_t *spectrum, int nSamples);
+  static void unshift(double *spectrum, int nSamples);
+  
+  /////////////////////////////////////////////
+  // copy arrays
+  
+  static void copy(RadarComplex_t *dest,
+                   const RadarComplex_t *src,
+                   size_t nSamples);
+
+  static void copy(double *dest,
+                   const double *src,
+                   size_t nSamples);
+  
+  static double MissingPower;
+
 protected:
 private:
+
+  // results of the fit - non-static method
+  
+  bool _clutterFound;
+  int _notchStart;
+  int _notchEnd;
+  double _rawPower;
+  double _filteredPower;
+  double _powerRemoved;
+  double _spectralNoise;
+  int _weatherPos;
+  int _clutterPos;
+  
+  double _weatherPeak, _clutterPeak, _clutNoise;
+  int _notchWidth, _halfNotchWidth;
+  
+  vector<double> _runningMean(const vector<double>& data,
+                              int nRun);
+
+  bool _isMinimum(const double *data, int len,
+                  int searchIndex, int searchWidth);
+  
+  bool _hasPeakNearCenter(const double* pwr, int nExpanded, double &powerMax);
   
 };
 

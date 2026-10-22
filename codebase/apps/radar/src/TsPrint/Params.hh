@@ -77,10 +77,9 @@ public:
   typedef enum {
     PRINT_MODE = 0,
     ASCOPE_MODE = 1,
-    CAL_MODE = 2,
-    SERVER_MODE = 3,
-    MAX_POWER_MODE = 4,
-    MAX_POWER_SERVER_MODE = 5
+    SERVER_MODE = 2,
+    MAX_POWER_MODE = 3,
+    MAX_POWER_SERVER_MODE = 4
   } run_mode_t;
 
   typedef enum {
@@ -100,6 +99,13 @@ public:
     PACKING_DBM_PHASE_SI16 = 2,
     PACKING_SIGMET_FL16 = 3
   } packing_type_t;
+
+  // struct typedefs
+
+  typedef struct {
+    char* xml_tag_list;
+    char* col_label;
+  } status_xml_entry_t;
 
   ///////////////////////////
   // Member functions
@@ -121,7 +127,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -411,6 +417,8 @@ public:
 
   tdrp_bool_t print_all_headers;
 
+  tdrp_bool_t print_lag1_coherent_power;
+
   tdrp_bool_t print_all_pulses;
 
   tdrp_bool_t print_info_on_change;
@@ -449,10 +457,6 @@ public:
 
   int tcp_server_port;
 
-  tdrp_bool_t dual_channel;
-
-  tdrp_bool_t fast_alternating;
-
   tdrp_bool_t invert_hv_flag;
 
   tdrp_bool_t rvp8_legacy_unpacking;
@@ -487,6 +491,11 @@ public:
 
   int server_port;
 
+  tdrp_bool_t add_cols_from_status_xml;
+
+  status_xml_entry_t *_xml_entries_for_extra_cols;
+  int xml_entries_for_extra_cols_n;
+
   char _end_; // end of data region
               // needed for zeroing out data
 
@@ -494,7 +503,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[59];
+  mutable TDRPtable _table[61];
 
   const char *_className;
 

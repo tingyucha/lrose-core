@@ -292,7 +292,7 @@ int TrConsolidate::_consolidate(TitanTrackFile &tfile,
   }
   
   ctparams1.n_simple_tracks = n_simple_tracks;
-  tfile._nsimples_per_complex[lower_track_num] = ctparams1.n_simple_tracks;
+  tfile._n_simples_per_complex[lower_track_num] = ctparams1.n_simple_tracks;
 
   track_utime[lower_track_num].start_complex = start_time;
   track_utime[lower_track_num].end_complex = end_time;
@@ -443,7 +443,7 @@ int TrConsolidate::_consolidate(TitanTrackFile &tfile,
    */
   
   ufree((char *) tfile._simples_per_complex[higher_track_num]);
-  tfile._simples_per_complex[higher_track_num] = NULL;
+  tfile._simples_per_complex[higher_track_num] = nullptr;
       
   /*
    * reduce number of complex tracks by 1

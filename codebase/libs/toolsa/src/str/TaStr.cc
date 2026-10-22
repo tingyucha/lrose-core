@@ -35,6 +35,7 @@
 
 #include <cstdio>
 #include <toolsa/TaStr.hh>
+#include <toolsa/safe_snprintf.hh>
 using namespace std;
 
 
@@ -59,12 +60,46 @@ void TaStr::AddInt(string &target,
 		   bool cr)
 {
   target += label;
-  char str[32];
-  sprintf(str, "%d", iarg);
-  target += str;
+  target += itostr(iarg);
   if (cr) {
     target += "\n";
   }
+}
+
+///////////////////////////////////////////
+// format integer value as a string.
+// Default format is %d.
+
+string TaStr::itostr(int val,
+                     string format)
+{
+  char str[64];
+  safe_snprintf(str, format.c_str(), val);
+  return str;
+}
+
+///////////////////////////////////////////
+// format long value as a string.
+// Default format is %ld.
+
+string TaStr::ltostr(long val,
+                     string format)
+{
+  char str[64];
+  safe_snprintf(str, format.c_str(), val);
+  return str;
+}
+
+///////////////////////////////////////////
+// format double value as a string.
+// Default format is %g.
+
+string TaStr::dtostr(double val,
+                     string format)
+{
+  char str[64];
+  safe_snprintf(str, format.c_str(), val);
+  return str;
 }
 
 ///////////////////////////////////////////
@@ -88,9 +123,7 @@ void TaStr::AddLong(string &target,
                     bool cr)
 {
   target += label;
-  char str[32];
-  sprintf(str, "%ld", larg);
-  target += str;
+  target += ltostr(larg);
   if (cr) {
     target += "\n";
   }
@@ -123,9 +156,7 @@ void TaStr::AddDbl(string &target,
 
 {
   target += label;
-  char str[128];
-  sprintf(str, format.c_str(), darg);
-  target += str;
+  target += dtostr(darg, format);
   if (cr) {
     target += "\n";
   }
@@ -237,6 +268,24 @@ void TaStr::tokenizeAllowEmpty(const string &str,
       toks.push_back(tok);
     }
     start = end + 1;
+  }
+
+}
+
+///////////////////////////////////////////////////////
+// Replaces substring
+
+void TaStr::replaceSubStr(std::string &str,
+                          const std::string &from,
+                          const std::string &to)
+{
+
+  if (from.empty()) return;  // Avoid infinite loop
+  
+  std::size_t pos = 0;
+  while ((pos = str.find(from, pos)) != std::string::npos) {
+    str.replace(pos, from.length(), to);
+    pos += to.length();  // Move past the replacement
   }
 
 }

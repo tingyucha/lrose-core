@@ -37,6 +37,8 @@
 #include <iostream>
 using namespace std;
 
+static void _usage(FILE *out);
+
 void parse_args(int argc, char **argv)
 
 {
@@ -49,44 +51,11 @@ void parse_args(int argc, char **argv)
   double dummy;
 
   char *end_pt;
-  char *mode_str, *debug_str, *localtime_str;
+  char *mode_str, *debug_str, *verbose_str, *localtime_str;
   char *time_requested_str;
   char *auto_advance_start_time_str;
   char *auto_advance_end_time_str;
-  char usage[BUFSIZ];
-
   date_time_t ttime;
-
-  /*
-   * load up usage string
-   */
-
-  sprintf(usage, "%s%s%s%s",
-	  "Usage:\n\n", argv[0], " [options] as below:\n\n",
-	  "       [ --, -h, -help, -man] produce this list.\n"
-	  "       [ -bg, -background ?] set background color\n"
-	  "       [ -auto_advance ] set auto_advance on\n"
-	  "         ARCHIVE mode only.\n"
-	  "       [ -debug ] debugging on\n"
-	  "       [ -d, -display ?] display name\n"
-	  "       [ -fg, -foreground ?] set foreground color\n"
-	  "       [ -g, -geometry ?] geometry as per X manual\n"
-	  "       [ -instance ?] program instance\n"
-	  "       [ -localtime ] use local time instead of UTC\n"
-	  "       [ -mode ?] archive or realtime\n"
-	  "       [ -noparams] use X data base instead of params file\n"
-	  "       [ -no_time_hist ?] do not use time_hist\n"
-	  "       [ -no_tracks ?] do not use track data\n"
-	  "       [ -params ?] parameters file name\n"
-	  "       [ -print_params] print parameters\n"
-	  "       [ -time  ? ] set time\n"
-	  "         Format: \"yyyy mm dd hh mm ss\"\n"
-	  "       [ -start_time  ? ] auto_advance start time\n"
-	  "         Format: \"yyyy mm dd hh mm ss\"\n"
-	  "       [ -end_time  ? ] auto_advance end time\n"
-	  "         Format: \"yyyy mm dd hh mm ss\"\n"
-	  "       [ -z ?] requested ht above MSL\n"
-	  "\n");
 
   Glob->instance = uGetParamString(Glob->prog_name,
 				   "instance", "Test");
@@ -96,6 +65,9 @@ void parse_args(int argc, char **argv)
   
   debug_str = uGetParamString(Glob->prog_name,
 			      "debug", DEBUG_STR);
+  
+  verbose_str = uGetParamString(Glob->prog_name,
+                                "verbose", "false");
   
   localtime_str = uGetParamString(Glob->prog_name,
                                   "localtime", "false");
@@ -122,7 +94,7 @@ void parse_args(int argc, char **argv)
 	!strcmp(argv[i], "-h") ||
 	!strcmp(argv[i], "-help") ||
 	!strcmp(argv[i], "-man")) {
-      printf("%s", usage);
+      _usage(stderr);
       tidy_and_exit(1);
       
     } else if (!strcmp(argv[i], "-auto_advance")) {
@@ -132,6 +104,10 @@ void parse_args(int argc, char **argv)
     } else if (!strcmp(argv[i], "-debug")) {
 
       debug_str = (char *) "true";
+      
+    } else if (!strcmp(argv[i], "-verbose")) {
+
+      verbose_str = (char *) "true";
       
     } else if (!strcmp(argv[i], "-localtime")) {
 
@@ -243,6 +219,22 @@ void parse_args(int argc, char **argv)
   }
   
   /*
+   * set verbose option
+   */
+  
+  if (!strcmp(verbose_str, "true")) {
+    Glob->verbose = TRUE;
+  } else if (!strcmp(verbose_str, "false")) {
+    Glob->verbose = FALSE;
+  } else {
+    fprintf(stderr, "ERROR - %s:parse_args\n", Glob->prog_name);
+    fprintf(stderr,
+	    "Verbose option '%s' invalid - should be 'true' or 'false'.\n",
+	    verbose_str);
+    error_flag = TRUE;
+  }
+  
+  /*
    * set localtime option
    */
   
@@ -340,7 +332,7 @@ void parse_args(int argc, char **argv)
    */
   
   if(error_flag || warning_flag) {
-    fprintf(stderr, "%s\n", usage);
+    _usage(stderr);
     fprintf(stderr, "Check the parameters file '%s'.\n\n",
 	    Glob->params_path_name);
   }
@@ -375,3 +367,42 @@ int check_for_print_params(int argc, char **argv)
   return 0;
 
 }
+
+///////////////////////////////////////////////
+// print usage
+
+static void _usage(FILE *out)
+
+{
+
+  fprintf(out, "Usage:\n\n");
+  fprintf(out, "Rview [options] as below:\n\n");
+  fprintf(out, "   [ -- -h, -help, -man] produce this list.\n");
+  fprintf(out, "   [ -bg -background ?] set background color\n");
+  fprintf(out, "   [ -auto_advance ] set auto_advance on\n");
+  fprintf(out, "     ARCHIVE mode only.\n");
+  fprintf(out, "   [ -debug ] debugging on\n");
+  fprintf(out, "   [ -verbose ] verbose debugging on\n");
+  fprintf(out, "   [ -d, -display ?] display name\n");
+  fprintf(out, "   [ -fg, -foreground ?] set foreground color\n");
+  fprintf(out, "   [ -g, -geometry ?] geometry as per X manual\n");
+  fprintf(out, "   [ -instance ?] program instance\n");
+  fprintf(out, "   [ -localtime ] use local time instead of UTC\n");
+  fprintf(out, "   [ -mode ?] archive or realtime\n");
+  fprintf(out, "   [ -noparams] use X data base instead of params file\n");
+  fprintf(out, "   [ -no_time_hist ?] do not use time_hist\n");
+  fprintf(out, "   [ -no_tracks ?] do not use track data\n");
+  fprintf(out, "   [ -params ?] parameters file name\n");
+  fprintf(out, "   [ -print_params] print parameters\n");
+  fprintf(out, "   [ -time  ? ] set time\n");
+  fprintf(out, "     Format: \"yyyy mm dd hh mm ss\"\n");
+  fprintf(out, "   [ -start_time  ? ] auto_advance start time\n");
+  fprintf(out, "     Format: \"yyyy mm dd hh mm ss\"\n");
+  fprintf(out, "   [ -end_time  ? ] auto_advance end time\n");
+  fprintf(out, "     Format: \"yyyy mm dd hh mm ss\"\n");
+  fprintf(out, "   [ -z ?] requested ht above MSL\n");
+  fprintf(out, "\n");
+
+}
+
+

@@ -51,6 +51,7 @@
 #include <cstdio>
 #include <sys/stat.h>
 #include <algorithm>
+#include <iomanip>
 #include "GemInputField.hh"
 using namespace std;
 
@@ -203,7 +204,7 @@ int GemRadxFile::writeToPath(const RadxVol &vol,
 bool GemRadxFile::isSupported(const string &path)
 
 {
-  
+
   if (isGematronik(path)) {
     return true;
   }
@@ -230,24 +231,58 @@ bool GemRadxFile::isGematronik(const string &path)
   
   // read ID of first block
 
-  char id[32];
-  if (fread(id, 1, 32, _file) != 32) {
+  char line[1024];
+  if (fgets(line, 1024, _file) == NULL) {
     _close();
     return false;
   }
+
+  // check is this a volume?
+  
+  if (_checkForVolKeyword(line)) {
+    _close();
+    return true;
+  }
+  
+  // check if the first line indicates xml version
+  if (strstr(line, "xml") != NULL) {
+    // first line is xml version, read next line
+    if (fgets(line, 1024, _file) == NULL) {
+      _close();
+      return false;
+    }
+  }
   _close();
 
-  if (strncmp(id, "<volume", 7) == 0) {
+  // check is this a volume?
+  
+  if (_checkForVolKeyword(line)) {
     return true;
-  } 
-  if (strncmp(id, "<volfile", 8) == 0) {
-    return true;
-  } 
+  }
   
   return false;
 
 }
 
+////////////////////////////////////////////////////////////
+// Check for volume keywords "<volume" or "<volfile"
+// Returns true on success, false on failure
+
+bool GemRadxFile::_checkForVolKeyword(const string &line)
+  
+{
+
+  if (line.find("<volume") == 0) {
+    return true;
+  } 
+  if (line.find("<volfile") == 0) {
+    return true;
+  }
+
+  return false;
+
+}
+  
 ////////////////////////////////////////////////////////////
 // Read in data from specified path, load up volume object.
 //
@@ -279,6 +314,18 @@ int GemRadxFile::readFromPath(const string &path,
     _addErrStr("  Number of sweeps varies from file to file");
     return -1;
   }
+  
+  // check the sweep geometry to ensure nGates and nRays are consistent
+  // across fields
+  
+  _checkSweepGeometry();
+  if (_fields.size() < 1) {
+    _addErrStr("ERROR - GemRadxFile::readFromPath");
+    _addErrStr("  no valid fields found");
+    _addErrStr("  check the geometry of all fields for consistency");
+    _clearFields();
+    return -1;
+  }
 
   // load the ray data for the read volume
 
@@ -297,6 +344,10 @@ int GemRadxFile::readFromPath(const string &path,
     _clearFields();
     return -1;
   }
+
+  // add SNR2 fields
+
+  _addSnr2Fields();
 
   // set format as read
 
@@ -680,6 +731,38 @@ int GemRadxFile::_readFields(const string &path)
       units = "dB";
       standardName = "clutter_correction_ratio";
       longName = "clutter_correction_ratio_from_horizontal_polarization";
+    } else if (fieldName.find("V1vu") != string::npos) {
+      units = "m/s";
+      standardName = "radial_velocity_of_scatterers_away_from_instrument";
+      longName = "radial_velocity_from_vertical_polarization_high_prf_uncorrected";
+    } else if (fieldName.find("V1u") != string::npos) {
+      units = "m/s";
+      standardName = "radial_velocity_of_scatterers_away_from_instrument";
+      longName = "radial_velocity_from_horizontal_polarization_high_prf_uncorrected";
+    } else if (fieldName.find("V1v") != string::npos) {
+      units = "m/s";
+      standardName = "radial_velocity_of_scatterers_away_from_instrument";
+      longName = "radial_velocity_from_vertical_polarization_high_prf";
+    } else if (fieldName.find("V1") != string::npos) {
+      units = "m/s";
+      standardName = "radial_velocity_of_scatterers_away_from_instrument";
+      longName = "radial_velocity_from_horizontal_polarization_high_prf";
+    } else if (fieldName.find("V2vu") != string::npos) {
+      units = "m/s";
+      standardName = "radial_velocity_of_scatterers_away_from_instrument";
+      longName = "radial_velocity_from_vertical_polarization_low_prf_uncorrected";
+    } else if (fieldName.find("V2u") != string::npos) {
+      units = "m/s";
+      standardName = "radial_velocity_of_scatterers_away_from_instrument";
+      longName = "radial_velocity_from_horizontal_polarization_low_prf_uncorrected";
+    } else if (fieldName.find("V2v") != string::npos) {
+      units = "m/s";
+      standardName = "radial_velocity_of_scatterers_away_from_instrument";
+      longName = "radial_velocity_from_vertical_polarization_low_prf";
+    } else if (fieldName.find("V2") != string::npos) {
+      units = "m/s";
+      standardName = "radial_velocity_of_scatterers_away_from_instrument";
+      longName = "radial_velocity_from_horizontal_polarization_low_prf";
     }
 
     // create input field object
@@ -721,6 +804,85 @@ int GemRadxFile::_readFields(const string &path)
 }
 
 /////////////////////////////////////////////////////////
+// check sweep geometry is same for all fields and sweeps
+// if not set those fields to invalid
+
+void GemRadxFile::_checkSweepGeometry()
+  
+{
+
+  // compute nAngles and nGates as max from all fields per sweep
+  
+  _nAngles.clear();
+  _nGates.clear();
+  
+  for (size_t isweep = 0; isweep < _nSweeps; isweep++) {
+    size_t nAngles = 0;
+    size_t nGates = 0;
+    for (size_t ifield = 0; ifield < _fields.size(); ifield++) {
+      const GemInputField *inputField = _fields[ifield];
+      const GemSweepField *sweepField = inputField->getSweepFields()[isweep];
+      nAngles = max(nAngles, sweepField->getNAngles());
+      nGates = max(nGates, sweepField->getNGates());
+    } // ifield
+    _nAngles.push_back(nAngles);
+    _nGates.push_back(nGates);
+  }// isweep
+
+  // check validity of each field - should have max gates and rays
+  
+  for (size_t isweep = 0; isweep < _nSweeps; isweep++) {
+    for (size_t ifield = 0; ifield < _fields.size(); ifield++) {
+      GemInputField *inputField = _fields[ifield];
+      const GemSweepField *sweepField = inputField->getSweepFields()[isweep];
+      if (sweepField->getNAngles() != _nAngles[isweep]) {
+        double nAngleRatio = (double) sweepField->getNAngles() / (double) _nAngles[isweep];
+        if ((nAngleRatio > 0.48 && nAngleRatio < 0.52) &&
+            (sweepField->getFieldName()[0] == 'V')) {
+          if (_debug) {
+            cerr << "WARNING - GemRadxFile::_checkSweepGeometry" << endl;
+            cerr << "  sweep num: " << isweep << endl;
+            cerr << "  field name: " << sweepField->getFieldName() << endl;
+            cerr << "  this is a dual PRF field" << endl;
+            cerr << "  vel data will be copied to adjacent rays" << endl;
+          }
+          inputField->setIsDualPrf(true);
+        } else {
+          cerr << "WARNING - GemRadxFile::_checkSweepGeometry" << endl;
+          cerr << "  sweep num: " << isweep << endl;
+          cerr << "    sweep field nAngles: " << sweepField->getNAngles() << endl;
+          cerr << "      does not match max nAngles: " << _nAngles[isweep] << endl;
+          cerr << "  ignoring invalid field: " << inputField->getFieldName() << endl;
+          inputField->setInvalid();
+        }
+      }
+      if (sweepField->getNGates() != _nGates[isweep]) {
+        cerr << "WARNING - GemRadxFile::_checkSweepGeometry" << endl;
+        cerr << "  sweep num: " << isweep << endl;
+        cerr << "    sweep field nGates: " << sweepField->getNGates() << endl;
+        cerr << "      does not match max nGates: " << _nGates[isweep] << endl;
+        cerr << "  ignoring invalid field: " << inputField->getFieldName() << endl;
+        inputField->setInvalid();
+      }
+    } // ifield
+  } // isweep
+
+  // remove invalid input fields
+
+  vector<GemInputField *> validFields;
+  for (size_t ifield = 0; ifield < _fields.size(); ifield++) {
+    GemInputField *inputField = _fields[ifield];
+    if (inputField->getIsValid()) {
+      validFields.push_back(inputField); // save
+    } else {
+      delete inputField; // free up
+    }
+  } // ifield
+  _fields = validFields;
+
+}
+
+/////////////////////////////////////////////////////////
 // load up the ray data
 
 int GemRadxFile::_loadRays(const string &path)
@@ -728,43 +890,42 @@ int GemRadxFile::_loadRays(const string &path)
 {
 
   time_t volEndTime = _fields[0]->getVolTime();
-
+  
   // loop through sweeps
-
+  
   int prevSweepDuration = 0;
   
-  for (int isweep = 0; isweep < _nSweeps; isweep++) {
+  for (size_t isweep = 0; isweep < _nSweeps; isweep++) {
     
-    const GemSweep &sweep = *(_fields[0]->getSweeps()[isweep]);
-    double antennaSpeed = sweep.getAntennaSpeed();
-
+    const GemInputField *inputField0 = _fields[0];
+    const GemSweepField *sweepField = inputField0->getSweepFields()[isweep];
+    double antennaSpeed = sweepField->getAntennaSpeed();
+    
     // times
     
-    time_t sweepStartTime = sweep.getStartTime();
+    time_t sweepStartTime = sweepField->getStartTime();
     time_t sweepEndTime = volEndTime;
     if (isweep == _nSweeps - 1) {
       if (prevSweepDuration > 0) {
         sweepEndTime = sweepStartTime + prevSweepDuration;
       }
     } else {
-      const GemSweep &nextSweep = *(_fields[0]->getSweeps()[isweep+1]);
-      sweepEndTime = nextSweep.getStartTime();
+      const GemSweepField *nextSweep = inputField0->getSweepFields()[isweep+1];
+      sweepEndTime = nextSweep->getStartTime();
     }
 
-    // compute sweep parameters
+    // load sweep data into rays
     
-    if (_setSweepGeom(isweep) == 0) {
-      if (_loadSweep(isweep, sweepStartTime, sweepEndTime, antennaSpeed)) {
-        _addErrStr("ERROR - GemRadxFile::_loadRays");
-        _addErrInt("  Cannot load rays for sweep: ", isweep);
-        return -1;
-      }
+    if (_loadSweep(isweep, sweepStartTime, sweepEndTime, antennaSpeed)) {
+      _addErrStr("ERROR - GemRadxFile::_loadRays");
+      _addErrInt("  Cannot load rays for sweep: ", isweep);
+      return -1;
     }
-
+    
     prevSweepDuration = sweepEndTime - sweepStartTime;
     
   } // isweep
-  
+
   return 0;
 
 }
@@ -772,7 +933,7 @@ int GemRadxFile::_loadRays(const string &path)
 /////////////////////////////////////////////////////////
 // load up the ray data
 
-int GemRadxFile::_loadSweep(int sweepNum,
+int GemRadxFile::_loadSweep(size_t sweepNum,
                             time_t startTime,
                             time_t endTime,
                             double antennaSpeed)
@@ -785,19 +946,27 @@ int GemRadxFile::_loadSweep(int sweepNum,
     cerr << "          start time: " << RadxTime::strm(startTime) << endl;
   }
 
-  const GemSweep &sweepField0 = *(_fields[0]->getSweeps()[sweepNum]);
-  const vector<double> &angles = sweepField0.getAngles();
-  double prevAngle = angles[0];
+  const GemSweepField &sweepField0 = *(_fields[0]->getSweepFields()[sweepNum]);
+  const vector<double> &anglesField0 = sweepField0.getAngles();
+  double prevAngle = anglesField0[0];
 
-  double deltaTime = ((double) endTime - (double) startTime) / (_nAngles + 1.0);
+  size_t nAngles = _nAngles[sweepNum];
+  size_t nGates = _nGates[sweepNum];
+
+  double deltaTime =
+    ((double) endTime - (double) startTime) / (nAngles + 1.0);
+
+  if (sweepField0.getVolNum() > 0) {
+    _volumeNumber = sweepField0.getVolNum();
+  }
 
   // loop through the beams
 
   time_t lastTime = 0;
   double dSecs = 0.0;
 
-  for (int iangle = 0; iangle < _nAngles; iangle++) {
-    
+  for (size_t iangle = 0; iangle < nAngles; iangle++) {
+
     // create new ray
     
     RadxRay *ray = new RadxRay;
@@ -808,27 +977,27 @@ int GemRadxFile::_loadSweep(int sweepNum,
 
     // compute change in azimuth
 
-    double angle = angles[iangle];
-    double absDeltaAngle = fabs(angle - prevAngle);
+    double angleField0 = anglesField0[iangle];
+    double absDeltaAngle = fabs(angleField0 - prevAngle);
     if (absDeltaAngle > 180) {
       absDeltaAngle = fabs(absDeltaAngle - 360);
     }
-    prevAngle = angle;
+    prevAngle = angleField0;
 
     // set angles
 
     if (_fields[0]->getIsRhi()) {
-      if (angle > 180.0) {
-        ray->setElevationDeg(angle - 360.0);
+      if (angleField0 > 180.0) {
+        ray->setElevationDeg(angleField0 - 360.0);
       } else {
-        ray->setElevationDeg(angle);
+        ray->setElevationDeg(angleField0);
       }
       ray->setAzimuthDeg(sweepField0.getFixedAngle());
     } else {
-      if (angle < 0) {
-        ray->setAzimuthDeg(angle + 360.0);
+      if (angleField0 < 0) {
+        ray->setAzimuthDeg(angleField0 + 360.0);
       } else {
-        ray->setAzimuthDeg(angle);
+        ray->setAzimuthDeg(angleField0);
       }
       ray->setElevationDeg(sweepField0.getFixedAngle());
     }
@@ -863,7 +1032,7 @@ int GemRadxFile::_loadSweep(int sweepNum,
     // metadata
     
     ray->setRangeGeom(sweepField0.getStartRange(), sweepField0.getGateSpacing());
-    ray->setNGates(_nGates);
+    ray->setNGates(nGates);
 
     if (_fields[0]->getIsRhi()) {
       ray->setSweepMode(Radx::SWEEP_MODE_RHI);
@@ -897,24 +1066,19 @@ int GemRadxFile::_loadSweep(int sweepNum,
     
     ray->setPulseWidthUsec(sweepField0.getPulseWidthUs());
     ray->setNyquistMps(sweepField0.getNyquist());
-
     // ray->setUnambigRangeKm(_unambigRange);
 
     // compose data
-
     // some fields are 2 bytes, map all fields into 2 bytes
-
-    // int nBytes = _nFields * _nGates * _outputByteWidth;
-    // ui16 *beamData = new ui16[nBytes];
 
     for (int ifld = 0; ifld < (int) _fields.size(); ifld++) {
 
       const GemInputField &field = *_fields[ifld];
-      const GemSweep &sweep = *(field.getSweeps()[sweepNum]);
+      const GemSweepField &sweep = *(field.getSweepFields()[sweepNum]);
 
       double samplingRatio =
         (double) sweep.getNSamples() / (double) sweepField0.getNSamples();
-      
+        
       // create field
 
       RadxField *rfield = new RadxField(field.getFieldName(), field.getUnits());
@@ -933,22 +1097,62 @@ int GemRadxFile::_loadSweep(int sweepNum,
       }
       double offset = (minVal + maxVal) / 2.0;
 
+      // the angles on the rays are from the first field processed
+      // find the angle index for this field
+      // this may differ from iangle if the angle list for the
+      // field is different from the first field
+
+      const GemSweepField &sweepField = *(_fields[ifld]->getSweepFields()[sweepNum]);
+      const vector<double> &anglesField = sweepField.getAngles();
+      size_t nAnglesField = sweepField.getNAngles();
+      size_t angleIndex = iangle;
+
+      if (field.getIsDualPrf()) {
+        // handle dual prt field
+        // find ray with min angle diff
+        double minDiff = 9999;
+        for (size_t jangle = 0; jangle < nAnglesField; jangle++) {
+          double angleField = anglesField[jangle];
+          double angleDiff = fabs(angleField0 - angleField);
+          if (angleDiff > 180.0) {
+            angleDiff = fabs(angleDiff - 360.0);
+          }
+          if (angleDiff < minDiff) {
+            angleIndex = jangle;
+            minDiff = angleDiff;
+          }
+        }
+      } else {
+        // non-dual prt field - the normal case
+        for (size_t jangle = 0; jangle < nAnglesField; jangle++) {
+          double angleField = anglesField[jangle];
+          double angleDiff = fabs(angleField0 - angleField);
+          if (angleDiff > 180.0) {
+            angleDiff = fabs(angleDiff - 360.0);
+          }
+          if (angleDiff < 0.1) {
+            angleIndex = jangle;
+            break;
+          }
+        }
+      }
+        
       if (byteWidth == 1) {
 
         // get input data - unsigned
         
         const Radx::ui08 *uData = sweep.getFieldData();
-        const Radx::ui08 *ud = uData + (iangle * _nGates);
+        const Radx::ui08 *ud = uData + (angleIndex * nGates);
 
         // convert to signed
 
         RadxArray<Radx::si08> sd_;
-        Radx::si08 *sd = sd_.alloc(_nGates);
-        for (int igate = 0; igate < _nGates; igate++) {
+        Radx::si08 *sd = sd_.alloc(nGates);
+        for (size_t igate = 0; igate < nGates; igate++) {
           sd[igate] = ud[igate] - 128;
         }
         rfield->setTypeSi08(-128, scale, offset);
-        rfield->addDataSi08(_nGates, sd);
+        rfield->addDataSi08(nGates, sd);
 
       } else {
 
@@ -956,17 +1160,17 @@ int GemRadxFile::_loadSweep(int sweepNum,
         // get input data - unsigned
         
         const Radx::ui16 *uData = (Radx::ui16 *) sweep.getFieldData();
-        const Radx::ui16 *ud = uData + (iangle * _nGates);
+        const Radx::ui16 *ud = uData + (angleIndex * nGates);
 
         // convert to signed
 
         RadxArray<Radx::si16> sd_;
-        Radx::si16 *sd = sd_.alloc(_nGates);
-        for (int igate = 0; igate < _nGates; igate++) {
+        Radx::si16 *sd = sd_.alloc(nGates);
+        for (size_t igate = 0; igate < nGates; igate++) {
           sd[igate] = ud[igate] - 32768;
         }
         rfield->setTypeSi16(-32768, scale, offset);
-        rfield->addDataSi16(_nGates, sd);
+        rfield->addDataSi16(nGates, sd);
 
       } // inputByteWidth
 
@@ -1004,6 +1208,119 @@ int GemRadxFile::_loadSweep(int sweepNum,
 }
 
 /////////////////////////////////////////////////////////
+// add the SNR2 fields, computed from SNR
+
+int GemRadxFile::_addSnr2Fields()
+  
+{
+
+  int iret = 0;
+  
+  // loop through rays
+  
+  for (size_t iray = 0; iray < _readVol->getRays().size(); iray++) {
+    
+    RadxRay *ray = _readVol->getRays()[iray];
+
+    RadxField *snrFld = ray->getField("SNR");
+    if (snrFld == NULL) {
+      iret = -1;
+      continue;
+    }
+    if (_addSnr2Field(ray, snrFld, "SNR2", true)) {
+      iret = -1;
+    }
+    
+    RadxField *snrvFld = ray->getField("SNRv");
+    if (snrvFld == NULL) {
+      iret = -1;
+      continue;
+    }
+    if (_addSnr2Field(ray, snrvFld, "SNR2v", false)) {
+      iret = -1;
+    }
+    
+    RadxField *snruFld = ray->getField("SNRu");
+    if (snruFld == NULL) {
+      iret = -1;
+      continue;
+    }
+    if (_addSnr2Field(ray, snruFld, "SNR2u", true)) {
+      iret = -1;
+    }
+    
+    RadxField *snrvuFld = ray->getField("SNRvu");
+    if (snrvuFld == NULL) {
+      iret = -1;
+      continue;
+    }
+    if (_addSnr2Field(ray, snrvuFld, "SNR2vu", false)) {
+      iret = -1;
+    }
+    
+  } // iray
+
+  return iret;
+  
+}
+
+int GemRadxFile::_addSnr2Field(RadxRay *ray, RadxField *snrFld,
+                               const string &newName, bool isHoriz)
+  
+{
+
+  // get the calibration
+
+  if (_readVol->getNRcalibs() < 1) {
+    // no cal data, cannot do this
+    return -1;
+  }
+  const RadxRcalib *cal = _readVol->getRcalibs()[0];
+  double noiseDbm = cal->getNoiseDbmHc();
+  if (!isHoriz) {
+    noiseDbm = cal->getNoiseDbmVc();
+  }
+  if (noiseDbm == Radx::missingMetaDouble) {
+    // no noise data, cannot proceed
+    return -1;
+  }
+  double noiseLinear = pow(10.0, noiseDbm / 10.0);
+  
+  // make a copy of the snr field, convert to floats
+
+  RadxField *snr2Fld = new RadxField(*snrFld);
+  snr2Fld->setName(newName);
+  snr2Fld->convertToFl32();
+  Radx::fl32 miss = snr2Fld->getMissingFl32();
+  
+  // loop through the field elements, converting to correct formulation of SNR
+  // this requires subtracting the noise before computing the ratio
+  
+  Radx::fl32 *vals = snr2Fld->getDataFl32();
+  for (size_t igate = 0; igate < snr2Fld->getNPoints(); igate++) {
+
+    Radx::fl32 snrDb = vals[igate];
+    double snrLinear = pow(10.0, snrDb / 10.0);
+    double powerLinear = snrLinear * noiseLinear;
+    double powerNs = powerLinear - noiseLinear;
+    Radx::fl32 snr2 = miss;
+    if (powerNs > 0) {
+      snr2 = 10.0 * log10(powerNs / noiseLinear);
+    }
+    vals[igate] = snr2;
+    
+  } // igate
+
+  // set the field metadata
+
+  snr2Fld->convertToSi16();
+  ray->addField(snr2Fld);
+
+  return 0;
+  
+}
+
+/////////////////////////////////////////////////////////
 // load up the read volume with the data from this object
 
 int GemRadxFile::_loadMetaData(const string &path)
@@ -1019,8 +1336,8 @@ int GemRadxFile::_loadMetaData(const string &path)
   // set meta-data
 
   const GemInputField &field0 = *_fields[0];
-  const vector<GemSweep *> &sweeps0 = field0.getSweeps();
-  const GemSweep &sweepField0 = *sweeps0[0];
+  const vector<GemSweepField *> &sweepFields0 = field0.getSweepFields();
+  const GemSweepField &sweepField0 = *sweepFields0[0];
 
   // info strings
   
@@ -1055,12 +1372,38 @@ int GemRadxFile::_loadMetaData(const string &path)
   RadxRcalib *calib = new RadxRcalib;
   calib->setCalibTime(_fileTime.utime());
   calib->setPulseWidthUsec(sweepField0.getPulseWidthUs());
-  calib->setXmitPowerDbmH(10.0 * log10(sweepField0.getXmitPeakPowerKw() * 1.0e6));
-  calib->setXmitPowerDbmV(10.0 * log10(sweepField0.getXmitPeakPowerKw() * 1.0e6));
+  if (sweepField0.getXmitPeakPowerKwH() > 0) {
+    calib->setXmitPowerDbmH(10.0 * log10(sweepField0.getXmitPeakPowerKwH() * 1.0e6));
+  } else if (sweepField0.getXmitPeakPowerKw() > 0) {
+    calib->setXmitPowerDbmH(10.0 * log10(sweepField0.getXmitPeakPowerKw() * 1.0e6));
+  }
+  if (sweepField0.getXmitPeakPowerKwV() > 0) {
+    calib->setXmitPowerDbmV(10.0 * log10(sweepField0.getXmitPeakPowerKwV() * 1.0e6));
+  } else if (sweepField0.getXmitPeakPowerKw() > 0) {
+    calib->setXmitPowerDbmV(10.0 * log10(sweepField0.getXmitPeakPowerKw() * 1.0e6));
+  }
   calib->setRadarConstantH(sweepField0.getRadarConstH());
   calib->setRadarConstantV(sweepField0.getRadarConstV());
   calib->setBaseDbz1kmHc(sweepField0.getNoisePowerDbzH());
   calib->setBaseDbz1kmVc(sweepField0.getNoisePowerDbzV());
+  calib->setNoiseDbmHc(sweepField0.getNoiseDbmH());
+  calib->setNoiseDbmVc(sweepField0.getNoiseDbmV());
+
+  calib->setBeamWidthDegH(sweepField0.getBeamWidthH());
+  calib->setBeamWidthDegV(sweepField0.getBeamWidthV());
+  
+  calib->setAntennaGainDbH(sweepField0.getAntGainH());
+  calib->setAntennaGainDbV(sweepField0.getAntGainV());
+  
+  calib->setTwoWayWaveguideLossDbH(sweepField0.getTxPathLossH());
+  calib->setTwoWayWaveguideLossDbV(sweepField0.getTxPathLossV());
+
+  calib->setPowerMeasLossDbH(sweepField0.getRxPathLossH());
+  calib->setPowerMeasLossDbV(sweepField0.getRxPathLossV());
+
+  calib->setTwoWayRadomeLossDbH(sweepField0.getRadomeLoss());
+  calib->setTwoWayRadomeLossDbV(sweepField0.getRadomeLoss());
+
   _readVol->addCalib(calib);
   
   _readVol->setTargetScanRateDegPerSec(sweepField0.getAntennaSpeed());
@@ -1096,13 +1439,13 @@ int GemRadxFile::_loadMetaData(const string &path)
 
   // Intermediate frequency
 
-  for (int isweep = 0; isweep < _nSweeps; isweep++) {
+  for (size_t isweep = 0; isweep < _nSweeps; isweep++) {
     const vector<RadxSweep *> &sweeps = _readVol->getSweeps();
-    if (isweep > (int) sweeps.size() - 1) {
+    if (isweep > sweeps.size() - 1) {
       break;
     }
     RadxSweep *sweep = sweeps[isweep];
-    const GemSweep &gsweep = *(_fields[0]->getSweeps()[isweep]);
+    const GemSweepField &gsweep = *(_fields[0]->getSweepFields()[isweep]);
     double intermedFreqHz = gsweep.getIfMhz();
     if (intermedFreqHz != Radx::missingMetaDouble) {
       sweep->setIntermedFreqHz(intermedFreqHz);
@@ -1206,7 +1549,8 @@ int GemRadxFile::printNative(const string &path, ostream &out,
 /////////////////////////////////////////////////////////
 // print field data
 
-void GemRadxFile::_printFieldData(ostream &out, int nGates, const double *data) const
+void GemRadxFile::_printFieldData(ostream &out,
+                                  size_t nGates, const double *data) const
   
 {
 
@@ -1217,7 +1561,7 @@ void GemRadxFile::_printFieldData(ostream &out, int nGates, const double *data) 
     int printed = 0;
     int count = 1;
     double prevVal = data[0];
-    for (int ii = 1; ii < nGates; ii++) {
+    for (size_t ii = 1; ii < nGates; ii++) {
       double dval = data[ii];
       if (dval != prevVal) {
         _printPacked(out, count, prevVal);
@@ -1273,47 +1617,11 @@ int GemRadxFile::_computeNSweeps()
   
 {
   _nSweeps = _fields[0]->getNSweeps();
-  for (int ii = 1; ii < (int) _fields.size(); ii++) {
+  for (size_t ii = 1; ii < _fields.size(); ii++) {
     if (_fields[ii]->getNSweeps() != _nSweeps) {
       return -1;
     }
   }
   return 0;
 }
-
-//////////////////////////////////////////////////
-// set number of angles in sweep
-// returns 0 on success, -1 on failure
-
-int GemRadxFile::_setSweepGeom(int sweepNum)
-  
-{
-
-  const GemSweep &field0 = *(_fields[0]->getSweeps()[sweepNum]);
-  _nAngles = field0.getNAngles();
-  _nGates = field0.getNGates();
-  
-  for (int ii = 1; ii < (int) _fields.size(); ii++) {
-    const GemSweep &field = *(_fields[ii]->getSweeps()[sweepNum]);
-    if (_nAngles < 1) {
-      _addErrStr("ERROR - GemRadxFile::_setSweepGeom");
-      _addErrInt("  nAngles not positive: ", _nAngles);
-      return -1;
-    }
-    if (_nAngles != field.getNAngles()) {
-      _addErrStr("ERROR - GemRadxFile::_setSweepGeom");
-      _addErrStr("  nAngles not constant across fields");
-      return -1;
-    }
-    if (_nGates != field.getNGates()) {
-      _addErrStr("ERROR - GemRadxFile::_setSweepGeom");
-      _addErrStr("  nGates not constant across fields");
-      return -1;
-    }
-  }
-
-  return 0;
-
-}
-
 

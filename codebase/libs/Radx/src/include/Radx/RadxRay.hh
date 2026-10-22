@@ -92,7 +92,7 @@ public:
   /// Assignment.
   
   RadxRay& operator=(const RadxRay &rhs);
-  
+
   /// Copy the meta data, but not the fields
 
   void copyMetaData(const RadxRay &rhs);
@@ -265,6 +265,8 @@ public:
   inline void setPrtRatio(double val) { _prtRatio = val; }
 
   /// Set the nyquist velocity, in m/s, for this ray, if known.
+  /// This should be the nyquist for the primary velocity field
+  /// if there are more than 1 velocity field.
 
   inline void setNyquistMps(double val) { _nyquistMps = val; }
 
@@ -343,7 +345,9 @@ public:
   /// If force is false, the georefs are applied only if
   /// they have not been applied previously,
   /// i.e. if _georefApplied = false.
-  
+  //void applyGeoref(Radx::PrimaryAxis_t axis, 
+  //  Radx::RadxCfactors *cfactors, bool force /* = true */);
+
   void applyGeoref(Radx::PrimaryAxis_t axis, bool force = true);
 
   /// set the flag to indicate that georef has been applied
@@ -355,6 +359,12 @@ public:
   
   void incrementGeorefNotMissingCount(RadxGeoref &count);
 
+  /// Set angles for elevation surveillance mode
+  /// In SWEEP_MODE_ELEVATION_SURVEILLANCE mode, if georefs are
+  /// available copy rotation to azimuth, and tilt to elevation.
+  
+  void setAnglesForElevSurveillance();
+  
   //@}
 
   /////////////////////////////////////////////////////////////
@@ -659,9 +669,12 @@ public:
   ///   y = x * scale + offset
   /// After operation, field type is unchanged.
   /// Nothing is done if field does not exist.
+  /// If field folds, ensure the result is within the folding region.
   
   void applyLinearTransform(const string &name,
-                            double scale, double offset);
+                            double scale, double offset,
+                            bool fieldFolds = false,
+                            double foldingValue = 0.0);
 
   /// Converts field type, and optionally changes the
   /// names.
@@ -862,6 +875,11 @@ public:
   /// Get the elevation angle for this ray, in degrees.
 
   inline double getElevationDeg() const { return _elev; }
+
+  /// Get the tilt angle for this ray, in degrees.
+  // TODO: get Tilt from the georef
+  //inline double getTiltTDeg() const { return _tilt_t; }
+  // _georef->getTiltDeg();
 
   /// Get the fixed angle for this ray, in degrees.
   ///
@@ -1109,6 +1127,7 @@ private:
   double _fixedAngle;      // deg
   double _targetScanRate;  // deg/s
   double _trueScanRate;  // deg/s
+  double _tilt_t;        // deg  tilt in the level track-relative coordinates 
   
   bool _isIndexed;   // ray is indexed
   double _angleRes;  // angular resolution if indexed (deg)
@@ -1265,6 +1284,14 @@ private:
   } msgMetaNumbers_t;
 
   msgMetaNumbers_t _metaNumbers;
+  
+  /// compute track-relative elevation, azimuth,
+  /// rotation and tilt for a y-prime radar
+  
+  void _computeTrackRelAnglesYPrime(double rollRad, double rotRad,
+                                    double cosPitch, double sinPitch,
+                                    double cosTilt, double sinTilt,
+                                    double cosDrift, double sinDrift);
   
   /// convert metadata to XML
   

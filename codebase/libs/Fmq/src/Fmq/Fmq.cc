@@ -39,6 +39,7 @@
 #include <toolsa/pmu.h>
 #include <toolsa/file_io.h>
 #include <toolsa/uusleep.h>
+#include <toolsa/safe_snprintf.hh>
 #include <dsserver/DmapAccess.hh>
 #include <Fmq/Fmq.hh>
 #include <climits>
@@ -3708,7 +3709,7 @@ void Fmq::initErrStr() const
 
   char errTxt[8192];
 
-  sprintf(errTxt, "ERROR - FMQ, fmq path: %s\n", _fmqPath.c_str());
+  safe_snprintf(errTxt, "ERROR - FMQ, fmq path: %s\n", _fmqPath.c_str());
   _errStr += errTxt;
 
 }
@@ -3727,15 +3728,15 @@ void Fmq::_print_error(const char *routine, const char *format, ...) const
   char errTxt[8192];
 
   if (routine != NULL) {
-    sprintf(errTxt, "ERROR - %s:Fmq::%s\n", _progName.c_str(), routine);
+    safe_snprintf(errTxt, "ERROR - %s:Fmq::%s\n", _progName.c_str(), routine);
     _errStr += errTxt;
-    sprintf(errTxt, "Fmq path: %s\n", _fmqPath.c_str());
+    safe_snprintf(errTxt, "Fmq path: %s\n", _fmqPath.c_str());
     _errStr += errTxt;
   }
 
   if (format != NULL) {
     va_start (args, format);
-    vsprintf (errTxt, format, args);
+    vsnprintf(errTxt, sizeof(errTxt), format, args);
     _errStr += errTxt;
     _errStr += "\n";
     va_end (args);
@@ -3784,7 +3785,7 @@ void Fmq::_print_info(const char *routine, const char *format, ...) const
   
   if (format != NULL) {
     va_start (args, format);
-    vsprintf (infoTxt, format, args);
+    vsnprintf(infoTxt, sizeof(infoTxt), format, args);
     va_end (args);
   }
 
@@ -4093,4 +4094,3 @@ int Fmq::_recover ()
   return 0;
 
 }
-

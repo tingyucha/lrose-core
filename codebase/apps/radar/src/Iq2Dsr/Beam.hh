@@ -40,6 +40,7 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <memory>
 #include <radar/RadarMoments.hh>
 #include <radar/RadarComplex.hh>
 #include <radar/IwrfTsInfo.hh>
@@ -51,9 +52,11 @@
 #include <radar/NoiseLocator.hh>
 #include <radar/AlternatingVelocity.hh>
 #include <radar/KdpFilt.hh>
+#include <radar/KdpFiltParams.hh>
 #include <radar/KdpBringi.hh>
 #include <radar/AtmosAtten.hh>
 #include <radar/PhaseCoding.hh>
+#include <radar/DwellSpectra.hh>
 #include "Params.hh"
 #include "Cmd.hh"
 #include "MomentsMgr.hh"
@@ -78,19 +81,21 @@ public:
   // Constructor
   
   Beam(const string &progName,
-       const Params &params);
+       const Params &params,
+       const KdpFiltParams &kdpParams);
         
   // initialize before use
   
   void init(const MomentsMgr &mmgr,
             int nSamples,
-            int nSamplesEffective,
+            int nSamplesRect,
             int nGates,
             int nGatesPrtLong,
             bool beamIsIndexed,
             double angularResolution,
             double meanPointingAngle,
             scan_type_t scanType,
+            double antennaRate,
             bool isAlternating,
             bool isStagPrt,
             double prt,
@@ -101,7 +106,7 @@ public:
             bool endOfVolFlag,
             const AtmosAtten &atmosAtten,
             const IwrfTsInfo &opsInfo,
-            const vector<const IwrfTsPulse *> &pulses);
+            const vector<shared_ptr<IwrfTsPulse>> &pulses);
 
   // destructor
   
@@ -116,6 +121,7 @@ public:
   void setTargetEl(double el) { _targetEl = el; }
   void setCalib(const IwrfCalib &calib);
   void setStatusXml(const string &statusXml);
+  void appendStatusXml(const string &extraXml);
 
   void setSweepNum(int val) { _sweepNum = val; }
   void setVolNum(int val) { _volNum = val; }
@@ -123,7 +129,7 @@ public:
   // get methods
 
   int getNSamples() const { return _nSamples; }
-  int getNSamplesEffective() const { return _nSamplesEffective; }
+  int getNSamplesRect() const { return _nSamplesRect; }
 
   double getEl() const { return _el; }
   double getAz() const { return _az; }
@@ -137,12 +143,15 @@ public:
   double getPrtLong() const { return _prtLong; }
   double getPulseWidth() const { return _pulseWidth; }
   double getNyquist() const { return _nyquist; }
+  double getNyquistPrtShort() const { return _nyquistPrtShort; }
+  double getNyquistPrtLong() const { return _nyquistPrtLong; }
+  double getUnambigRangeKm() const;
 
   double getMeasXmitPowerDbmH() const { return _measXmitPowerDbmH; }
   double getMeasXmitPowerDbmV() const { return _measXmitPowerDbmV; }
   
   time_t getTimeSecs() const { return _timeSecs; }
-  time_t getNanoSecs() const { return _nanoSecs; }
+  long int getNanoSecs() const { return _nanoSecs; }
   double getDoubleTime() const { return _dtime; }
   
   int getScanMode() const;
@@ -151,6 +160,7 @@ public:
   int getVolNum() const { return _volNum; }
   bool getEndOfSweepFlag() const { return _endOfSweepFlag; }
   bool getEndOfVolFlag() const { return _endOfVolFlag; }
+  double getAntennaRate() const { return _antennaRate; }
   bool getAntennaTransition() const { return _antennaTransition; }
 
   bool getBeamIsIndexed() const { return _beamIsIndexed; }
@@ -160,10 +170,10 @@ public:
 
   int getNGates() const { return _nGates; }
   int getNGatesOut() const { return _nGatesOut; }
-  double getMaxRange() const;
+  double getMaxRangeKm() const;
 
-  double getStartRange() const { return _startRangeKm; }
-  double getGateSpacing() const { return _gateSpacingKm; }
+  double getStartRangeKm() const { return _startRangeKm; }
+  double getGateSpacingKm() const { return _gateSpacingKm; }
 
   iwrf_xmit_rcv_mode_t getXmitRcvMode() const { return _xmitRcvMode; }
   bool getIsDualPol() const { return _dualPol; }
@@ -196,20 +206,22 @@ private:
 
   string _progName;
   const Params &_params;
+  const KdpFiltParams &_kdpParams;
 
   MomentsMgr _mmgr;
 
   // pulse vector
 
-  vector<const IwrfTsPulse *> _pulses;
+  vector<shared_ptr<IwrfTsPulse>> _pulses;
   bool _hasMissingPulses;
+  static pthread_mutex_t _pulseUnpackMutex;
 
   // number of samples
 
   int _nSamples; // nsamples making adjustment for window
   int _nSamplesHalf;
   int _nSamplesAlloc;
-  int _nSamplesEffective; // effective nsamples adjusting for window
+  int _nSamplesRect; // effective nsamples adjusting for window
 
   // number of gates, gate geometry
   
@@ -220,7 +232,7 @@ private:
   // time and location
 
   time_t _timeSecs;
-  int _nanoSecs;
+  long int _nanoSecs;
   double _dtime;
 
   double _meanPointingAngle;
@@ -237,6 +249,7 @@ private:
   bool _endOfVolFlag;
   
   scan_type_t _scanType;
+  double _antennaRate;
   bool _antennaTransition;
 
   // range geometry
@@ -260,6 +273,7 @@ private:
   bool _isAlternating;
   iwrf_xmit_rcv_mode_t _xmitRcvMode;
   bool _dualPol;
+  bool _applyRhohvTest;
   bool _switchingReceiver;
 
   // prt and pulse width
@@ -289,6 +303,7 @@ private:
   // manager for computing moments
 
   IwrfTsInfo _opsInfo;
+  double _wavelengthM;
 
   // moments fields at each gate
 
@@ -306,9 +321,8 @@ private:
   // Moments computations
   
   RadarMoments *_mom;
+  RadarMoments *_momStagPrt;
   PhaseCoding _pcode;
-
-  bool _applyFiltering;
 
   bool _checkForWindfarms;
   double _minSnrForWindfarmCheck;
@@ -399,12 +413,17 @@ private:
   
   // regression clutter filtering
 
-  RegressionFilter *_regr;
-  RegressionFilter *_regrHalf;
+  ForsytheRegrFilter *_regr;
+  ForsytheRegrFilter *_regrHalf;
 
   // regression clutter filtering - staggered prt
 
-  RegressionFilter *_regrStag;
+  ForsytheRegrFilter *_regrStag;
+
+  // spectral CMD
+
+  bool _specCmdValid;
+  DwellSpectra _specCmd;
 
   // debug printing
   
@@ -413,7 +432,6 @@ private:
  // private functions
   
   void _freeWindows();
-  void _releasePulses();
   void _prepareForComputeMoments();
   int _getVolNum();
   int _getSweepNum();
@@ -436,8 +454,8 @@ private:
   void _filterSpH();
   void _filterSpV();
   void _filterSpStagPrt();
-  void _filterRegrSpStagPrt();
   void _filterAdapSpStagPrt();
+  void _filterRegrSpStagPrt();
   void _filterSpSz864();
   void _filterDpAltHvCoCross();
   void _filterDpAltHvCoOnly();
@@ -447,17 +465,25 @@ private:
   void _filterDpHOnlyStagPrt();
   void _filterDpVOnlyFixedPrt();
   void _filterDpVOnlyStagPrt();
+
+  void _conditionDpFiltFields(MomentsFields &fields,
+                              MomentsFields &fieldsF,
+                              MomentsFields &fieldsN);
+  
+  int _specCmdInit();
+  void _filtSpecCmdSimHv();
   
   void _computeWindowRValues();
   void _overrideOpsInfo();
   void _computeWindows();
-  void _initMomentsObject();
+  void _initMomentsObject(RadarMoments *mom);
 
   void _kdpInit();
   void _kdpCompute(bool isFiltered);
   void _kdpComputeBringi(bool isFiltered);
 
   void _computeVelocityCorrectedForVertMotion();
+  void _copyVelToCorrectedVel();
   void _computeVelocityCorrectedForMotion();
   double _correctForNyquist(double vel);
   void _computeWidthCorrectedForMotion();
@@ -469,7 +495,7 @@ private:
                                      vector<InterestMap::ImPoint> &pts);
 
 
-  void _checkAntennaTransition(const vector<const IwrfTsPulse *> &pulses);
+  void _checkAntennaTransition(const vector<shared_ptr<IwrfTsPulse>> &pulses);
   void _allocGateData(int nGates);
   void _freeGateData();
   void _initFieldData();
@@ -497,6 +523,7 @@ private:
   void _performClutterFiltering();
   void _performClutterFilteringSz();
   void _fixAltClutVelocity();
+  void _fixAltClutVelocityFiltered();
   
   double _computeClutPower(const MomentsFields &unfiltered,
                            const MomentsFields &filtered);
@@ -504,13 +531,13 @@ private:
   void _printSelectedMoments();
 
   void _computePhaseDiffs
-    (const vector<const IwrfTsPulse *> &pulseQueue, int maxTrips);
+    (const vector<shared_ptr<IwrfTsPulse>> &pulseQueue, int maxTrips);
 
   void _setNoiseFields();
   void _censorByNoiseFlag();
   void _censorBySnrNcp();
   void _censorFields(MomentsFields &mfield);
-  void _fillInCensoring();
+  void _fillInCensoring(size_t nGates);
     
   void _cohereTrip1ToTrip2
     (RadarComplex_t *iq,
@@ -520,6 +547,7 @@ private:
   double _getCorrectedEl(double el);
 
   void _correctAltitudeForEgm();
+  void _setGeorefForFixedMode();
 
 };
 

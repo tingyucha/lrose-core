@@ -8,7 +8,7 @@
 // #include "Dialog.hh"
 //#include "ParameterColorDialog.hh"
 #include "ClickableLabel.hh"
-#include "ColorMap.hh"
+#include <qtplot/ColorMap.hh>
 // #include "../HawkEye/ColorBar.hh"
 
 
@@ -18,7 +18,7 @@ class ColorMapTemplates : public QDialog
 
 public:
     ColorMapTemplates(QWidget *parent = 0);
-    ~ColorMapTemplates();
+    virtual ~ColorMapTemplates();
 
 signals:
   void newColorPaletteSelected(string newColorMapName);

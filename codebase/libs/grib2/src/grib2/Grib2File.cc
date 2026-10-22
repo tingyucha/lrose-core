@@ -23,12 +23,11 @@
 // *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* 
 /////////////////////////////////////////////
 // Grib2File - Main class for manipulating GRIB files.
-//
-// $Id: Grib2File.cc,v 1.22 2019/01/11 21:08:22 jcraig Exp $
 ////////////////////////////////////////////
 
 #include <iostream>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -176,14 +175,14 @@ int Grib2File::read(const string &file_path)
     return GRIB_FAILURE;
   }
   
-  ui32 file_size = file_stat.st_size;
+  g2_ui64 file_size = file_stat.st_size;
 
   // Read the input file into a local buffer
 
-  ui08 *grib_contents = new ui08[file_size];
+  g2_ui08 *grib_contents = new g2_ui08[file_size];
   int bytes_read;
   
-  if ((bytes_read = fread(grib_contents, sizeof(ui08), file_size, _filePtr))
+  if ((bytes_read = fread(grib_contents, sizeof(g2_ui08), file_size, _filePtr))
       != (int)file_size)
   {
     cerr << "ERROR: " << method_name << endl;
@@ -203,7 +202,7 @@ int Grib2File::read(const string &file_path)
   
   // Unpack the contents of the GRIB file
 
-  ui08 *grib_ptr = grib_contents;
+  g2_ui08 *grib_ptr = grib_contents;
   int rec_num = 0;
 
   while (grib_ptr < grib_contents + file_size)
@@ -229,12 +228,13 @@ int Grib2File::read(const string &file_path)
 
     file_inventory_t inventory;
 
-    ui08 edition_num = grib_ptr[EDITION_LOCATION];
+    g2_ui08 edition_num = grib_ptr[EDITION_LOCATION];
 
     if (edition_num != GRIB2) {
       cerr << "ERROR: reading edition number " << endl;
       cerr << "       Illegal number is " << (int) edition_num << endl;
       cerr << "       Not a GRIB2 record, exiting " << endl;
+      delete[] grib_contents;
       return GRIB_FAILURE;
     }
     else
@@ -244,7 +244,7 @@ int Grib2File::read(const string &file_path)
     {
       cerr << "ERROR: " << method_name << endl;
       cerr << "Error unpacking record in grib file" << endl;
-      
+      delete[] grib_contents;
       return GRIB_FAILURE;
     }
     
@@ -377,9 +377,9 @@ void Grib2File::print(FILE *stream)
     inventory->record->print(stream);
 }
 
-int Grib2File::create(si32 disciplineNumber, time_t referenceTime, si32 referenceTimeType, 
-		      si32 typeOfData, si32 generatingSubCentreID, si32 generatingCentreID, 
-		      si32 productionStatus, si32 localTablesVersion, si32 masterTablesVersion)
+int Grib2File::create(g2_si32 disciplineNumber, time_t referenceTime, g2_si32 referenceTimeType, 
+		      g2_si32 typeOfData, g2_si32 generatingSubCentreID, g2_si32 generatingCentreID, 
+		      g2_si32 productionStatus, g2_si32 localTablesVersion, g2_si32 masterTablesVersion)
 {
   if(_last_file_action == CREATE ||
      _last_file_action == ADDLOCALUSE ||
@@ -401,7 +401,7 @@ int Grib2File::create(si32 disciplineNumber, time_t referenceTime, si32 referenc
   return GRIB_SUCCESS;
 }
 
-int Grib2File::addLocalUse(si32 dataSize, ui08 *localUseData)
+int Grib2File::addLocalUse(g2_si32 dataSize, g2_ui08 *localUseData)
 {
   if(_last_file_action == CREATE && !_inventory.empty())
   {
@@ -416,7 +416,7 @@ int Grib2File::addLocalUse(si32 dataSize, ui08 *localUseData)
   return GRIB_FAILURE;
 }
 
-int Grib2File::addGrid(si32 numberDataPoints, si32 gridDefNum, GribProj *projectionTemplate)
+int Grib2File::addGrid(g2_si32 numberDataPoints, g2_si32 gridDefNum, GribProj *projectionTemplate)
 {
   if((_last_file_action == CREATE || _last_file_action == ADDLOCALUSE ||
      _last_file_action == ADDFIELD)  && !_inventory.empty())
@@ -433,9 +433,9 @@ int Grib2File::addGrid(si32 numberDataPoints, si32 gridDefNum, GribProj *project
   return GRIB_FAILURE;
 }
 
-int Grib2File::addField(si32 prodDefNum, ProdDefTemp *productTemplate, 
-			si32 dataRepNum, DataRepTemp *dataRepTemplate,
-			fl32 *data, si32 bitMapType, si32 *bitMap)
+int Grib2File::addField(g2_si32 prodDefNum, ProdDefTemp *productTemplate, 
+			g2_si32 dataRepNum, DataRepTemp *dataRepTemplate,
+			g2_fl32 *data, g2_si32 bitMapType, g2_si32 *bitMap)
 {
   if((_last_file_action == ADDFIELD || _last_file_action == ADDGRID)
      && !_inventory.empty())
@@ -494,7 +494,7 @@ int Grib2File::write(const string &file_path)
     {
       // Construct the buffer to be written to the output file
       
-      ui08 *grib_contents;
+      g2_ui08 *grib_contents;
       
       if ((grib_contents = inventory->record->pack()) == 0)
       {
@@ -510,7 +510,7 @@ int Grib2File::write(const string &file_path)
       int bytes_written;
       int record_size = inventory->record->getRecordSize();
       
-      if ((bytes_written = fwrite((void *)grib_contents, sizeof(ui08),
+      if ((bytes_written = fwrite((void *)grib_contents, sizeof(g2_ui08),
 				  record_size, _filePtr))
 	  != record_size)
       {

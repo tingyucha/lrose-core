@@ -38,6 +38,8 @@
 #include <Radx/RadxGeoref.hh>
 #include <Radx/RadxRemap.hh>
 #include <Radx/RadxRay.hh>
+#include <Radx/ByteOrder.hh>
+#include <Radx/RadxMsg.hh>
 #include <iostream>
 #include <cstring>
 #include <cstdio>
@@ -226,3 +228,164 @@ void RadxEvent::print(ostream &out) const
   
 }
 
+/////////////////////////////////////////////////////////
+// serialize into a RadxMsg
+
+void RadxEvent::serialize(RadxMsg &msg)
+  
+{
+
+  // init
+
+  msg.clearAll();
+  msg.setMsgType(RadxMsg::RadxEventMsg);
+
+  // add metadata numbers
+  
+  _loadMetaNumbersToMsg();
+  msg.addPart(_metaNumbersPartId, &_metaNumbers, sizeof(msgMetaNumbers_t));
+  
+  // assemble the message from the parts
+
+  msg.assemble();
+
+}
+
+/////////////////////////////////////////////////////////
+// deserialize from a RadxMsg
+// return 0 on success, -1 on failure
+
+int RadxEvent::deserialize(const RadxMsg &msg)
+  
+{
+  
+  // initialize object
+
+  _init();
+
+  // check type
+  
+  if (msg.getMsgType() != RadxMsg::RadxEventMsg) {
+    cerr << "=======================================" << endl;
+    cerr << "ERROR - RadxEvent::deserialize" << endl;
+    cerr << "  incorrect message type" << endl;
+    msg.printHeader(cerr, "  ");
+    cerr << "=======================================" << endl;
+    return -1;
+  }
+
+  // get the metadata numbers
+  
+  const RadxMsg::Part *metaNumsPart = msg.getPartByType(_metaNumbersPartId);
+  if (metaNumsPart == NULL) {
+    cerr << "=======================================" << endl;
+    cerr << "ERROR - RadxEvent::deserialize" << endl;
+    cerr << "  No metadata numbers part in message" << endl;
+    msg.printHeader(cerr, "  ");
+    cerr << "=======================================" << endl;
+    return -1;
+  }
+  if (_setMetaNumbersFromMsg((msgMetaNumbers_t *) metaNumsPart->getBuf(),
+                             metaNumsPart->getLength(),
+                             msg.getSwap())) {
+    cerr << "=======================================" << endl;
+    cerr << "ERROR - RadxEvent::deserialize" << endl;
+    msg.printHeader(cerr, "  ");
+    cerr << "=======================================" << endl;
+    return -1;
+  }
+
+  return 0;
+
+}
+
+/////////////////////////////////////////////////////////
+// load the meta number to the message struct
+
+void RadxEvent::_loadMetaNumbersToMsg()
+  
+{
+
+  // clear
+
+  memset(&_metaNumbers, 0, sizeof(_metaNumbers));
+  
+  // set 64 bit values
+
+  _metaNumbers.timeSecs = _timeSecs;
+  _metaNumbers.nanoSecs = _nanoSecs;
+  
+  // set 32-bit values
+
+  _metaNumbers.startOfSweep = (Radx::si32) _startOfSweep;
+  _metaNumbers.endOfSweep = (Radx::si32) _endOfSweep;
+  _metaNumbers.startOfVolume = (Radx::si32) _startOfVolume;
+  _metaNumbers.endOfVolume = (Radx::si32) _endOfVolume;
+
+  _metaNumbers.sweepMode = (Radx::si32) _sweepMode;
+  _metaNumbers.followMode = (Radx::si32) _followMode;
+  
+  _metaNumbers.volumeNum = _volumeNum;
+  _metaNumbers.sweepNum = _sweepNum;
+
+}
+
+/////////////////////////////////////////////////////////
+// set the meta number data from the message struct
+
+int RadxEvent::_setMetaNumbersFromMsg(const msgMetaNumbers_t *metaNumbers,
+                                      size_t bufLen,
+                                      bool swap)
+  
+{
+
+  // check size
+
+  if (bufLen != sizeof(msgMetaNumbers_t)) {
+    cerr << "=======================================" << endl;
+    cerr << "ERROR - RadxEvent::_setMetaNumbersFromMsg" << endl;
+    cerr << "  Incorrect message size: " << bufLen << endl;
+    cerr << "  Should be: " << sizeof(msgMetaNumbers_t) << endl;
+    return -1;
+  }
+  
+  // copy into local struct
+  
+  _metaNumbers = *metaNumbers;
+  
+  // swap as needed
+
+  if (swap) {
+    _swapMetaNumbers(_metaNumbers); 
+  }
+
+  // set 64 bit values
+
+  _timeSecs = _metaNumbers.timeSecs;
+  _nanoSecs = _metaNumbers.nanoSecs;
+  
+  // set 32-bit values
+
+  _startOfSweep = (_metaNumbers.startOfSweep != 0);
+  _endOfSweep = (_metaNumbers.endOfSweep != 0);
+  _startOfVolume = (_metaNumbers.startOfVolume != 0);
+  _endOfVolume = (_metaNumbers.endOfVolume != 0);
+
+  _sweepMode = (Radx::SweepMode_t) _metaNumbers.sweepMode;
+  _followMode = (Radx::FollowMode_t) _metaNumbers.followMode;
+  
+  _volumeNum = _metaNumbers.volumeNum;
+  _sweepNum = _metaNumbers.sweepNum;
+
+  return 0;
+
+}
+
+/////////////////////////////////////////////////////////
+// swap meta numbers
+
+void RadxEvent::_swapMetaNumbers(msgMetaNumbers_t &meta)
+{
+  ByteOrder::swap64(&meta.timeSecs, 8 * sizeof(Radx::si64));
+  ByteOrder::swap32(&meta.startOfSweep, 16 * sizeof(Radx::si32));
+}

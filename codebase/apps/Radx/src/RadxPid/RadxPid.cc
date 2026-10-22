@@ -119,6 +119,36 @@ RadxPid::RadxPid(int argc, char **argv)
     exit(0);
   }
 
+  // check params for consistency
+
+  if (_params.KDP_available) {
+    if (_params.PID_use_attenuation_corrected_fields) {
+      cerr << "ERROR: " << _progName << endl;
+      cerr << "  Inconsistent parameters set in params file: " << _paramsPath << endl;
+      cerr << "  KDP_available is TRUE" << endl;
+      cerr << "  PID_use_attenuation_corrected_fields is TRUE" << endl;
+      cerr << "  You must compute KDP to use atten-corrected fields" << endl;
+      OK = FALSE;
+      return;
+    }
+  }
+
+  // read params for KdpFilt
+
+  if (!_params.KDP_available) {
+    if (strstr(_params.KDP_params_file_path, "use-defaults") == NULL) {
+      // not using defaults
+      if (_kdpFiltParams.load(_params.KDP_params_file_path,
+                              NULL, true, _args.tdrpDebug)) {
+        cerr << "ERROR: " << _progName << endl;
+        cerr << "Cannot read params file for KdpFilt: "
+             << _params.KDP_params_file_path << endl;
+        OK = FALSE;
+        return;
+      }
+    }
+  } // if (!_params.KDP_available)
+
   // read params for Ncar PID
 
   if (strstr(_params.PID_params_file_path, "use-defaults") == NULL) {
@@ -128,20 +158,6 @@ RadxPid::RadxPid(int argc, char **argv)
       cerr << "ERROR: " << _progName << endl;
       cerr << "Cannot read params file for NcarPid: "
            << _params.PID_params_file_path << endl;
-      OK = FALSE;
-      return;
-    }
-  }
-
-  // read params for KdpFilt
-
-  if (strstr(_params.KDP_params_file_path, "use-defaults") == NULL) {
-    // not using defaults
-    if (_kdpFiltParams.load(_params.KDP_params_file_path,
-                            NULL, true, _args.tdrpDebug)) {
-      cerr << "ERROR: " << _progName << endl;
-      cerr << "Cannot read params file for KdpFilt: "
-           << _params.KDP_params_file_path << endl;
       OK = FALSE;
       return;
     }
@@ -535,10 +551,10 @@ int RadxPid::_processFile(const string &filePath)
   
   if (_compute()) {
     cerr << "ERROR - RadxPid::Run" << endl;
-    cerr << "  Cannot compute KDP and attenuation" << endl;
+    cerr << "  Cannot compute PID" << endl;
     return -1;
   }
-
+  
   // add extra fields to output
 
   if (_params.PID_write_debug_fields) {
@@ -568,6 +584,12 @@ void RadxPid::_setupRead(RadxFile &file)
     file.setVerbose(true);
   }
 
+  // max range
+  
+  if (_params.set_max_range) {
+    file.setReadMaxRangeKm(_params.max_range_km);
+  }
+
   // field names
 
   if (_params.SNR_available) {
@@ -579,6 +601,9 @@ void RadxPid::_setupRead(RadxFile &file)
   file.addReadField(_params.RHOHV_field_name);
   if (_params.LDR_available) {
     file.addReadField(_params.LDR_field_name);
+  }
+  if (_params.KDP_available) {
+    file.addReadField(_params.KDP_field_name);
   }
   if (_params.copy_selected_input_fields_to_output) {
     for (int ii = 0; ii < _params.copy_fields_n; ii++) {
@@ -752,15 +777,26 @@ void RadxPid::_addExtraFieldsToOutput()
   for (size_t iray = 0; iray < inputRays.size(); iray++) {
     
     RadxRay *inputRay = inputRays[iray];
-    RadxRay *outputRay = _derivedRays[iray];
 
-    // make a copy of the input fields
+    // match output ray to input ray based on time
+    
+    RadxRay *outputRay = NULL;
+    double inTime = inputRay->getTimeDouble();
+    for (size_t jj = 0; jj < _derivedRays.size(); jj++) {
+      RadxRay *derivedRay = _derivedRays[jj];
+      double outTime = derivedRay->getTimeDouble();
+      if (fabs(inTime - outTime) < 0.001) {
+        outputRay = derivedRay;
+        break;
+      }
+    } // jj
 
-    RadxField *mlFld = new RadxField(*inputRay->getField(mlFieldName));
-
-    // add to output
-
-    outputRay->addField(mlFld);
+    if (outputRay != NULL) {
+      // make a copy of the input fields
+      RadxField *mlFld = new RadxField(*inputRay->getField(mlFieldName));
+      // add to output
+      outputRay->addField(mlFld);
+    }
 
   } // iray
 
@@ -866,7 +902,8 @@ int RadxPid::_writeVol()
   // add the derived rays to the volume
   
   for (size_t iray = 0; iray < _derivedRays.size(); iray++) {
-    _vol.addRay(_derivedRays[iray]);
+    RadxRay *ray = _derivedRays[iray];
+    _vol.addRay(ray);
   }
   
   _vol.sortRaysByNumber();

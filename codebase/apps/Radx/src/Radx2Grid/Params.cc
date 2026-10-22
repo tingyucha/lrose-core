@@ -626,6 +626,30 @@
     tt->single_val.s = tdrpStrDup(".");
     tt++;
     
+    // Parameter 'input_file_search_ext'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("input_file_search_ext");
+    tt->descr = tdrpStrDup("File name extension.");
+    tt->help = tdrpStrDup("If set, only files with this extension will be processed.");
+    tt->val_offset = (char *) &input_file_search_ext - &_start_;
+    tt->single_val.s = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'input_file_search_substr'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("input_file_search_substr");
+    tt->descr = tdrpStrDup("File name sub-string.");
+    tt->help = tdrpStrDup("If set, only files with names containing this sub-string will be processed.");
+    tt->val_offset = (char *) &input_file_search_substr - &_start_;
+    tt->single_val.s = tdrpStrDup("");
+    tt++;
+    
     // Parameter 'mode'
     // ctype is '_mode_t'
     
@@ -689,7 +713,7 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 4");
-    tt->comment_hdr = tdrpStrDup("DATA OUTPUT DIRECTORY AND FILE NAMES");
+    tt->comment_hdr = tdrpStrDup("DATA OUTPUT");
     tt->comment_text = tdrpStrDup("");
     tt++;
     
@@ -727,6 +751,55 @@
       tt->enum_def.fields[3].name = tdrpStrDup("CEDRIC");
       tt->enum_def.fields[3].val = CEDRIC;
     tt->single_val.e = CF_NETCDF;
+    tt++;
+    
+    // Parameter 'suppress_fields_from_output'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("suppress_fields_from_output");
+    tt->descr = tdrpStrDup("Option to suppress selected fields from the output data set.");
+    tt->help = tdrpStrDup("These fields will not be written to the output files.");
+    tt->val_offset = (char *) &suppress_fields_from_output - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'suppressed_fields'
+    // ctype is '_suppress_field_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("suppressed_fields");
+    tt->descr = tdrpStrDup("Select the list of fields to be suppressed.");
+    tt->help = tdrpStrDup("See 'suppress_fields_from_output'. You specify the list of field names to be suppressed. In addition you need to set 'suppress_this_field' to TRUE or FALSE. This is provided as a convenience, so that you can select or deselect fields without having to change the list.");
+    tt->array_offset = (char *) &_suppressed_fields - &_start_;
+    tt->array_n_offset = (char *) &suppressed_fields_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(suppress_field_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("suppress_field_t");
+    tt->struct_def.nfields = 2;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[0].fname = tdrpStrDup("output_name");
+      tt->struct_def.fields[0].ptype = STRING_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_suppressed_fields->output_name - (char *) _suppressed_fields;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("boolean");
+      tt->struct_def.fields[1].fname = tdrpStrDup("suppress_this_field");
+      tt->struct_def.fields[1].ptype = BOOL_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_suppressed_fields->suppress_this_field - (char *) _suppressed_fields;
+    tt->n_struct_vals = 4;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].s = tdrpStrDup("SNR");
+      tt->struct_vals[1].b = pTRUE;
+      tt->struct_vals[2].s = tdrpStrDup("NCP");
+      tt->struct_vals[3].b = pTRUE;
     tt++;
     
     // Parameter 'Comment 5'
@@ -798,7 +871,7 @@
     tt->has_max = TRUE;
     tt->min_val.i = 1;
     tt->max_val.i = 8;
-    tt->single_val.i = 3;
+    tt->single_val.i = 5;
     tt++;
     
     // Parameter 'use_fixed_angle_for_interpolation'
@@ -1302,6 +1375,98 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 11");
+    tt->comment_hdr = tdrpStrDup("CENSORING INPUT FIELDS");
+    tt->comment_text = tdrpStrDup("You have the option of censoring the input fields - i.e. setting the fields to missing values - at gates which meet certain criteria based on the values in the input fields.\n\n This will also affect all of the interpolated fields.");
+    tt++;
+    
+    // Parameter 'apply_censoring'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("apply_censoring");
+    tt->descr = tdrpStrDup("Apply censoring based on field values and thresholds.");
+    tt->help = tdrpStrDup("If TRUE, censoring will be performed. See 'censoring_fields' for details on how the censoring will be applied.");
+    tt->val_offset = (char *) &apply_censoring - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'censoring_fields'
+    // ctype is '_censoring_field_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("censoring_fields");
+    tt->descr = tdrpStrDup("Fields to be used for censoring.");
+    tt->help = tdrpStrDup("Specify the input fields to be used to determine whether a gate should be censored.\n\nThe name refers to the field name in the input files.\n\nValid field values lie in the range from min_valid_value to max_valid_value, inclusively. If the value of a field at a gate lies within this range, it is considered valid.\n\nEach specified field is examined at each gate, and is flagged as valid if its value lies in the valid range.\n\nThese field flags are then combined as follows:\n\nFirst, all of the LOGICAL_OR flags are combined, yielding a single combined_or flag which is true if any of the LOGICAL_OR fields is true.\n\nNext the combined_or flag is combined with all of the LOGICAL_AND fields, yielding a true value only if the combined_or flag and the LOGICAL_AND fields are all true.\n\nIf this computed flag is true, then the data at the gate is regarded as valid and is retained.\n\nIf the computed flag is false, the data at the gate is censored, and all of the fields at the gate are set to missing.");
+    tt->array_offset = (char *) &_censoring_fields - &_start_;
+    tt->array_n_offset = (char *) &censoring_fields_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(censoring_field_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("censoring_field_t");
+    tt->struct_def.nfields = 4;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[0].fname = tdrpStrDup("name");
+      tt->struct_def.fields[0].ptype = STRING_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_censoring_fields->name - (char *) _censoring_fields;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[1].fname = tdrpStrDup("min_valid_value");
+      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_censoring_fields->min_valid_value - (char *) _censoring_fields;
+      tt->struct_def.fields[2].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[2].fname = tdrpStrDup("max_valid_value");
+      tt->struct_def.fields[2].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[2].rel_offset = 
+        (char *) &_censoring_fields->max_valid_value - (char *) _censoring_fields;
+      tt->struct_def.fields[3].ftype = tdrpStrDup("logical_t");
+      tt->struct_def.fields[3].fname = tdrpStrDup("combination_method");
+      tt->struct_def.fields[3].ptype = ENUM_TYPE;
+      tt->struct_def.fields[3].rel_offset = 
+        (char *) &_censoring_fields->combination_method - (char *) _censoring_fields;
+        tt->struct_def.fields[3].enum_def.name = tdrpStrDup("logical_t");
+        tt->struct_def.fields[3].enum_def.nfields = 2;
+        tt->struct_def.fields[3].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[3].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[3].enum_def.fields[0].name = tdrpStrDup("LOGICAL_AND");
+        tt->struct_def.fields[3].enum_def.fields[0].val = LOGICAL_AND;
+        tt->struct_def.fields[3].enum_def.fields[1].name = tdrpStrDup("LOGICAL_OR");
+        tt->struct_def.fields[3].enum_def.fields[1].val = LOGICAL_OR;
+    tt->n_struct_vals = 8;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].s = tdrpStrDup("SNR");
+      tt->struct_vals[1].d = 0;
+      tt->struct_vals[2].d = 1000;
+      tt->struct_vals[3].e = LOGICAL_OR;
+      tt->struct_vals[4].s = tdrpStrDup("NCP");
+      tt->struct_vals[5].d = 0.15;
+      tt->struct_vals[6].d = 1000;
+      tt->struct_vals[7].e = LOGICAL_OR;
+    tt++;
+    
+    // Parameter 'censoring_min_valid_run'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("censoring_min_valid_run");
+    tt->descr = tdrpStrDup("Minimum valid run of non-censored gates.");
+    tt->help = tdrpStrDup("Only active if set to 2 or greater. A check is made to remove short runs of noise. Looking along the radial, we compute the number of contiguous gates (a 'run') with uncensored data. For the gates in this run to be accepted the length of the run must exceed censoring_min_valid_run. If the number of gates in a run is less than this, then all gates in the run are censored.");
+    tt->val_offset = (char *) &censoring_min_valid_run - &_start_;
+    tt->single_val.i = 1;
+    tt++;
+    
+    // Parameter 'Comment 12'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 12");
     tt->comment_hdr = tdrpStrDup("TRANSFORMING FIELDS FOR INTERPOLATION");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1377,11 +1542,11 @@
       tt->struct_vals[3].e = TRANSFORM_DB_TO_LINEAR_AND_BACK;
     tt++;
     
-    // Parameter 'Comment 12'
+    // Parameter 'Comment 13'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 12");
+    tt->param_name = tdrpStrDup("Comment 13");
     tt->comment_hdr = tdrpStrDup("OPTION TO SET FOLDING LIMITS ON SELECTED FIELDS");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1451,11 +1616,11 @@
       tt->struct_vals[4].d = 25;
     tt++;
     
-    // Parameter 'Comment 13'
+    // Parameter 'Comment 14'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 13");
+    tt->param_name = tdrpStrDup("Comment 14");
     tt->comment_hdr = tdrpStrDup("OPTION TO OVERRIDE THE NYQUIST VELOCITY");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1484,11 +1649,11 @@
     tt->single_val.d = 25;
     tt++;
     
-    // Parameter 'Comment 14'
+    // Parameter 'Comment 15'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 14");
+    tt->param_name = tdrpStrDup("Comment 15");
     tt->comment_hdr = tdrpStrDup("OPTION TO DESIGNATE SELECTED FIELDS AS DISCRETE IN NATURE");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1540,11 +1705,11 @@
       tt->struct_vals[1].b = pTRUE;
     tt++;
     
-    // Parameter 'Comment 15'
+    // Parameter 'Comment 16'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 15");
+    tt->param_name = tdrpStrDup("Comment 16");
     tt->comment_hdr = tdrpStrDup("OPTION TO RENAME FIELDS ON OUTPUT");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1600,11 +1765,11 @@
       tt->struct_vals[5].s = tdrpStrDup("WIDTH_S");
     tt++;
     
-    // Parameter 'Comment 16'
+    // Parameter 'Comment 17'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 16");
+    tt->param_name = tdrpStrDup("Comment 17");
     tt->comment_hdr = tdrpStrDup("OPTION TO ADD GEOMETRY AND TIME FIELDS");
     tt->comment_text = tdrpStrDup("These fields are computed from the geometry of the radar rays, and then added as input fields in native radial coordinates.");
     tt++;
@@ -1777,11 +1942,11 @@
     tt->single_val.b = pTRUE;
     tt++;
     
-    // Parameter 'Comment 17'
+    // Parameter 'Comment 18'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 17");
+    tt->param_name = tdrpStrDup("Comment 18");
     tt->comment_hdr = tdrpStrDup("OPTION TO ADD DEBUG FIELDS");
     tt->comment_text = tdrpStrDup("The debug fields are added to the output Cartesian grid. These are geometry fields, and can be used to ensure the interpolation is working as expected.");
     tt++;
@@ -1796,98 +1961,6 @@
     tt->help = tdrpStrDup("The test fields allow us to ensure that the interpolation is working correctly.\n\nThe debug fields are:\n\n\tnContrib - number of points used in interpolation\n\tgridAz: azimuth deg\n\tgridEl: elevation deg\n\tgridRange: range km\n\tllEl: lower left elevation deg\n\tllAz: lower left azimuth deg\n\tlrEl: lower right elevation deg\n\tlrAz: lower right azimuth deg\n\tulEl: upper left elevation deg\n\tulAz: upper left azimuth deg\n\turEl: upper right elevation deg\n\turAz: upper right azimuth deg");
     tt->val_offset = (char *) &output_debug_fields - &_start_;
     tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'Comment 18'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 18");
-    tt->comment_hdr = tdrpStrDup("CENSORING OUTPUT FIELDS");
-    tt->comment_text = tdrpStrDup("You have the option of censoring the output data fields - i.e. setting the fields to missing values - at gates which meet certain criteria based on the values in the input fields.\n\nIf this is done correctly, it allows you to preserve the valid data and discard the noise, thereby improving compression. This leads to smaller data files.");
-    tt++;
-    
-    // Parameter 'apply_censoring'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("apply_censoring");
-    tt->descr = tdrpStrDup("Apply censoring based on field values and thresholds.");
-    tt->help = tdrpStrDup("If TRUE, censoring will be performed. See 'censoring_fields' for details on how the censoring will be applied.");
-    tt->val_offset = (char *) &apply_censoring - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'censoring_fields'
-    // ctype is '_censoring_field_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRUCT_TYPE;
-    tt->param_name = tdrpStrDup("censoring_fields");
-    tt->descr = tdrpStrDup("Fields to be used for censoring.");
-    tt->help = tdrpStrDup("Specify the fields to be used to determine whether a gate should be censored.\n\nThe name refers to the field name in the input files.\n\nValid field values lie in the range from min_valid_value to max_valid_value, inclusively. If the value of a field at a gate lies within this range, it is considered valid.\n\nEach specified field is examined at each gate, and is flagged as valid if its value lies in the valid range.\n\nThese field flags are then combined as follows:\n\nFirst, all of the LOGICAL_OR flags are combined, yielding a single combined_or flag which is true if any of the LOGICAL_OR fields is true.\n\nNext the combined_or flag is combined with all of the LOGICAL_AND fields, yielding a true value only if the combined_or flag and the LOGICAL_AND fields are all true.\n\nIf this computed flag is true, then the data at the gate is regarded as valid and is retained.\n\nIf the computed flag is false, the data at the gate is censored, and all of the fields at the gate are set to missing.");
-    tt->array_offset = (char *) &_censoring_fields - &_start_;
-    tt->array_n_offset = (char *) &censoring_fields_n - &_start_;
-    tt->is_array = TRUE;
-    tt->array_len_fixed = FALSE;
-    tt->array_elem_size = sizeof(censoring_field_t);
-    tt->array_n = 2;
-    tt->struct_def.name = tdrpStrDup("censoring_field_t");
-    tt->struct_def.nfields = 4;
-    tt->struct_def.fields = (struct_field_t *)
-        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
-      tt->struct_def.fields[0].ftype = tdrpStrDup("string");
-      tt->struct_def.fields[0].fname = tdrpStrDup("name");
-      tt->struct_def.fields[0].ptype = STRING_TYPE;
-      tt->struct_def.fields[0].rel_offset = 
-        (char *) &_censoring_fields->name - (char *) _censoring_fields;
-      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
-      tt->struct_def.fields[1].fname = tdrpStrDup("min_valid_value");
-      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
-      tt->struct_def.fields[1].rel_offset = 
-        (char *) &_censoring_fields->min_valid_value - (char *) _censoring_fields;
-      tt->struct_def.fields[2].ftype = tdrpStrDup("double");
-      tt->struct_def.fields[2].fname = tdrpStrDup("max_valid_value");
-      tt->struct_def.fields[2].ptype = DOUBLE_TYPE;
-      tt->struct_def.fields[2].rel_offset = 
-        (char *) &_censoring_fields->max_valid_value - (char *) _censoring_fields;
-      tt->struct_def.fields[3].ftype = tdrpStrDup("logical_t");
-      tt->struct_def.fields[3].fname = tdrpStrDup("combination_method");
-      tt->struct_def.fields[3].ptype = ENUM_TYPE;
-      tt->struct_def.fields[3].rel_offset = 
-        (char *) &_censoring_fields->combination_method - (char *) _censoring_fields;
-        tt->struct_def.fields[3].enum_def.name = tdrpStrDup("logical_t");
-        tt->struct_def.fields[3].enum_def.nfields = 2;
-        tt->struct_def.fields[3].enum_def.fields = (enum_field_t *) tdrpMalloc
-          (tt->struct_def.fields[3].enum_def.nfields * sizeof(enum_field_t));
-        tt->struct_def.fields[3].enum_def.fields[0].name = tdrpStrDup("LOGICAL_AND");
-        tt->struct_def.fields[3].enum_def.fields[0].val = LOGICAL_AND;
-        tt->struct_def.fields[3].enum_def.fields[1].name = tdrpStrDup("LOGICAL_OR");
-        tt->struct_def.fields[3].enum_def.fields[1].val = LOGICAL_OR;
-    tt->n_struct_vals = 8;
-    tt->struct_vals = (tdrpVal_t *)
-        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
-      tt->struct_vals[0].s = tdrpStrDup("SNR");
-      tt->struct_vals[1].d = 0;
-      tt->struct_vals[2].d = 1000;
-      tt->struct_vals[3].e = LOGICAL_OR;
-      tt->struct_vals[4].s = tdrpStrDup("NCP");
-      tt->struct_vals[5].d = 0.15;
-      tt->struct_vals[6].d = 1000;
-      tt->struct_vals[7].e = LOGICAL_OR;
-    tt++;
-    
-    // Parameter 'censoring_min_valid_run'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("censoring_min_valid_run");
-    tt->descr = tdrpStrDup("Minimum valid run of non-censored gates.");
-    tt->help = tdrpStrDup("Only active if set to 2 or greater. A check is made to remove short runs of noise. Looking along the radial, we compute the number of contiguous gates (a 'run') with uncensored data. For the gates in this run to be accepted the length of the run must exceed censoring_min_valid_run. If the number of gates in a run is less than this, then all gates in the run are censored.");
-    tt->val_offset = (char *) &censoring_min_valid_run - &_start_;
-    tt->single_val.i = 1;
     tt++;
     
     // Parameter 'Comment 19'
@@ -3003,30 +3076,6 @@
     tt->single_val.d = 10;
     tt++;
     
-    // Parameter 'conv_strat_dbz_threshold_for_definite_convection'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("conv_strat_dbz_threshold_for_definite_convection");
-    tt->descr = tdrpStrDup("Reflectivity value that indicates definite convection.");
-    tt->help = tdrpStrDup("If the reflectivity exceeds this value at a point, we assume convection is definitely active at that point. To use this, we first compute the column maximum reflectivity. If the column max dbz at a point exceeds this threshold, then we flag that point as convective.");
-    tt->val_offset = (char *) &conv_strat_dbz_threshold_for_definite_convection - &_start_;
-    tt->single_val.d = 53;
-    tt++;
-    
-    // Parameter 'conv_strat_convective_radius_km'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("conv_strat_convective_radius_km");
-    tt->descr = tdrpStrDup("Radius of convective influence (km).");
-    tt->help = tdrpStrDup("Given definite convection at a point (see above), we set all points within this radius to be convective.");
-    tt->val_offset = (char *) &conv_strat_convective_radius_km - &_start_;
-    tt->single_val.d = 5;
-    tt++;
-    
     // Parameter 'conv_strat_texture_radius_km'
     // ctype is 'double'
     
@@ -3051,16 +3100,40 @@
     tt->single_val.d = 0.33;
     tt++;
     
-    // Parameter 'conv_strat_min_texture_for_convection'
+    // Parameter 'conv_strat_min_convectivity_for_convective'
     // ctype is 'double'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("conv_strat_min_texture_for_convection");
-    tt->descr = tdrpStrDup("Minimum texture for convection at a point.");
-    tt->help = tdrpStrDup("If the texture at a point exceeds this value, we set the convective flag at this point. We then expand the convective influence around the point using convetive_radius_km.");
-    tt->val_offset = (char *) &conv_strat_min_texture_for_convection - &_start_;
-    tt->single_val.d = 15;
+    tt->param_name = tdrpStrDup("conv_strat_min_convectivity_for_convective");
+    tt->descr = tdrpStrDup("Minimum convectivity for convective at a point.");
+    tt->help = tdrpStrDup("If the convectivity at a point exceeds this value, we set the convective flag at this point.");
+    tt->val_offset = (char *) &conv_strat_min_convectivity_for_convective - &_start_;
+    tt->single_val.d = 0.5;
+    tt++;
+    
+    // Parameter 'conv_strat_max_convectivity_for_stratiform'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("conv_strat_max_convectivity_for_stratiform");
+    tt->descr = tdrpStrDup("Maximum convectivity for stratiform at a point.");
+    tt->help = tdrpStrDup("If the convectivity at a point is less than this value, we set the stratiform flag at this point. If it is above this but less than min_convectivity_for_convective we flag the point as MIXED.");
+    tt->val_offset = (char *) &conv_strat_max_convectivity_for_stratiform - &_start_;
+    tt->single_val.d = 0.4;
+    tt++;
+    
+    // Parameter 'conv_strat_min_overlap_for_convective_clumps'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("conv_strat_min_overlap_for_convective_clumps");
+    tt->descr = tdrpStrDup("Minimum grid overlap in convective regions.");
+    tt->help = tdrpStrDup("A convective region is identified as a series of adjacent 'runs' of grid cells data in the EW direction. When testing for overlap, some minimum number of overlap grids must be used. This is that minimum overlap in grid units.");
+    tt->val_offset = (char *) &conv_strat_min_overlap_for_convective_clumps - &_start_;
+    tt->single_val.i = 3;
     tt++;
     
     // Parameter 'conv_strat_write_partition'
@@ -3075,15 +3148,15 @@
     tt->single_val.b = pTRUE;
     tt++;
     
-    // Parameter 'conv_strat_write_mean_texture'
+    // Parameter 'conv_strat_write_max_texture'
     // ctype is 'tdrp_bool_t'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("conv_strat_write_mean_texture");
-    tt->descr = tdrpStrDup("Option to write out the mean texture.");
-    tt->help = tdrpStrDup("If true, the mean texture will be written to the outptu file. This is a 2-D field - the mean over height of the 3-D texture fields.");
-    tt->val_offset = (char *) &conv_strat_write_mean_texture - &_start_;
+    tt->param_name = tdrpStrDup("conv_strat_write_max_texture");
+    tt->descr = tdrpStrDup("Option to write out the max texture.");
+    tt->help = tdrpStrDup("If true, the mean texture will be written to the output file. This is a 2-D field - the max over height of the 3-D texture fields.");
+    tt->val_offset = (char *) &conv_strat_write_max_texture - &_start_;
     tt->single_val.b = pFALSE;
     tt++;
     

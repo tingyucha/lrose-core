@@ -67,6 +67,7 @@ public:
 
   MdvxField *dbzField;
   MdvxField *velField;
+  MdvxField *convField;
 
   MdvxProj proj;
 
@@ -83,24 +84,34 @@ public:
   int nPlanes;
 
   fl32 *dbzVol;
-  fl32 *velVol;
   fl32 *compDbz;
   fl32 dbzMiss;
 
+  fl32 *velVol;
+  fl32 velMiss;
+
+  fl32 *convVol;
+  fl32 convMiss;
+  
   // read file for given time
   int read(time_t data_time);
 
+  // clear memory
+  void clear();
+  
 protected:
   
 private:
 
   ConvectionFinder _convFinder;
 
+  void _setFieldPointers();
+  void _setDzConstant();
   void _copyCoord2Grid(const Mdvx::coord_t &coord,
 		       titan_grid_t &grid);
-
-  void _computeComposite();
+  void _computeDbzComposite();
   void _removeStratiform();
+  void _applyConvectivityThreshold();
 
 };
 

@@ -185,6 +185,26 @@ paramdef boolean {
 } apply_strict_angle_limits;
 
 commentdef {
+  p_header = "OPTIONAL AZIMUTH LIMITS";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to limits on azimuth range used.";
+  p_help = "Only use rays between these azimuths.";
+} set_azimuth_limits;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Lower azimuth limit - degrees.";
+} lower_azimuth_limit;
+
+paramdef double {
+  p_default = 359.99;
+  p_descr = "Upper azimuth limit - degrees.";
+} upper_azimuth_limit;
+
+commentdef {
   p_header = "READ OPTIONS";
 }
 
@@ -310,6 +330,34 @@ paramdef double {
   p_descr = "Minimum clutter phase alignment in clutter.";
   p_help = "In choosing clutter values, we only use gates at which the CPA exceeds this value. CPA, if available, is a strong indicator of clutter.";
 } clutter_min_cpa;
+
+commentdef {
+  p_header = "OPTION TO MONITOR TRANSMIT POWER";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to monitor the transmit power in the CfRadial files.";
+  p_help = "If true, we will read the transmit power in the status XML of the CfRadial file, and write these out as part of the SPDB data results.";
+} monitor_transmit_power;
+
+paramdef string {
+  p_default = "XmitPowerDbmTop";
+  p_descr = "XML key for both channels combined.";
+  p_help = "This XML key is used to extract the transmit power for both channels from the CfRadial status XML.";
+} xmit_power_key_both;
+
+paramdef string {
+  p_default = "XmitPowerDbmH";
+  p_descr = "XML key for H channel.";
+  p_help = "This XML key is used to extract the H transmit power from the CfRadial status XML.";
+} xmit_power_key_h;
+
+paramdef string {
+  p_default = "XmitPowerDbmH";
+  p_descr = "XML key for V channel.";
+  p_help = "This XML key is used to extract the V transmit power from the CfRadial status XML.";
+} xmit_power_key_v;
 
 commentdef {
   p_header = "WRITE RESULTS";

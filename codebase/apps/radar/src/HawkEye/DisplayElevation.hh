@@ -37,7 +37,7 @@
 #include <QLabel>
 #include <QDialog>
 #include <iostream>
-#include "ColorMap.hh"
+#include <qtplot/ColorMap.hh>
 
 using namespace std;
 
@@ -50,7 +50,7 @@ public:
                const string &units,
                const string &shortcut);
 
-  ~DisplayElevation();
+  virtual ~DisplayElevation();
 
   const string &getLabel() const { return _label; }
   const string &getName() const { return _name; }

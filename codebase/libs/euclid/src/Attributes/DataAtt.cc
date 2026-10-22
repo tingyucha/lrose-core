@@ -21,6 +21,7 @@
 // ** OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED      
 // ** WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.    
 // *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* 
+#include <toolsa/safe_snprintf.hh>
 #include <euclid/DataAtt.hh>
 #include <euclid/Grid2d.hh>
 #include <euclid/PointList.hh>
@@ -83,8 +84,8 @@ void DataAtt::print(FILE *fp) const
 string DataAtt::sprint(void) const
 {
   char buf[100];
-  sprintf(buf, "d:(min:%.2f max:%.2f ave:%.2f npt:%.2f)",
-	  _min, _max, _ave, _npt);
+  safe_snprintf(buf, "d:(min:%.2f max:%.2f ave:%.2f npt:%.2f)",
+                _min, _max, _ave, _npt);
   string ret = buf;
   return ret;
 }
@@ -133,4 +134,3 @@ void DataAtt::_fillFromList(const PointList &l, const Grid2d &data)
     _ave = sum/_npt;
   return;
 }
-

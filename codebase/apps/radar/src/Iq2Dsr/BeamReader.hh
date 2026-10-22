@@ -41,12 +41,14 @@
 #include <radar/IwrfTsInfo.hh>
 #include <radar/IwrfTsPulse.hh>
 #include <radar/IwrfTsReader.hh>
+#include <radar/KdpFiltParams.hh>
 #include <radar/AtmosAtten.hh>
 #include "ArrayDeque.hh"
 #include "Params.hh"
 #include "Args.hh"
 #include "Beam.hh"
 #include "MomentsMgr.hh"
+#include "SharedPointerPool.hh"
 using namespace std;
 
 ////////////////////////
@@ -60,6 +62,7 @@ public:
   
   BeamReader(const string &prog_name,
              const Params &params,
+             const KdpFiltParams &kdpParams,
              const Args &args,
              deque<Beam *> &beamRecyclePool,
              pthread_mutex_t &beamRecyclePoolMutex,
@@ -92,12 +95,22 @@ public:
   bool isOpsInfoNew() const { return _pulseReader->isOpsInfoNew(); }
   Beam::scan_type_t getScanType() const { return _scanType; }
 
+  // get beam rate
+  
+  double getBeamAzRate() const { return _beamAzRate; }
+  double getBeamElRate() const { return _beamElRate; }
+
+  // get antenna rate for scan type
+  
+  double getAntennaRate();
+
 protected:
   
 private:
 
   string _progName;
   const Params &_params;
+  const KdpFiltParams &_kdpParams;
   const Args &_args;
 
   // beam pool - so that beam objects can be recycled
@@ -123,34 +136,40 @@ private:
 
   // end of sweep and vol flags
   
+  bool _endOfSweepPending;
+  bool _endOfVolPending;
+
+  si64 _endOfVolPulseSeqNum;
+  si64 _endOfSweepPulseSeqNum;
+
   bool _endOfSweepFlag;
   bool _endOfVolFlag;
+
+  // Pulse pool.
+  // The pulse pool provides shared pointers to reusable IwrfTsPulse instances.
+  // When the reference counts for provided shared pointers go to zero, the
+  // associated IwrfTsPulse instances are automatically returned to the pool.
+
+  SharedPointerPool<IwrfTsPulse, true> _pulsePool;
 
   // active pulse queue
   
   si64 _pulseSeqNum;
   si64 _prevPulseSeqNum;
-  IwrfTsPulse *_prevPulse;
-  IwrfTsPulse *_latestPulse;
-  deque<IwrfTsPulse *> _pulseQueue;
-  deque<IwrfTsPulse *> _pulseCache;
+  shared_ptr<IwrfTsPulse> _prevPulse;
+  shared_ptr<IwrfTsPulse> _latestPulse;
+  deque<shared_ptr<IwrfTsPulse>> _pulseQueue;
+  deque<shared_ptr<IwrfTsPulse>> _pulseCache;
   int _pulseCount;
   int _pulseCountSinceStatus;
   
   // pulse queue for interpolating antenna angles
   
-  deque<IwrfTsPulse *> _interpQueue;
+  deque<shared_ptr<IwrfTsPulse> > _interpQueue;
   bool _interpReady; // angles have been interpolated and are ready for use
   bool _interpOverflow;
   double _prevAzInterp, _prevElInterp;
   
-  // Pulse recycle pool.
-  // The pulse pool holds previously used pulse objects, 
-  // so that they may be re-used. This saves continual allocation
-  // and de-allocation of memory.
-  
-  deque<IwrfTsPulse *> _pulseRecyclePool;
-
   // phase coding
   
   static const int _maxTrips = 4;
@@ -162,10 +181,10 @@ private:
   
   // beam identification
 
+  bool _beamError;
   si64 _beamCount;
   int _midIndex, _startIndex, _endIndex;
   si64 _prevBeamPulseSeqNum; // pulse after center of beam
-  vector<const IwrfTsPulse *> _beamPulses;
 
   // beam properties
 
@@ -254,6 +273,7 @@ private:
   int _readDualPrtBeam();
   int _readNonIndexedBeam();
   int _readConstantSteeringAngleBeam();
+  int _readPulseWidthChangeBeam();
   int _readIndexedBeam();
 
   int _findPrevIndexedBeam();
@@ -262,21 +282,20 @@ private:
   int _checkStartConditions();
   void _constrainPulsesToWithinDwell();
 
-  IwrfTsPulse *_getNextPulse();
-  IwrfTsPulse *_readNextPulse();
-  IwrfTsPulse *_doReadNextPulse();
-  IwrfTsPulse *_readNextPulseWithInterp();
-  IwrfTsPulse *_pushOntoInterpQueue();
-  IwrfTsPulse *_popFromInterpQueue();
+  shared_ptr<IwrfTsPulse> _getNextPulse();
+  shared_ptr<IwrfTsPulse> _readNextPulse();
+  shared_ptr<IwrfTsPulse> _doReadNextPulse();
+  shared_ptr<IwrfTsPulse> _readNextPulseWithInterp();
+  shared_ptr<IwrfTsPulse> _pushOntoInterpQueue();
+  shared_ptr<IwrfTsPulse> _popFromInterpQueue();
 
   bool _beamOk();
-  void _addPulseToQueue(IwrfTsPulse *pulse);
+  void _addPulseToQueue(shared_ptr<IwrfTsPulse> pulse);
   void _cacheLatestPulse();
 
   void _clearPulseQueue();
   void _recyclePulses();
-  void _addPulseToRecyclePool(IwrfTsPulse *pulse);
-  IwrfTsPulse *_getPulseFromRecyclePool();
+  shared_ptr<IwrfTsPulse> _getPulseFromRecyclePool();
 
   void _interpAzAngles();
   void _interpElevAngles();
@@ -292,7 +311,7 @@ private:
 
   int _computeMinNGates();
   int _computeNSamplesIndexed();
-  int _computeNSamplesEffective(int nSamples);
+  int _computeNSamplesRect(int nSamples);
 
   void _checkIsAlternating();
   void _checkAlternatingStartsOnH();
@@ -302,12 +321,13 @@ private:
   double _conditionAz(double az);
   double _conditionEl(double el);
 
-  void _computeProgressiveAzRate(const IwrfTsPulse *pulse);
-  void _computeProgressiveElRate(const IwrfTsPulse *pulse);
+  void _computeProgressiveAzRate(const shared_ptr<IwrfTsPulse> pulse);
+  void _computeProgressiveElRate(const shared_ptr<IwrfTsPulse> pulse);
 
   void _computeBeamAzRate(int endIndex, int nSamples);
   void _computeBeamElRate(int endIndex, int nSamples);
 
+  void _checkForEndFlags(const vector<shared_ptr<IwrfTsPulse>> &beamPulses);
   void _checkQueueStatus();
   void _computeWindowFactors();
 

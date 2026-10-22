@@ -126,6 +126,45 @@ RadxRate::RadxRate(int argc, char **argv)
     exit(0);
   }
 
+  // check params for consistency
+
+  if (_params.KDP_available) {
+    if (_params.PID_use_attenuation_corrected_fields) {
+      cerr << "ERROR: " << _progName << endl;
+      cerr << "  Inconsistent parameters set in params file: " << _paramsPath << endl;
+      cerr << "  KDP_available is TRUE" << endl;
+      cerr << "  PID_use_attenuation_corrected_fields is TRUE" << endl;
+      cerr << "  You must compute KDP to use atten-corrected fields" << endl;
+      OK = FALSE;
+      return;
+    }
+    if (_params.RATE_use_attenuation_corrected_fields) {
+      cerr << "ERROR: " << _progName << endl;
+      cerr << "  Inconsistent parameters set in params file: " << _paramsPath << endl;
+      cerr << "  KDP_available is TRUE" << endl;
+      cerr << "  RATE_use_attenuation_corrected_fields is TRUE" << endl;
+      cerr << "  You must compute KDP to use atten-corrected fields" << endl;
+      OK = FALSE;
+      return;
+    }
+  }
+
+  // read params for KdpFilt
+
+  if (!_params.KDP_available) {
+    if (strstr(_params.KDP_params_file_path, "use-defaults") == NULL) {
+      // not using defaults
+      if (_kdpFiltParams.load(_params.KDP_params_file_path,
+                              NULL, true, _args.tdrpDebug)) {
+        cerr << "ERROR: " << _progName << endl;
+        cerr << "Cannot read params file for KdpFilt: "
+             << _params.KDP_params_file_path << endl;
+        OK = FALSE;
+        return;
+      }
+    }
+  } // if (!_params.KDP_available)
+
   // read params for Ncar PID
 
   if (strstr(_params.PID_params_file_path, "use-defaults") == NULL) {
@@ -140,15 +179,15 @@ RadxRate::RadxRate(int argc, char **argv)
     }
   }
 
-  // read params for KdpFilt
+  // read in RATE params if applicable
 
-  if (strstr(_params.KDP_params_file_path, "use-defaults") == NULL) {
+  if (strstr(_params.RATE_params_file_path, "use-defaults") == NULL) {
     // not using defaults
-    if (_kdpFiltParams.load(_params.KDP_params_file_path,
-                            NULL, true, _args.tdrpDebug)) {
+    if (_precipRateParams.load(_params.RATE_params_file_path,
+                               NULL, true, _args.tdrpDebug)) {
       cerr << "ERROR: " << _progName << endl;
-      cerr << "Cannot read params file for KdpFilt: "
-           << _params.KDP_params_file_path << endl;
+      cerr << "Cannot read params file for PrecipRate: "
+           << _params.RATE_params_file_path << endl;
       OK = FALSE;
       return;
     }
@@ -159,21 +198,23 @@ RadxRate::RadxRate(int argc, char **argv)
   pthread_mutex_init(&_debugPrintMutex, NULL);
   
   // set up compute thread pool
-  
-  for (int ii = 0; ii < _params.n_compute_threads; ii++) {
-    WorkerThread *thread =
-      new WorkerThread(this, _params, 
-                       _kdpFiltParams,
-                       _ncarPidParams,
-                       _precipRateParams,
-                       ii);
-    if (!thread->OK) {
-      delete thread;
-      OK = FALSE;
-      return;
+
+  if (_params.n_compute_threads > 1) {
+    for (int ii = 0; ii < _params.n_compute_threads; ii++) {
+      WorkerThread *thread =
+        new WorkerThread(this, _params, 
+                         _kdpFiltParams,
+                         _ncarPidParams,
+                         _precipRateParams,
+                         ii);
+      if (!thread->OK) {
+        delete thread;
+        OK = FALSE;
+        return;
+      }
+      _threadPool.addThreadToMain(thread);
+      _workers.push_back(thread->getWorker());
     }
-    _threadPool.addThreadToMain(thread);
-    _workers.push_back(thread->getWorker());
   }
   
 }
@@ -214,13 +255,13 @@ void RadxRate::_printParamsRate()
   }
 
   // read in RATE params if applicable
-  
+
   if (strstr(_params.RATE_params_file_path, "use-defaults") == NULL) {
     // not using defaults
     if (_precipRateParams.load(_params.RATE_params_file_path,
                                NULL, expandEnvVars, _args.tdrpDebug)) {
       cerr << "ERROR: " << _progName << endl;
-      cerr << "Cannot read params file for PrecipFilt: "
+      cerr << "Cannot read params file for PrecipRate: "
            << _params.RATE_params_file_path << endl;
       OK = FALSE;
       return;
@@ -268,7 +309,7 @@ void RadxRate::_printParamsPid()
     if (_ncarPidParams.load(_params.PID_params_file_path,
                             NULL, expandEnvVars, _args.tdrpDebug)) {
       cerr << "ERROR: " << _progName << endl;
-      cerr << "Cannot read params file for PidFilt: "
+      cerr << "Cannot read params file for NcarPid: "
            << _params.PID_params_file_path << endl;
       OK = FALSE;
       return;
@@ -591,11 +632,21 @@ int RadxRate::_processFile(const string &filePath)
   _addExtraFieldsToInput();
 
   // compute the derived fields
-  
-  if (_compute()) {
-    cerr << "ERROR - RadxRate::Run" << endl;
-    cerr << "  Cannot compute KDP and attenuation" << endl;
-    return -1;
+
+  if (_params.n_compute_threads < 2) {
+    if (_computeNonThreaded()) {
+      cerr << "ERROR - RadxRate::Run" << endl;
+      cerr << "  Computing non threaded" << endl;
+      cerr << "  Cannot compute derived fields" << endl;
+      return -1;
+    }
+  } else {
+    if (_compute()) {
+      cerr << "ERROR - RadxRate::Run" << endl;
+      cerr << "  Computing threaded" << endl;
+      cerr << "  Cannot compute derived fields" << endl;
+      return -1;
+    }
   }
 
   // add extra fields to output
@@ -627,6 +678,12 @@ void RadxRate::_setupRead(RadxFile &file)
     file.setVerbose(true);
   }
 
+  // max range
+  
+  if (_params.set_max_range) {
+    file.setReadMaxRangeKm(_params.max_range_km);
+  }
+
   // field names
 
   if (_params.SNR_available) {
@@ -638,6 +695,9 @@ void RadxRate::_setupRead(RadxFile &file)
   file.addReadField(_params.RHOHV_field_name);
   if (_params.LDR_available) {
     file.addReadField(_params.LDR_field_name);
+  }
+  if (_params.KDP_available) {
+    file.addReadField(_params.KDP_field_name);
   }
   if (_params.copy_selected_input_fields_to_output) {
     for (int ii = 0; ii < _params.copy_fields_n; ii++) {
@@ -706,8 +766,23 @@ void RadxRate::_setupWrite(RadxFile &file)
   // set netcdf format - used for CfRadial
 
   file.setNcFormat(RadxFile::NETCDF4);
-
   file.setWriteForceNgatesVary(true);
+
+  if (strlen(_params.output_filename_prefix) > 0) {
+    file.setWriteFileNamePrefix(_params.output_filename_prefix);
+  }
+  if (strlen(_params.output_filename_suffix) > 0) {
+    file.setWriteFileNameSuffix(_params.output_filename_suffix);
+  }
+
+  file.setWriteInstrNameInFileName(_params.include_instrument_name_in_file_name);
+  file.setWriteSiteNameInFileName(_params.include_site_name_in_file_name);
+  file.setWriteSubsecsInFileName(_params.include_subsecs_in_file_name);
+  file.setWriteScanTypeInFileName(_params.include_scan_type_in_file_name);
+  file.setWriteScanNameInFileName(_params.include_scan_name_in_file_name);
+  file.setWriteRangeResolutionInFileName(_params.include_range_resolution_in_file_name);
+  file.setWriteVolNumInFileName(_params.include_vol_num_in_file_name);
+  file.setWriteHyphenInDateTime(_params.use_hyphen_in_file_name_datetime_part);
 
 }
 
@@ -754,15 +829,17 @@ void RadxRate::_addExtraFieldsToInput()
     
     double rangeKm = startRangeKm;
     double elevationDeg = ray->getElevationDeg();
-    const TempProfile &profile = _workers[0]->getTempProfile();
-    for (size_t igate = 0; igate < nGates; igate++, rangeKm += gateSpacingKm) {
-      double htKm = beamHt.computeHtKm(elevationDeg, rangeKm);
-      double tempC = profile.getTempForHtKm(htKm);
-      elev[igate] = elevationDeg;
-      rng[igate] = rangeKm;
-      ht[igate] = htKm;
-      temp[igate] = tempC;
-    } // igate
+    if (_workers.size() > 0) {
+      const TempProfile &profile = _workers[0]->getTempProfile();
+      for (size_t igate = 0; igate < nGates; igate++, rangeKm += gateSpacingKm) {
+        double htKm = beamHt.computeHtKm(elevationDeg, rangeKm);
+        double tempC = profile.getTempForHtKm(htKm);
+        elev[igate] = elevationDeg;
+        rng[igate] = rangeKm;
+        ht[igate] = htKm;
+        temp[igate] = tempC;
+      } // igate
+    }
 
     smoothDbzFld->setTypeFl32(-9999.0);
     smoothRhohvFld->setTypeFl32(-9999.0);
@@ -811,15 +888,26 @@ void RadxRate::_addExtraFieldsToOutput()
   for (size_t iray = 0; iray < inputRays.size(); iray++) {
     
     RadxRay *inputRay = inputRays[iray];
-    RadxRay *outputRay = _derivedRays[iray];
+    
+    // match output ray to input ray based on time
+    
+    RadxRay *outputRay = NULL;
+    double inTime = inputRay->getTimeDouble();
+    for (size_t jj = 0; jj < _derivedRays.size(); jj++) {
+      RadxRay *derivedRay = _derivedRays[jj];
+      double outTime = derivedRay->getTimeDouble();
+      if (fabs(inTime - outTime) < 0.001) {
+        outputRay = derivedRay;
+        break;
+      }
+    } // jj
 
-    // make a copy of the input fields
-
-    RadxField *mlFld = new RadxField(*inputRay->getField(mlFieldName));
-
-    // add to output
-
-    outputRay->addField(mlFld);
+    if (outputRay != NULL) {
+      // make a copy of the input fields
+      RadxField *mlFld = new RadxField(*inputRay->getField(mlFieldName));
+      // add to output
+      outputRay->addField(mlFld);
+    }
 
   } // iray
 
@@ -888,6 +976,54 @@ int RadxRate::_compute()
     }
   } // while
 
+  return 0;
+
+}
+
+/////////////////////////////////////////////////////
+// compute non threaded
+
+int RadxRate::_computeNonThreaded()
+{
+
+  // initialize the volume with ray numbers
+  
+  _vol.setRayNumbersInOrder();
+
+  // initialize derived
+
+  _derivedRays.clear();
+
+  // create the worker
+  
+  Worker *worker = new Worker(_params,
+                              _kdpFiltParams,
+                              _ncarPidParams,
+                              _precipRateParams,
+                              0);
+
+  if (worker == NULL) {
+    return -1;
+  }
+  
+  // loop through the input rays,
+  // computing the derived fields
+
+  const vector<RadxRay *> &inputRays = _vol.getRays();
+  for (size_t iray = 0; iray < inputRays.size(); iray++) {
+    RadxRay *inputRay = inputRays[iray];
+    RadxRay *outputRay = worker->compute(inputRay,
+                                         getRadarHtKm(),
+                                         getWavelengthM());
+    if (outputRay != NULL) {
+      _derivedRays.push_back(outputRay);
+    }
+  } // iray
+  
+  // clean up
+
+  delete worker;
+  
   return 0;
 
 }

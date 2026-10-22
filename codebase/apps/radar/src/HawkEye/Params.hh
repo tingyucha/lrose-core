@@ -180,7 +180,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -482,6 +482,11 @@ public:
 
   char* archive_data_url;
 
+  tdrp_bool_t check_scan_name;
+
+  char* *_scan_name_list;
+  int scan_name_list_n;
+
   show_status_t show_status_in_gui;
 
   char* color_scale_dir;
@@ -492,6 +497,8 @@ public:
   double background_render_mins;
 
   tdrp_bool_t use_field_label_in_title;
+
+  tdrp_bool_t set_max_range;
 
   double max_range_km;
 
@@ -521,11 +528,17 @@ public:
 
   char* background_color;
 
+  char* text_color;
+
   char* grid_and_range_ring_color;
 
   int range_ring_label_font_size;
 
+  char* click_cross_color;
+
   int click_cross_size;
+
+  int click_cross_line_width;
 
   ppi_display_type_t ppi_display_type;
 
@@ -709,6 +722,10 @@ public:
 
   tdrp_bool_t images_include_field_label_in_file_name;
 
+  tdrp_bool_t images_include_scan_type_in_file_name;
+
+  tdrp_bool_t images_include_scan_id_in_file_name;
+
   tdrp_bool_t images_write_latest_data_info;
 
   tdrp_bool_t images_auto_create;
@@ -738,6 +755,8 @@ public:
 
   double sim_gate_spacing_km;
 
+  char* click_point_fmq_url;
+
   char _end_; // end of data region
               // needed for zeroing out data
 
@@ -745,7 +764,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[167];
+  mutable TDRPtable _table[178];
 
   const char *_className;
 

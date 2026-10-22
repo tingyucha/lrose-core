@@ -36,6 +36,7 @@
 #include "Rview.hh"
 #include <titan/TitanPartialTrack.hh>
 #include <toolsa/TaArray.hh>
+#include <toolsa/toolsa_macros.h>
 using namespace std;
 
 #define START_AZIMUTH 0.0
@@ -44,7 +45,6 @@ using namespace std;
 #define ARROW_HEAD_ANGLE 15.0
 #define ARROW_HEAD_KM_FRACTION 0.010
 #define ARROW_HEAD_KM 1.0
-#define DEG_TO_RAD 0.01745329251994372
 
 /*
  * file scope prototypes
@@ -598,6 +598,8 @@ static void draw_storm_shape(int dev,
   }
     
   if (Glob->track_graphic == ELLIPSES) {
+
+    // render ellipses
     
     if (forecast_step == 0) {
       
@@ -635,6 +637,8 @@ static void draw_storm_shape(int dev,
     
   } else if (Glob->track_graphic == POLYGONS) {
     
+    // render polygons
+    
     poly_delta_az = Glob->_dsTitan.storm_params().poly_delta_az * DEG_TO_RAD;
     theta = Glob->_dsTitan.storm_params().poly_start_az * DEG_TO_RAD;
     dx = scan->grid.dx;
@@ -667,6 +671,27 @@ static void draw_storm_shape(int dev,
 		 CoordModeOrigin);
     }
       
+  } else {
+
+    // render small circles to show each node
+
+    double node_radius = Glob->node_icon_diam_km / 2.0;
+    
+    plot_minor_radius = convert_dist(storm_proj, Glob->proj, node_radius);
+    plot_major_radius = plot_minor_radius;
+    
+    if (Glob->fill_graphic) {
+      GFillArc(dev, frame, storm_gc, storm_psgc,
+	       plot_x, plot_y, plot_major_radius, plot_minor_radius,
+	       START_AZIMUTH, END_AZIMUTH,
+	       (90.0 - gprops->proj_area_orientation), NSEGMENTS);
+    } else {
+      GDrawArc(dev, frame, storm_gc, storm_psgc,
+ 	       plot_x, plot_y, plot_major_radius, plot_minor_radius,
+ 	       START_AZIMUTH, END_AZIMUTH,
+ 	       (90.0 - gprops->proj_area_orientation), NSEGMENTS);
+    }
+    
   } /* if (Glob->track_graphic == ELLIPSES) */
 
   /*
@@ -1296,7 +1321,7 @@ render_tracks(int dev,
   Mdvx::coord_t storm_coord;
   MdvxProj storm_proj;
 
-  if (Glob->debug) {
+  if (Glob->verbose) {
     fprintf(stderr, "** render_tracks **\n");
   }
 

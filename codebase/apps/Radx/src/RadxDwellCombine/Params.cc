@@ -808,18 +808,6 @@
     tt->comment_text = tdrpStrDup("");
     tt++;
     
-    // Parameter 'aggregate_sweep_files_on_read'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("aggregate_sweep_files_on_read");
-    tt->descr = tdrpStrDup("Option to aggregate sweep files into a volume on read.");
-    tt->help = tdrpStrDup("If true, and the input data is in sweeps rather than volumes (e.g. DORADE), the sweep files from a volume will be aggregated into a volume.");
-    tt->val_offset = (char *) &aggregate_sweep_files_on_read - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
     // Parameter 'set_max_range'
     // ctype is 'tdrp_bool_t'
     
@@ -947,10 +935,10 @@
     tt->ptype = ENUM_TYPE;
     tt->param_name = tdrpStrDup("dwell_stats_method");
     tt->descr = tdrpStrDup("Method for computing stats on the dwell.");
-    tt->help = tdrpStrDup("MIDDLE refers to the middle ray in the dwell sequence.");
+    tt->help = tdrpStrDup("MIDDLE refers to the middle ray in the dwell sequence. The DISCRETE_MODE computes applies only to discrete (integer) fields, and returns the most common entry in a discrete data set.");
     tt->val_offset = (char *) &dwell_stats_method - &_start_;
     tt->enum_def.name = tdrpStrDup("dwell_stats_method_t");
-    tt->enum_def.nfields = 5;
+    tt->enum_def.nfields = 6;
     tt->enum_def.fields = (enum_field_t *)
         tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
       tt->enum_def.fields[0].name = tdrpStrDup("DWELL_STATS_MEAN");
@@ -963,6 +951,8 @@
       tt->enum_def.fields[3].val = DWELL_STATS_MINIMUM;
       tt->enum_def.fields[4].name = tdrpStrDup("DWELL_STATS_MIDDLE");
       tt->enum_def.fields[4].val = DWELL_STATS_MIDDLE;
+      tt->enum_def.fields[5].name = tdrpStrDup("DWELL_STATS_DISCRETE_MODE");
+      tt->enum_def.fields[5].val = DWELL_STATS_DISCRETE_MODE;
     tt->single_val.e = DWELL_STATS_MEAN;
     tt++;
     
@@ -1032,7 +1022,7 @@
       tt->struct_def.fields[1].rel_offset = 
         (char *) &_stats_method_fields->stats_method - (char *) _stats_method_fields;
         tt->struct_def.fields[1].enum_def.name = tdrpStrDup("dwell_stats_method_t");
-        tt->struct_def.fields[1].enum_def.nfields = 5;
+        tt->struct_def.fields[1].enum_def.nfields = 6;
         tt->struct_def.fields[1].enum_def.fields = (enum_field_t *) tdrpMalloc
           (tt->struct_def.fields[1].enum_def.nfields * sizeof(enum_field_t));
         tt->struct_def.fields[1].enum_def.fields[0].name = tdrpStrDup("DWELL_STATS_MEAN");
@@ -1045,6 +1035,8 @@
         tt->struct_def.fields[1].enum_def.fields[3].val = DWELL_STATS_MINIMUM;
         tt->struct_def.fields[1].enum_def.fields[4].name = tdrpStrDup("DWELL_STATS_MIDDLE");
         tt->struct_def.fields[1].enum_def.fields[4].val = DWELL_STATS_MIDDLE;
+        tt->struct_def.fields[1].enum_def.fields[5].name = tdrpStrDup("DWELL_STATS_DISCRETE_MODE");
+        tt->struct_def.fields[1].enum_def.fields[5].val = DWELL_STATS_DISCRETE_MODE;
     tt->n_struct_vals = 4;
     tt->struct_vals = (tdrpVal_t *)
         tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
@@ -1176,6 +1168,171 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 7");
+    tt->comment_hdr = tdrpStrDup("GROUND-BASED MODE for MOVING PLATFORM GEOREFERENCE");
+    tt->comment_text = tdrpStrDup("In ground-based the instrument is not moving. Therefore we override the latitude/longitude/altitude in the georeference data blocks, and set the platform velocities to 0.");
+    tt++;
+    
+    // Parameter 'fixed_location_mode'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("fixed_location_mode");
+    tt->descr = tdrpStrDup("Option to set fixed location in ground-based mode.");
+    tt->help = tdrpStrDup("If TRUE, the program will override the metadata for latitude/longitude/altitude, and set platform velocities to 0.");
+    tt->val_offset = (char *) &fixed_location_mode - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'fixed_radar_location'
+    // ctype is '_radar_location_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("fixed_radar_location");
+    tt->descr = tdrpStrDup("Radar location if override is set true.");
+    tt->help = tdrpStrDup("The radar_location is only used if 'override_radar_location' is set true. Otherwise the information in the input data stream is used. Note that the altitude is in km MSL.");
+    tt->val_offset = (char *) &fixed_radar_location - &_start_;
+    tt->struct_def.name = tdrpStrDup("radar_location_t");
+    tt->struct_def.nfields = 3;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[0].fname = tdrpStrDup("latitudeDeg");
+      tt->struct_def.fields[0].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &fixed_radar_location.latitudeDeg - (char *) &fixed_radar_location;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[1].fname = tdrpStrDup("longitudeDeg");
+      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &fixed_radar_location.longitudeDeg - (char *) &fixed_radar_location;
+      tt->struct_def.fields[2].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[2].fname = tdrpStrDup("altitudeKm");
+      tt->struct_def.fields[2].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[2].rel_offset = 
+        (char *) &fixed_radar_location.altitudeKm - (char *) &fixed_radar_location;
+    tt->n_struct_vals = 3;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].d = 0;
+      tt->struct_vals[1].d = 0;
+      tt->struct_vals[2].d = 0;
+    tt++;
+    
+    // Parameter 'Comment 8'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 8");
+    tt->comment_hdr = tdrpStrDup("OVERRIDE PLATFORM TYPE?");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'override_platform_type'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("override_platform_type");
+    tt->descr = tdrpStrDup("Option to override platform type on read. If true, the file will be read in, the platform type will be changed, and then any post-read processing will be performed.");
+    tt->help = tdrpStrDup("\tPLATFORM_FIXED  - radar is in a fixed location\n\tPLATFORM_VEHICLE -  radar is mounted on a land vehicle\n\tPLATFORM_SHIP - radar is mounted on a ship\n\tPLATFORM_AIRCRAFT_FORE - forward-looking on aircraft\n\tPLATFORM_AIRCRAFT_AFT - backward-looking on aircraft\n\tPLATFORM_AIRCRAFT_TAIL - tail - e.g. ELDORA\n\tPLATFORM_AIRCRAFT_BELLY -  belly radar on aircraft\n\tPLATFORM_AIRCRAFT_ROOF - roof radar on aircraft\n\tPLATFORM_AIRCRAFT_NOSE - radar in nose radome on aircraft\n\tPLATFORM_SATELLITE_ORBIT - orbiting satellite\n\tPLATFORM_SATELLITE_GEOSTAT - geostationary satellite\n");
+    tt->val_offset = (char *) &override_platform_type - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'platform_type'
+    // ctype is '_platform_type_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = ENUM_TYPE;
+    tt->param_name = tdrpStrDup("platform_type");
+    tt->descr = tdrpStrDup("Platform type.");
+    tt->help = tdrpStrDup("See override_platform_type.");
+    tt->val_offset = (char *) &platform_type - &_start_;
+    tt->enum_def.name = tdrpStrDup("platform_type_t");
+    tt->enum_def.nfields = 11;
+    tt->enum_def.fields = (enum_field_t *)
+        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
+      tt->enum_def.fields[0].name = tdrpStrDup("PLATFORM_FIXED");
+      tt->enum_def.fields[0].val = PLATFORM_FIXED;
+      tt->enum_def.fields[1].name = tdrpStrDup("PLATFORM_VEHICLE");
+      tt->enum_def.fields[1].val = PLATFORM_VEHICLE;
+      tt->enum_def.fields[2].name = tdrpStrDup("PLATFORM_SHIP");
+      tt->enum_def.fields[2].val = PLATFORM_SHIP;
+      tt->enum_def.fields[3].name = tdrpStrDup("PLATFORM_AIRCRAFT_FORE");
+      tt->enum_def.fields[3].val = PLATFORM_AIRCRAFT_FORE;
+      tt->enum_def.fields[4].name = tdrpStrDup("PLATFORM_AIRCRAFT_AFT");
+      tt->enum_def.fields[4].val = PLATFORM_AIRCRAFT_AFT;
+      tt->enum_def.fields[5].name = tdrpStrDup("PLATFORM_AIRCRAFT_TAIL");
+      tt->enum_def.fields[5].val = PLATFORM_AIRCRAFT_TAIL;
+      tt->enum_def.fields[6].name = tdrpStrDup("PLATFORM_AIRCRAFT_BELLY");
+      tt->enum_def.fields[6].val = PLATFORM_AIRCRAFT_BELLY;
+      tt->enum_def.fields[7].name = tdrpStrDup("PLATFORM_AIRCRAFT_ROOF");
+      tt->enum_def.fields[7].val = PLATFORM_AIRCRAFT_ROOF;
+      tt->enum_def.fields[8].name = tdrpStrDup("PLATFORM_AIRCRAFT_NOSE");
+      tt->enum_def.fields[8].val = PLATFORM_AIRCRAFT_NOSE;
+      tt->enum_def.fields[9].name = tdrpStrDup("PLATFORM_SATELLITE_ORBIT");
+      tt->enum_def.fields[9].val = PLATFORM_SATELLITE_ORBIT;
+      tt->enum_def.fields[10].name = tdrpStrDup("PLATFORM_SATELLITE_GEOSTAT");
+      tt->enum_def.fields[10].val = PLATFORM_SATELLITE_GEOSTAT;
+    tt->single_val.e = PLATFORM_AIRCRAFT_FORE;
+    tt++;
+    
+    // Parameter 'Comment 9'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 9");
+    tt->comment_hdr = tdrpStrDup("OVERRIDE PRIMARY AXIS?");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'override_primary_axis'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("override_primary_axis");
+    tt->descr = tdrpStrDup("Option to override primary axis on read. If true, the file will be read in, the primary axis will be changed, and then any post-read processing will be performed.");
+    tt->help = tdrpStrDup("\tPRIMARY_AXIS_Z - vertical\n\tPRIMARY_AXIS_Y - longitudinal axis of platform\n\tPRIMARY_AXIS_X - lateral axis of platform\n\tPRIMARY_AXIS_Z_PRIME - inverted vertical\n\tPRIMARY_AXIS_Y_PRIME - ELDORA, HRD tail\n\tPRIMARY_AXIS_X_PRIME - translated lateral\n");
+    tt->val_offset = (char *) &override_primary_axis - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'primary_axis'
+    // ctype is '_primary_axis_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = ENUM_TYPE;
+    tt->param_name = tdrpStrDup("primary_axis");
+    tt->descr = tdrpStrDup("Platform type.");
+    tt->help = tdrpStrDup("See override_primary_axis.");
+    tt->val_offset = (char *) &primary_axis - &_start_;
+    tt->enum_def.name = tdrpStrDup("primary_axis_t");
+    tt->enum_def.nfields = 6;
+    tt->enum_def.fields = (enum_field_t *)
+        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
+      tt->enum_def.fields[0].name = tdrpStrDup("PRIMARY_AXIS_Z");
+      tt->enum_def.fields[0].val = PRIMARY_AXIS_Z;
+      tt->enum_def.fields[1].name = tdrpStrDup("PRIMARY_AXIS_Y");
+      tt->enum_def.fields[1].val = PRIMARY_AXIS_Y;
+      tt->enum_def.fields[2].name = tdrpStrDup("PRIMARY_AXIS_X");
+      tt->enum_def.fields[2].val = PRIMARY_AXIS_X;
+      tt->enum_def.fields[3].name = tdrpStrDup("PRIMARY_AXIS_Z_PRIME");
+      tt->enum_def.fields[3].val = PRIMARY_AXIS_Z_PRIME;
+      tt->enum_def.fields[4].name = tdrpStrDup("PRIMARY_AXIS_Y_PRIME");
+      tt->enum_def.fields[4].val = PRIMARY_AXIS_Y_PRIME;
+      tt->enum_def.fields[5].name = tdrpStrDup("PRIMARY_AXIS_X_PRIME");
+      tt->enum_def.fields[5].val = PRIMARY_AXIS_X_PRIME;
+    tt->single_val.e = PRIMARY_AXIS_Y_PRIME;
+    tt++;
+    
+    // Parameter 'Comment 10'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 10");
     tt->comment_hdr = tdrpStrDup("CENSORING");
     tt->comment_text = tdrpStrDup("You have the option of censoring the data fields - i.e. setting the fields to missing values - at gates which meet certain criteria. If this is done correctly, it allows you to preserve the valid data and discard the noise, thereby improving compression.");
     tt++;
@@ -1187,7 +1344,7 @@
     tt->ptype = BOOL_TYPE;
     tt->param_name = tdrpStrDup("apply_censoring");
     tt->descr = tdrpStrDup("Apply censoring based on field values and thresholds.");
-    tt->help = tdrpStrDup("If TRUE, censoring will be performed. See 'censoring_fields' for details on how the censoring is applied.");
+    tt->help = tdrpStrDup("If TRUE, censoring will be performed. See 'censoring_fields' for details on how the censoring is applied. NOTE: does not apply to FMQ mode.");
     tt->val_offset = (char *) &apply_censoring - &_start_;
     tt->single_val.b = pFALSE;
     tt++;
@@ -1295,11 +1452,11 @@
       tt->array_vals[1].s = tdrpStrDup("DBMVC");
     tt++;
     
-    // Parameter 'Comment 8'
+    // Parameter 'Comment 11'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 8");
+    tt->param_name = tdrpStrDup("Comment 11");
     tt->comment_hdr = tdrpStrDup("OPTION TO SPECIFY FIELD NAMES AND OUTPUT ENCODING");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1456,11 +1613,11 @@
       tt->array_vals[1].s = tdrpStrDup("VEL");
     tt++;
     
-    // Parameter 'Comment 9'
+    // Parameter 'Comment 12'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 9");
+    tt->param_name = tdrpStrDup("Comment 12");
     tt->comment_hdr = tdrpStrDup("OPTION TO SPECIFY OUTPUT ENCODING FOR ALL FIELDS");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1503,11 +1660,11 @@
     tt->single_val.e = OUTPUT_ENCODING_ASIS;
     tt++;
     
-    // Parameter 'Comment 10'
+    // Parameter 'Comment 13'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 10");
+    tt->param_name = tdrpStrDup("Comment 13");
     tt->comment_hdr = tdrpStrDup("OPTION TO APPLY LINEAR TRANSFORM TO SPECIFIED FIELDS.");
     tt->comment_text = tdrpStrDup("These transforms are fixed. The same transform is applied to all files.");
     tt++;
@@ -1568,12 +1725,12 @@
       tt->struct_vals[5].d = 0;
     tt++;
     
-    // Parameter 'Comment 11'
+    // Parameter 'Comment 14'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 11");
-    tt->comment_hdr = tdrpStrDup("OUTPUT FORMAT");
+    tt->param_name = tdrpStrDup("Comment 14");
+    tt->comment_hdr = tdrpStrDup("WRITE CFRADIAL FILES");
     tt->comment_text = tdrpStrDup("");
     tt++;
     
@@ -1587,121 +1744,14 @@
     tt->help = tdrpStrDup("");
     tt->val_offset = (char *) &output_format - &_start_;
     tt->enum_def.name = tdrpStrDup("output_format_t");
-    tt->enum_def.nfields = 6;
+    tt->enum_def.nfields = 2;
     tt->enum_def.fields = (enum_field_t *)
         tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
       tt->enum_def.fields[0].name = tdrpStrDup("OUTPUT_FORMAT_CFRADIAL");
       tt->enum_def.fields[0].val = OUTPUT_FORMAT_CFRADIAL;
-      tt->enum_def.fields[1].name = tdrpStrDup("OUTPUT_FORMAT_DORADE");
-      tt->enum_def.fields[1].val = OUTPUT_FORMAT_DORADE;
-      tt->enum_def.fields[2].name = tdrpStrDup("OUTPUT_FORMAT_FORAY");
-      tt->enum_def.fields[2].val = OUTPUT_FORMAT_FORAY;
-      tt->enum_def.fields[3].name = tdrpStrDup("OUTPUT_FORMAT_NEXRAD");
-      tt->enum_def.fields[3].val = OUTPUT_FORMAT_NEXRAD;
-      tt->enum_def.fields[4].name = tdrpStrDup("OUTPUT_FORMAT_UF");
-      tt->enum_def.fields[4].val = OUTPUT_FORMAT_UF;
-      tt->enum_def.fields[5].name = tdrpStrDup("OUTPUT_FORMAT_MDV_RADIAL");
-      tt->enum_def.fields[5].val = OUTPUT_FORMAT_MDV_RADIAL;
+      tt->enum_def.fields[1].name = tdrpStrDup("OUTPUT_FORMAT_CFRADIAL2");
+      tt->enum_def.fields[1].val = OUTPUT_FORMAT_CFRADIAL2;
     tt->single_val.e = OUTPUT_FORMAT_CFRADIAL;
-    tt++;
-    
-    // Parameter 'netcdf_style'
-    // ctype is '_netcdf_style_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = ENUM_TYPE;
-    tt->param_name = tdrpStrDup("netcdf_style");
-    tt->descr = tdrpStrDup("NetCDF style - if output_format is CFRADIAL");
-    tt->help = tdrpStrDup("netCDF classic format, netCDF 64-bit offset format, netCDF4 using HDF5 format, netCDF4 using HDF5 format but only netCDF3 calls");
-    tt->val_offset = (char *) &netcdf_style - &_start_;
-    tt->enum_def.name = tdrpStrDup("netcdf_style_t");
-    tt->enum_def.nfields = 4;
-    tt->enum_def.fields = (enum_field_t *)
-        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
-      tt->enum_def.fields[0].name = tdrpStrDup("CLASSIC");
-      tt->enum_def.fields[0].val = CLASSIC;
-      tt->enum_def.fields[1].name = tdrpStrDup("NC64BIT");
-      tt->enum_def.fields[1].val = NC64BIT;
-      tt->enum_def.fields[2].name = tdrpStrDup("NETCDF4");
-      tt->enum_def.fields[2].val = NETCDF4;
-      tt->enum_def.fields[3].name = tdrpStrDup("NETCDF4_CLASSIC");
-      tt->enum_def.fields[3].val = NETCDF4_CLASSIC;
-    tt->single_val.e = NETCDF4;
-    tt++;
-    
-    // Parameter 'Comment 12'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 12");
-    tt->comment_hdr = tdrpStrDup("OUTPUT BYTE-SWAPPING and COMPRESSION");
-    tt->comment_text = tdrpStrDup("");
-    tt++;
-    
-    // Parameter 'output_native_byte_order'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("output_native_byte_order");
-    tt->descr = tdrpStrDup("Option to leave data in native byte order.");
-    tt->help = tdrpStrDup("If false, data will be byte-swapped as appropriate on output.");
-    tt->val_offset = (char *) &output_native_byte_order - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'output_compressed'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("output_compressed");
-    tt->descr = tdrpStrDup("Option to compress data fields on output.");
-    tt->help = tdrpStrDup("Applies to netCDF and Dorade. UF does not support compression.");
-    tt->val_offset = (char *) &output_compressed - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'Comment 13'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 13");
-    tt->comment_hdr = tdrpStrDup("OUTPUT OPTIONS FOR CfRadial FILES");
-    tt->comment_text = tdrpStrDup("");
-    tt++;
-    
-    // Parameter 'output_force_ngates_vary'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("output_force_ngates_vary");
-    tt->descr = tdrpStrDup("Option to force the use of ragged arrays for CfRadial files.");
-    tt->help = tdrpStrDup("Only applies to CfRadial. If true, forces the use of ragged arrays even if the number of gates for all rays is constant.");
-    tt->val_offset = (char *) &output_force_ngates_vary - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'compression_level'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("compression_level");
-    tt->descr = tdrpStrDup("Compression level for output, if compressed.");
-    tt->help = tdrpStrDup("Applies to netCDF only. Dorade compression is run-length encoding, and has not options..");
-    tt->val_offset = (char *) &compression_level - &_start_;
-    tt->single_val.i = 4;
-    tt++;
-    
-    // Parameter 'Comment 14'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 14");
-    tt->comment_hdr = tdrpStrDup("WRITE CFRADIAL FILES");
-    tt->comment_text = tdrpStrDup("");
     tt++;
     
     // Parameter 'output_dir'

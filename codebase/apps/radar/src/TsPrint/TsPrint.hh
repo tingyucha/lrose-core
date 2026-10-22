@@ -88,11 +88,15 @@ private:
   
   IwrfTsReader *_pulseReader;
 
+  ssize_t _nPulsesRead;
+  IwrfTsPulse *_firstPulse;
+  IwrfTsPulse *_secondPulse;
+
+  iwrf_pulse_header _prevPulseHdr;
   si64 _prevPulseSeqNum;
   ssize_t _totalPulseCount;
   ssize_t _pulseCount;
   ssize_t _printCount;
-  bool _haveChan1;
 
   bool _midTransition;
   double _midTime, _midPrt;
@@ -100,7 +104,7 @@ private:
   double _startTime, _endTime;
 
   Stats _stats;
-  vector<Stats> _aStats;
+  vector<Stats> _ascopeStats;
 
   vector<double> _maxPowers0, _maxPowers1;
   double _meanMaxPower0, _meanMaxPower1;
@@ -116,8 +120,9 @@ private:
   int _nGates, _startGate, _endGate;
   double _startRangeM, _gateSpacingM;
 
-  bool _dualChannel;
+  bool _haveChan1;
   bool _fastAlternating;
+  bool _latestIsH;
   bool _labviewRequest;
 
   // previous values - to check for changes
@@ -140,38 +145,51 @@ private:
   double _prevAzimuth;
   double _prevElevation;
 
+  // extra columns from XML blocks
+
+  vector<string> _extraColLabels;
+  vector<double> _extraColMeans;
+  vector<double> _extraColSums;
+  vector<double> _extraColCounts;
+  si64 _statusXmlPktSeqNum;
+
   // methods
 
   int _runPrintMode();
   int _printPrtDetails();
   int _runAscopeMode();
   int _runMaxPowerMode();
-  int _runCalMode();
   int _runServerMode();
   int _runMaxPowerServerMode();
   
-  // get next pulse
+  // get the next pulse
 
   IwrfTsPulse *_getNextPulse();
+
+  // get the next pulse, checking for timeout etc.
+  
+  IwrfTsPulse *_getNextPulseCheckTimeout();
 
   // condition the gate range for ngates in pulse
 
   void _conditionGateRange(const IwrfTsPulse &pulse);
 
-  // compute stats
+  // save the metadata
+  
+  void _saveMetaData(const IwrfTsPulse &pulse);
 
-  void _saveCardinalValues(const IwrfTsPulse &pulse);
+  // accumulate stats
+
   void _addToSummary(const IwrfTsPulse &pulse);
-  void _computeSummary();
-
   void _addToAlternating(const IwrfTsPulse &pulse);
-  void _computeAlternating();
-
-  void _addToDual(const IwrfTsPulse &pulse);
-  void _computeDual();
-
   void _addToAscope(const IwrfTsPulse &pulse);
   void _addToMaxPower(const IwrfTsPulse &pulse);
+  
+  // compute stats
+
+  void _computeStats();
+
+  // clear stats
 
   void _clearStats();
 
@@ -200,27 +218,27 @@ private:
   string _pulseString(const IwrfTsPulse &pulse);
 
   void _printSummaryHeading(ostream &out);
-  void _printAlternatingHeading(ostream &out);
-  void _printDualHeading(ostream &out);
-  
   void _printSummaryLabels(ostream &out);
   void _printSummaryData(FILE *out);
-  void _printAlternatingLabels(ostream &out);
-  void _printDualLabels(ostream &out);
-  void _printAlternatingData(FILE *out);
-  void _printDualData(FILE *out);
 
-  void _printMaxPowerHeading(ostream &out);
-  void _printMaxPowerLabels(ostream &out);
   void _initMaxPowerData();
   void _computeMaxPowerData();
-  double _computeVel(const vector<RadarComplex_t> &iq);
+  void _printMaxPowerHeading(ostream &out);
+  void _printMaxPowerLabels(ostream &out);
   void _printMaxPowerData(FILE *out);
+  
+  double _computeVel(const vector<RadarComplex_t> &iq);
 
   // check angle change
 
   void _checkAngleChange(const IwrfTsPulse &pulse);
-  
+
+  // read XML data for extra columns
+
+  void _initExtraCols();
+  void _decodeXmlForExtraCols();
+  void _computeExtraColMeans();
+
 };
 
 #endif

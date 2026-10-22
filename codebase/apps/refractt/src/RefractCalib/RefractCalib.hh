@@ -21,24 +21,33 @@
 // ** OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED      
 // ** WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.    
 // *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* 
-/**
- *
- * @file RefractCalib.hh
- * @class RefractCalib
- * RefractCalib program object.
- * @date 1/15/2008
- */
+/////////////////////////////////////////////////////////////
+// RefractCalib Main
+//
+// Mike Dixon, EOL, NCAR, P.O.Box 3000, Boulder, CO, 80307-3000, USA
+//
+// Jan 2026
+//
+/////////////////////////////////////////////////////////////
+//
+// RefractCalib:
+//    (a) reads radar scan files, in polar coordinates
+//    (b) identifies suitable clutter targets
+//    (c) computes the mean phase of those targets for a baseline calibration
+//    (d) writes the calibration details to a file.
+// Typically we use 6 hours of scans for this purpose.
+// Ideally the moisture field should be uniform for this procedure to work well.
+//
+//////////////////////////////////////////////////////////////
 
 #ifndef RefractCalib_HH
 #define RefractCalib_HH
 
+#include "Args.hh"
 #include "Params.hh"
 #include "Calib.hh"
-#include <Refract/RefParms.hh>
 
 #include <string>
-#include <vector>
-#include <sys/stat.h>
 
 /** 
  * @class RefractCalib
@@ -46,106 +55,42 @@
  */
 class RefractCalib
 {
- public:
-
-  /**
-   * Flag indicating whether the program status is currently okay.
-   */
-  bool okay;
-
-
-  /**
-   * @brief Destructor
-   */
-  virtual ~RefractCalib(void);
   
-  /**
-   * @brief Retrieve the singleton instance of this class.
-   *
-   * @param[in] argc Number of command line arguments.
-   * @param[in] argv List of command line arguments.
-   *
-   * @return Returns a pointer to the program instance.
-   */
-  static RefractCalib *Inst(int argc, char **argv);
+public:
 
-  /**
-   * @brief Retrieve the singleton instance of this class.
-   *
-   * @return Returns a pointer to the program instance.
-   */
-  static RefractCalib *Inst(void);
-  
-  /**
-   * @brief Initialize the local data.
-   *
-   * @return Returns true if the initialization was successful,
-   *         false otherwise.
-   */
-  bool init(void);
-  
+  // constructor
 
-  /**
-   * @brief Run the program.
-   */
-  void run(void);
-  
-
- private:
-
-  static RefractCalib *_instance; /**< Singleton instance pointer */
-  char *_progName; /**< program name */
-  Params _params; /**< Parameter file paramters. */
-  RefParms _refparms;
-  Calib _driver; /**< Data processing object. */
-  
-  /**
-   * @brief Constructor
-   *
-   * @param[in] argc Number of command line arguments.
-   * @param[in] argv List of command line arguments.
-   *
-   * @note Private because this is a singleton object.
-   */
   RefractCalib(int argc, char **argv);
   
   /**
-   * @brief Create the quality field colorscale used in the original
-   *        applications.
+   * Flag indicating whether the program status is currently okay.
    */
-  void _createQualityColorscale(void) const;
 
+  bool okay;
+  
   /**
-   * @brief Create the strength field colorscale used in the original
-   *        applications.
+   * @brief Destructor
    */
-  void _createStrengthColorscale(void) const;
-
-  std::vector<string>_setupFiles(int numFiles,
-				 char ** fileList,
-				 Params::Time_t *timeRange,
-				 const std::string &host,
-				 const std::string &filesPath);
+  virtual ~RefractCalib();
+  
   /**
-   * Create a time_t from the Time_t struct in the params class
-   * @parm[in] p  The struct
-   * @return the time
+   * @brief Run the program.
    */
-  time_t _timeFromParams(const Params::Time_t &p) const;
 
-  /**
-   * Create and return a list of files within a time range
-   * @param[in] path  Place to search for files
-   * @param[in] t0  Earliest time
-   * @param[in] t1  Latest time
-   * @param[out] files  The file names
-   *
-   * @return true if able to get some files onto the vector
-   */
-  bool _identifyFiles(const std::string &host, const std::string &path,
-		      const time_t &t0, const time_t &t1,
-		      std::vector<string> &files) const;
+  int run();
 
+ private:
+
+  string _progName; /**< program name */
+  Args _args;
+  char *_paramsPath;
+  Params _params; /**< Parameter file paramters. */
+  Calib *_calib; /**< Data processing object. */
+
+  // analysis time limits
+  
+  time_t _startTime, _endTime;
+  
 };
 
 

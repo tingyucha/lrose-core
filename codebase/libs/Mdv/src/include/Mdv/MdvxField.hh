@@ -103,7 +103,8 @@ public:
   // If the data pointer is not NULL, space is allocated for it and the
   // data is copied in.
   //
-  // If the data pointer is NULL, space is allocated for data based on
+  // If the data pointer is NULL, and alloc_mem is true,
+  // memory in the volBuf member is allocated for data based on
   // the volume_size in the field header. In this case,
   // if init_with_missing is true, the array will be filled with
   // the missing_data_value in the header.
@@ -121,10 +122,11 @@ public:
 	    const Mdvx::vlevel_header_t &v_hdr,
 	    const void *vol_data = NULL,
 	    bool init_with_missing = false,
-	    bool compute_min_and_max = true);
+	    bool compute_min_and_max = true,
+	    bool alloc_mem = true);
   
-  // Constructor for a handle for a single plane, given a handle which
-  // has the entire data volume.
+  // Constructor for a single plane, given an object
+  // with the entire data volume.
   // The data for the plane is copied from the volume.
   
   MdvxField(const MdvxField &rhs, int plane_num);
@@ -274,9 +276,22 @@ public:
   //
   // On success, the volume data is converted, and the header is adjusted
   // to reflect the changes.
-
+  
   int negate(bool convert_to_linear = false);
-
+  
+  // Apply a linear transform to the field.
+  // Optionally set the field name and units.
+  // If newName is not empty, the new name is applied.
+  // If newUnits is not empty, the new units string is applied.
+  // Returns 0 on success, -1 on failure.
+  // On success, the volume data is converted, and the header is adjusted
+  // to reflect the changes.
+  
+  int applyLinearTransform(double scale = 1.0, 
+                           double bias = 0.0,
+                           const string &newName = "",
+                           const string &newUnits = "");
+     
   // Compute the composite (max at multiple levels) given lower and
   // upper vlevel limits.
   //
@@ -423,7 +438,8 @@ public:
 			Mdvx::pole_type_t poleType = Mdvx::POLE_NORTH,
 			double central_scale = 1.0,
                         double false_northing = 0.0,
-                        double false_easting = 0.0);
+                        double false_easting = 0.0,
+			double lad = 90.0);
 
   // Remap onto an OBLIQUE STEREOGRAPHIC projection.
   // Returns 0 on success, -1 on failure.
@@ -617,13 +633,13 @@ public:
   // by copying from closest available vlevel.
   // dz is computed as the smallest suitable delta z.
   
-  void setDzConstant(int nzMax = 64);
+  void setDzConstant(int nzMax = MDV32_MAX_VLEVELS);
 
   // Set dz, difference between vlevels, to be constant
   // If not already constant, data is remapped onto constant vlevels
   // by copying from closest available vlevel.
   
-  void setDzConstant(double dz, int nzMax = 64);
+  void setDzConstant(double dz, int nzMax = MDV32_MAX_VLEVELS);
 
   // remap vertical levels, using a constant dz.
   // If not already constant, data is remapped onto constant vlevels
@@ -701,6 +717,10 @@ public:
   const Mdvx::field_header_t &getFieldHeader() const { return _fhdr; }
   const Mdvx::vlevel_header_t &getVlevelHeader() const { return _vhdr; }
 
+  // return a vector of vlevels, derived from the headers
+  
+  vector<double> getVlevels() const;
+  
   // Getting pointers to file headers for inspection.
   // Field and vlevel headers exactly as they appear in the file.
   // To get these on read, call setReadFieldFileHeaders() before
@@ -730,10 +750,23 @@ public:
 
   // setting string parts of the header
 
+  void setFieldName(const string &name);
+  void setFieldNameLong(const string &nameLong);
+  void setUnits(const string &units);
+  void setTransform(const string &transform);
+
   void setFieldName(const char *name);
   void setFieldNameLong(const char *nameLong);
   void setUnits(const char *units);
   void setTransform(const char *transform);
+
+  static void setFieldName(const string &name,
+                           Mdvx::field_header_t &fhdr);
+  static void setFieldNameLong(const string &nameLong,
+                               Mdvx::field_header_t &fhdr);
+  static void setUnits(const string &units,
+                       Mdvx::field_header_t &fhdr);
+  static void setTransform(const string &transform, Mdvx::field_header_t &fhdr);
 
   // setting the volume data
   //
@@ -754,19 +787,68 @@ public:
                   double scale = 1.0,
                   double bias = 0.0);
 
+  // Set object state from field header and data parts.
+  //
+  // If the data pointer is not NULL, space is allocated for it and the
+  // data is copied in.
+  //
+  // If the data pointer is NULL, and alloc_mem is true,
+  // memory in the volBuf member is allocated for data based on
+  // the volume_size in the field header. In this case,
+  // if init_with_missing is true, the array will be filled with
+  // the missing_data_value in the header.
+  //
+  // NOTE: for this to work, the following items in the 
+  //       header must be set:
+  //
+  //    nx, ny, nz, volume_size, data_element_nbytes,
+  //    bad_data_value, missing_data_value
+  //
+  //  In addition, for INT8 and INT16, set:
+  //    scale, bias
+  
+  void setHdrsAndVolData(const Mdvx::field_header_t &f_hdr,
+                         const Mdvx::vlevel_header_t &v_hdr,
+                         const void *vol_data = NULL,
+                         bool init_with_missing = false,
+                         bool compute_min_and_max = true,
+                         bool alloc_mem = true);
+  
+  // Set object state for single plane from field header and data parts.
+  //
+  // If the plane data pointer is not NULL, space is allocated for it and the
+  // data is copied in.
+  //
+  // If the plane data pointer is NULL, space is allocated for data based on
+  // the volume_size in the field header.
+  //
+  // NOTE: for this to work, the following items in the 
+  //       header must be set:
+  //
+  //    nx, ny, nz, volume_size, data_element_nbytes,
+  //    bad_data_value, missing_data_value
+  //
+  //  In addition, for INT8 and INT16, set:
+  //    scale, bias
+  
+  void setHdrsAndPlaneData(int plane_num,
+                           int64_t plane_size,
+                           const Mdvx::field_header_t &f_hdr,
+                           const Mdvx::vlevel_header_t &v_hdr,
+                           const void *plane_data = NULL);
+
   // clearing the volume data
   //
   // The data must be uncompressed.
   // Sets all of the data values to missing.
 
   void clearVolData();
-  
 
   // compute the the min and max in a data volume
   // Note: this is automatically done in convert(), so if you call convert()
   // you need not make this call separately
 
-  int computeMinAndMax(bool force = false);
+  int computeMinAndMax(bool force = false) const;
 
   // access to the data as a volume
   
@@ -775,6 +857,12 @@ public:
   int64_t getVolNumValues() const {
     return (_volBuf.getLen() / _fhdr.data_element_nbytes);
   }
+
+  // access to non-const data as a volume
+  // this enables you to get a pointer to the volume, and then overwrite the contents
+  // should be used with care
+  
+  void *getVolWritable() { return _volBuf.getPtr(); }
 
   // access to the data as a plane
   //
@@ -868,11 +956,16 @@ protected:
   void _float32_to_int16(double output_scale,
 			 double output_bias);
 
+  // is volbuf valid in size?
+
+  bool _volbufSizeValid() const;
+
   // compression
 
   int _compressGzipVol() const;
   int _decompressGzipVol() const;
   int _decompress64() const;
+
   // constraining the domain in the horizontal and vertical dimensions
 
   int _constrain_radar_horiz(const Mdvx &mdvx);
@@ -904,6 +997,7 @@ protected:
                               bool do_final_convert,
                               MdvxRemapLut &remapLut,
                               bool is_vsection,
+                              bool is_rhi,
                               double vsection_min_lon,
                               double vsection_max_lon);
   
@@ -984,7 +1078,7 @@ protected:
   
   double _round_dz(double dz);
 
-  void _check_finite( const void *vol_data );
+  void _check_finite(const void *vol_data) const;
 
   // Clearing data
 

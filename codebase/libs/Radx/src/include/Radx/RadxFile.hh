@@ -110,11 +110,13 @@ public:
     FILE_FORMAT_NSSL_MRD,     ///< NSSL MRD format for NOAA aircraft tail radars
     FILE_FORMAT_NOXP_NC,      ///< netcdf for OU NOXP
     FILE_FORMAT_EDGE_NC,      ///< EEC EDGE netcdf format
-    FILE_FORMAT_NCXX,         ///< NetCDF CF RADIAL using Ncxx Classes
     FILE_FORMAT_CFRADIAL2,    ///< NetCDF CF RADIAL2
+    FILE_FORMAT_FM301,        ///< WMO FM301
     FILE_FORMAT_CFARR,        ///< Chilbolton radars
     FILE_FORMAT_NIMROD,       ///< UK Met Office Polar NIMROD
-    FILE_FORMAT_NOAA_FSL      ///< NOAA Forecast Systems Lab NetCDF
+    FILE_FORMAT_NOAA_FSL,     ///< NOAA Forecast Systems Lab NetCDF
+    FILE_FORMAT_RAXPOL_NC,    ///< netcdf for OU RAXPOL
+    FILE_FORMAT_ZARR          ///< Zarr directory store
   } file_format_t;
 
   /// write format for CfRadial
@@ -240,7 +242,14 @@ public:
   /// NOTE: for reading, the type will be set automatically determined
   /// by the reading method.
 
-  void setFileFormat(file_format_t val) { _fileFormat = val; }
+  void setFileFormat(file_format_t val) {
+    _fileFormat = val;
+    if (val == FILE_FORMAT_CFRADIAL ||
+        val == FILE_FORMAT_CFRADIAL2 ||
+        val == FILE_FORMAT_FM301) {
+      setNcFormat(NETCDF4);
+    }
+  }
   
   /// Set compression for writing.
   /// The default is compression is true.
@@ -331,11 +340,39 @@ public:
     _writeScanTypeInFileName = val; 
   }
 
+  /// Add scan Id  to output file name
+  /// Default is false
+  
+  void setWriteScanIdInFileName(bool val) {
+    _writeScanIdInFileName = val; 
+  }
+
+  /// Add scan name  to output file name
+  /// Default is false
+  
+  void setWriteScanNameInFileName(bool val) {
+    _writeScanNameInFileName = val; 
+  }
+
+  /// Add range resolution  to output file name
+  /// Default is false
+  
+  void setWriteRangeResolutionInFileName(bool val) {
+    _writeRangeResolutionInFileName = val; 
+  }
+
   /// Add volume number to output file name
   /// Default is false
   
   void setWriteVolNumInFileName(bool val) {
     _writeVolNumInFileName = val; 
+  }
+
+  /// Add mean fixed angle to output file name
+  /// Default is false
+  
+  void setWriteFixedAngleInFileName(bool val) {
+    _writeFixedAngleInFileName = val; 
   }
 
   /// Use hyphen instead of underscore in datetime part of filename
@@ -357,10 +394,10 @@ public:
   /// Set the NetCDF format for writing files - CfRadial only.
   /// 
   /// Options are:
-  ///  - Nc3File::Netcdf4
-  ///  - Nc3File::Classic
-  ///  - Nc3File::Offset64Bits
-  ///  - Nc3File::Netcdf4Classic
+  ///   NETCDF_CLASSIC        ///< netcdf 3 classic
+  ///   NETCDF4_CLASSIC       ///< netcdf 4 classic
+  ///   NETCDF_OFFSET_64BIT   ///< offset 64-bit
+  ///   NETCDF4               ///< full netcdf 4 data model
   
   void setNcFormat(netcdf_format_t val) { _ncFormat = val; }
   
@@ -559,6 +596,17 @@ public:
   void setReadPreserveSweeps(bool val);
 
   /////////////////////////////////////////////////////////////////
+  /// Set flag to indicate that we want to preserve the
+  /// ray details in the file we read in.
+  /// This generally applies to SIGMET data - by default the
+  /// rays are ordered by time.
+  /// If this flag is true, the ray order in the
+  /// the raw data file is unchanged.
+  /// Defaults to false.
+
+  void setReadPreserveRays(bool val);
+
+  /////////////////////////////////////////////////////////////////
   /// Set flag to indicate that we want to compute the
   /// sweep angles using the VCP tables.
   /// This applies to NEXRAD data - by default we
@@ -584,8 +632,8 @@ public:
   void setReadRemoveShortRange(bool val);
 
   /// Set flag to indicate we should only read the main metadata,
-  /// including the sweep and field information, and NOT read the
-  /// rays and data fields.
+  /// including the times, sweep and field information, and NOT
+  /// read the rays and data fields.
   /// Defaults to false.
 
   void setReadMetadataOnly(bool val);
@@ -891,6 +939,7 @@ protected:
   bool _readSetMaxRange; ///< remove gates beyond a given max range
   double _readMaxRangeKm; ///< max read range in km
   bool _readPreserveSweeps; ///< preserve sweeps as they are read in
+  bool _readPreserveRays; ///< preserve rays as they are read in
   bool _readComputeSweepAnglesFromVcpTables; ///< compute Sweep angles from VCP tables
   bool _readRemoveLongRange; ///< remove long range scans on read
   bool _readRemoveShortRange; ///< remove short range scans on read
@@ -921,7 +970,11 @@ protected:
   bool _writeSiteNameInFileName; ///< include site name in file name
   bool _writeSubsecsInFileName; ///< include subseconds in file name
   bool _writeScanTypeInFileName; ///< include scan type in file name
+  bool _writeScanIdInFileName; ///< include scan Id in file name
+  bool _writeScanNameInFileName; ///< include scan name in file name
+  bool _writeRangeResolutionInFileName; ///< include range resoluition in file name
   bool _writeVolNumInFileName; ///< include volume number in file name
+  bool _writeFixedAngleInFileName; ///< include mean fixed angle in file name
   bool _writeHyphenInDateTime; ///< use a hyphen instead of underscore in datetime part of file names
   bool _writeIndividualSweeps; ///< write individual sweeps, if applicable
   bool _writeCompressed; ///< write out compressed? CfRadial only

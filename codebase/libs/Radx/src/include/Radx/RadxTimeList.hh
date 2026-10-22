@@ -67,7 +67,8 @@ public:
     MODE_LAST               = 2,
     MODE_CLOSEST            = 3,
     MODE_FIRST_BEFORE       = 4,
-    MODE_FIRST_AFTER        = 5
+    MODE_FIRST_AFTER        = 5,
+    MODE_ALL                = 6
   
   } time_list_mode_t;
   
@@ -147,6 +148,13 @@ public:
   // after the search time within the search margin
   
   void setModeFirstAfter(RadxTime search_time, double time_margin);
+
+  /////////////////////////////////////////////////////////////////
+  // SetModeAll
+  //
+  // set the time list mode so that it finds all the available data 
+  
+  void setModeAll();
   
   /// Set aggregation into volume on read.
   /// If true, individual sweep files will be aggregated into a
@@ -218,7 +226,21 @@ public:
   // Sets doradeTime object.
   // Returns 0 on success, -1 on failure
   
-  static int getDoradeTime(const string &path, RadxTime &doradeTime);
+  static int getDoradeTime(const string &fileName, RadxTime &doradeTime);
+
+  // Get ISO 8601 time from file path
+  // Returns 0 on success, -1 on failure
+  
+  static int getIso8601Time(const string &fileName, RadxTime &isoTime);
+
+  // Get start and end times for generic file
+  // Returns 0 on success, -1 on failure
+  
+  static int getGenericTime(const string &fileName, const RadxTime &midday,
+                            RadxTime &fileStartTime, RadxTime &fileEndTime);
+
+  // get file start and end times
+  
   void getFirstAndLastTime(RadxTime &fileStartTime, RadxTime &fileEndTime);
 
 protected:
@@ -272,37 +294,38 @@ private:
   void _compileClosest(const string &topDir);
   void _compileFirstBefore(const string &topDir);
   void _compileFirstAfter(const string &topDir);
+  void _compileAll(const string &topDir);
   
   void _searchForValid(const string &topDir,
-                       RadxTime startTime,
-                       RadxTime endTime,
+                       RadxTime searchStartTime,
+                       RadxTime searchEndTime,
                        TimePathSet &timePaths);
   
   void _searchDayRange(const string &dir,
                        int startDay,
                        int endDay,
-                       RadxTime startTime,
-                       RadxTime endTime,
+                       RadxTime searchStartTime,
+                       RadxTime searchEndTime,
                        TimePathSet &timePaths);
   
   void _searchDay(const string &dayDir,
                   const RadxTime &midday,
-                  RadxTime startTime,
-                  RadxTime endTime,
+                  RadxTime searchStartTime,
+                  RadxTime searchEndTime,
                   TimePathSet &timePaths);
   
   void _searchTopDir(const string &dir,
                      int startDay,
                      int endDay,
-                     RadxTime startTime,
-                     RadxTime endTime,
+                     RadxTime searchStartTime,
+                     RadxTime searchEndTime,
                      TimePathSet &timePaths);
   
   void _addValid(const string &dir,
                  const RadxTime &midday,
                  const string &fileName,
-                 RadxTime startTime,
-                 RadxTime endTime,
+                 RadxTime searchStartTime,
+                 RadxTime searchEndTime,
                  TimePathSet &timePaths);
   
   void _addFirst(const string &dir,
@@ -313,9 +336,12 @@ private:
   
   void _addClosest(const string &topDir,
                    RadxTime searchTime,
-                   RadxTime startTime,
-                   RadxTime endTime,
+                   RadxTime searchStartTime,
+                   RadxTime searchEndTime,
                    TimePathSet &timePaths);
+
+  void _addAll(const string &topDir,
+           TimePathSet &timePaths);
 
   void _getDayDirs(const string &topDir,
 		   TimePathSet &dayDirs);

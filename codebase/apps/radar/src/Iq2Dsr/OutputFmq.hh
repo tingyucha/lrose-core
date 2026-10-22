@@ -40,7 +40,9 @@
 #include <vector>
 #include "Params.hh"
 #include "Beam.hh"
+#include <Fmq/DsFmq.hh>
 #include <Fmq/DsRadarQueue.hh>
+#include <Radx/RadxField.hh>
 class IwrfTsInfo;
 using namespace std;
 
@@ -75,16 +77,22 @@ public:
   // write the beam data
   
   int writeBeam(const Beam &beam);
+
+  // set folding attributes for selected fields
+  
+  void _setFoldingAttr(const Beam &beam,
+                       const Params::output_field_t &ofld,
+                       RadxField &field);
   
   // put flags
   
-  void putEndOfVolume(int volNum, time_t time);
-  void putStartOfVolume(int volNum, time_t time);
+  void putEndOfVolume(int volNum, const Beam &beam);
+  void putStartOfVolume(int volNum, const Beam &beam);
 
-  void putEndOfTilt(int tiltNum, time_t time);
-  void putStartOfTilt(int tiltNum, time_t time);
+  void putEndOfTilt(int tiltNum, const Beam &beam);
+  void putStartOfTilt(int tiltNum, const Beam &beam);
 
-  void putNewScanType(int scanType, time_t time);
+  void putNewScanType(int scanType, const Beam &beam);
 
   // constructor status
 
@@ -98,12 +106,17 @@ private:
   
   string _progName;
   const Params &_params;
+  bool _useRadx;
 
-  // radar queue
+  // DsRadar moments queue
 
-  DsRadarQueue *_rQueue;
+  DsRadarQueue *_dsrQueue;
   DsRadarMsg _msg;
   int _nFields;
+
+  // Radx moments queue
+
+  DsFmq *_radxQueue;
 
   // mutex to prevent main thread and write thread from
   // accessing these functions concurrently
@@ -120,9 +133,38 @@ private:
 
   // functions
 
-  int _openFmq();
+  int _writeParamsDsRadar(const Beam &beam);
+  int _writePlatformRadx(const Beam &beam);
+  
+  int _writeCalibDsRadar(const Beam &beam);
+  int _writeCalibRadx(const Beam &beam);
+  
+  int _writeStatusXmlDsRadar(const Beam &beam);
+  int _writeStatusXmlRadx(const Beam &beam);
+  
+  int _writeBeamDsRadar(const Beam &beam);
+  int _writeBeamRadx(const Beam &beam);
+  
+  void _putEndOfVolumeDsRadar(int volNum, const Beam &beam);
+  void _putEndOfVolumeRadx(int volNum, const Beam &beam);
 
-  // Add a field to the field params message.
+  void _putStartOfVolumeDsRadar(int volNum, const Beam &beam);
+  void _putStartOfVolumeRadx(int volNum, const Beam &beam);
+
+  void _putEndOfTiltDsRadar(int tiltNum, const Beam &beam);
+  void _putEndOfTiltRadx(int tiltNum, const Beam &beam);
+
+  void _putStartOfTiltDsRadar(int tiltNum, const Beam &beam);
+  void _putStartOfTiltRadx(int tiltNum, const Beam &beam);
+
+  void _putNewScanTypeDsRadar(int scanType, const Beam &beam);
+  void _putNewScanTypeRadx(int scanType, const Beam &beam);
+
+  int _openFmq();
+  int _openDsRadarQueue();
+  int _openRadxQueue();
+
+  // Add a field to the dsradar field params message.
 
   inline void _addField(const string &name,
                         const string &units,

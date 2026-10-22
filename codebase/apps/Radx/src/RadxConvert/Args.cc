@@ -42,8 +42,10 @@ using namespace std;
 Args::Args ()
 {
   TDRP_init_override(&override);
+  tdrpDebug = false;
   startTime = 0;
   endTime = 0;
+  printParamsFm301 = false;
 }
 
 // Destructor
@@ -98,6 +100,10 @@ int Args::parse (int argc, char **argv, string &prog_name)
       
       sprintf(tmp_str, "debug = DEBUG_EXTRA;");
       TDRP_add_override(&override, tmp_str);
+      
+    } else if (!strcmp(argv[i], "-trdp_debug")) {
+      
+      tdrpDebug = true;
       
     } else if (!strcmp(argv[i], "-instance")) {
       
@@ -217,9 +223,9 @@ int Args::parse (int argc, char **argv, string &prog_name)
       sprintf(tmp_str, "netcdf_style = NETCDF4;");
       TDRP_add_override(&override, tmp_str);
       
-    } else if (!strcmp(argv[i], "-ncxx")) {
+    } else if (!strcmp(argv[i], "-fm301")) {
       
-      sprintf(tmp_str, "output_format = OUTPUT_FORMAT_NCXX;");
+      sprintf(tmp_str, "output_format = OUTPUT_FORMAT_FM301;");
       TDRP_add_override(&override, tmp_str);
       
     } else if (!strcmp(argv[i], "-dorade")) {
@@ -370,6 +376,11 @@ int Args::parse (int argc, char **argv, string &prog_name)
       
       sprintf(tmp_str, "trim_surveillance_sweeps_to_360deg = TRUE;");
       TDRP_add_override(&override, tmp_str);
+
+    } else if (!strcmp(argv[i], "-combine_rhi")) {
+      
+      sprintf(tmp_str, "combine_rhi = TRUE;");
+      TDRP_add_override(&override, tmp_str);     
       
     } else if (!strcmp(argv[i], "-const_ngates")) {
       
@@ -671,6 +682,36 @@ int Args::parse (int argc, char **argv, string &prog_name)
 	OK = false;
       }
 	
+    } else if (!strcmp(argv[i], "-sweep_mode")) {
+      
+      if (i < argc - 1) {
+        i++;
+        sprintf(tmp_str, "override_sweep_mode = TRUE;");
+        TDRP_add_override(&override, tmp_str);
+        if (strstr("sur", argv[i])) {
+          sprintf(tmp_str, "sweep_mode = SWEEP_MODE_AZIMUTH_SURVEILLANCE;");
+          TDRP_add_override(&override, tmp_str);
+        } else if (strstr("sec", argv[i])) {
+          sprintf(tmp_str, "sweep_mode = SWEEP_MODE_SECTOR;");
+          TDRP_add_override(&override, tmp_str);
+        } else if (strstr("rhi", argv[i])) {
+          sprintf(tmp_str, "sweep_mode = SWEEP_MODE_RHI;");
+          TDRP_add_override(&override, tmp_str);
+        } else if (strstr("sun", argv[i])) {
+          sprintf(tmp_str, "sweep_mode = SWEEP_MODE_SUNSCAN;");
+          TDRP_add_override(&override, tmp_str);
+        } else {
+          OK = false;
+        }
+      } else {
+	OK = false;
+      }
+
+    } else if (!strcmp(argv[i], "-sweep_mode_from_angles")) {
+      
+      sprintf(tmp_str, "set_sweep_mode_from_ray_angles = true;");
+      TDRP_add_override(&override, tmp_str);
+      
     } else if (!strcmp(argv[i], "-relaxed_limits")) {
       
       sprintf(tmp_str, "apply_strict_angle_limits = false;");
@@ -834,8 +875,36 @@ int Args::parse (int argc, char **argv, string &prog_name)
 	OK = false;
       }
 	
+    } else if (!strcmp(argv[i], "-params_fm301")) {
+      
+      if (i < argc - 1) {
+	sprintf(tmp_str, "FM301_params_file_path = \"%s\";", argv[++i]);
+	TDRP_add_override(&override, tmp_str);
+      } else {
+	OK = false;
+      }
+	
+    } else if (!strcmp(argv[i], "-print_params_fm301")) {
+
+      printParamsFm301 = true;
+      if (i < argc - 1) {
+	printParamsFm301Mode = argv[++i];
+      }
+
+    } else if (!strcmp(argv[i], "-wmoWsi")) {
+      
+      if (i < argc - 1) {
+        wmoWsi = argv[++i];
+      }
+      
+    } else if (!strcmp(argv[i], "-wmoId")) {
+      
+      if (i < argc - 1) {
+        wmoId = argv[++i];
+      }
+	
     }
-    
+	
   } // i
 
   // set fields if specified
@@ -944,8 +1013,8 @@ void Args::_usage(ostream &out)
       << "  [ -cfradial ] convert to cfradial (the default)\n"
       << "  [ -cf2 ] convert to cfradial2, forces use of netcdf4\n"
       << "\n"
-      << "  [ -cf_classic ] output classic-style netcdf (the default)\n"
-      << "  [ -cf_netcdf4 ] output netcdf4 style\n"
+      << "  [ -cf_classic ] output classic-style netcdf\n"
+      << "  [ -cf_netcdf4 ] output netcdf4 style (the default)\n"
       << "  [ -cf_classic4 ] output classic-style netcdf4\n"
       << "  [ -cf_nc64bit ] output 64-bit NC netcdf\n"
       << "     The above only apply to cfradial and foray output.\n"
@@ -972,6 +1041,10 @@ void Args::_usage(ostream &out)
       << "  [ -end \"yyyy mm dd hh mm ss\"] end time\n"
       << "     Sets mode to ARCHIVE\n"
       << "\n"
+      << "  [ -exclude_field ? ] Exclude the specified field from the data set\n"
+      << "     Use multiple -exclude_field args to exclude multiple fields\n"
+      << "     If not specified, all fields will be included\n"
+      << "\n"
       << "  [ -f, -paths ? ] set file paths\n"
       << "     Sets mode to FILELIST\n"
       << "\n"
@@ -980,10 +1053,6 @@ void Args::_usage(ostream &out)
       << "     Use multiple -field args for multiple fields\n"
       << "     If not specified, all fields will be used\n"
       << "\n"
-      << "  [ -exclude_field ? ] Exclude the specified field from the data set\n"
-      << "     Use multiple -exclude_field args to exclude multiple fields\n"
-      << "     If not specified, all fields will be included\n"
-      << "\n"
       << "  [ -finest_geom ] remap to finest range geometry\n"
       << "\n"
       << "  [ -fixed_angle ? ] set single fixed_angle\n"
@@ -991,6 +1060,8 @@ void Args::_usage(ostream &out)
       << "\n"
       << "  [ -fixed_angle_max ? ] set max fixed_angle\n"
       << "     use '-fixed_ang' for setting minimum\n"
+      << "\n"
+      << "  [ -fm301 ] convert to WMO FM301 netcdf\n"
       << "\n"
       << "  [ -foray ] convert to FORAY-1 netcdf\n"
       << "\n"
@@ -1027,8 +1098,6 @@ void Args::_usage(ostream &out)
       << "  [ -native ] output in host-native byte ordering\n"
       << "\n"
       << "  [ -name ? ] override instrument name\n"
-      << "\n"
-      << "  [ -ncxx ] convert to cfradial using Ncxx classes\n"
       << "\n"
       << "  [ -nexrad ] convert to NEXRAD archive level 2\n"
       << "\n"
@@ -1126,6 +1195,12 @@ void Args::_usage(ostream &out)
       << "  [ -sweep_max ? ] set max sweep number\n"
       << "     use '-sweep' for setting minimum\n"
       << "\n"
+      << "  [ -sweep_mode ? ] set sweep mode\n"
+      << "     Options are: sur, sec, rhi, sunscan\n"
+      << "\n"
+      << "  [ -sweep_mode_from_angles ] set sweep mode from angles\n"
+      << "     Check angles to determine the sweep mode\n"
+      << "\n"
       << "  [ -time_offset ? ] set time offset (secs)\n"
       << "\n"
       << "  [ -title ? ] override the title string\n"
@@ -1160,6 +1235,10 @@ void Args::_usage(ostream &out)
       << "     starting at the number specified.\n"
       << "     Overrides the volume number in the data\n"
       << "\n"
+      << "  [ -wmoWsi ? ] set the WMO Wigos Station Identifier\n"
+      << "\n"
+      << "  [ -wmoId ? ] set the WMO Traditional Identifier\n"
+      << "\n"
       << "  [ -write_other ] option to write other fields unchanged.\n"
       << "     Default is that if -fields is used, only the specified fields\n"
       << "     will be written in the output files.\n"
@@ -1171,5 +1250,13 @@ void Args::_usage(ostream &out)
       << endl;
 
   Params::usage(out);
+  
+  out << endl;
+  out << "FM301-specific parameters:" << endl;
+  out << "   [ -params_fm301 ] specify FM301 params file path" << endl;
+  out << "     otherwise it is set in the main params file" << endl;
+  out << "   [ -print_params_fm301 [mode]] print FM301 params" << endl;
+  out << "     see modes from -print_params above" << endl;
+  out << endl;
   
 }

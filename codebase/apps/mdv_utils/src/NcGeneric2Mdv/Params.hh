@@ -120,6 +120,21 @@ public:
     double dy;
   } grid_params_t;
 
+  typedef struct {
+    char* input_field_name;
+    char* output_field_name;
+    char* long_field_name;
+    char* output_units;
+  } output_field_t;
+
+  typedef struct {
+    char* input_field_name;
+    double scale;
+    double offset;
+    char* output_field_name;
+    char* output_units;
+  } transform_field_t;
+
   ///////////////////////////
   // Member functions
   //
@@ -140,7 +155,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -438,11 +453,11 @@ public:
 
   char* netcdf_dim_time;
 
-  char* netcdf_dim_x;
+  char* netcdf_dim_z;
 
   char* netcdf_dim_y;
 
-  char* netcdf_dim_z;
+  char* netcdf_dim_x;
 
   char* netcdf_var_base_time;
 
@@ -522,6 +537,20 @@ public:
 
   double remap_offset_origin_longitude;
 
+  tdrp_bool_t get_date_and_time_from_global_attributes;
+
+  tdrp_bool_t get_missing_value_from_global_attributes;
+
+  tdrp_bool_t specify_output_fields;
+
+  output_field_t *_output_fields;
+  int output_fields_n;
+
+  tdrp_bool_t apply_linear_transforms;
+
+  transform_field_t *_transform_fields;
+  int transform_fields_n;
+
   tdrp_bool_t perform_sun_angle_correction;
 
   char* *_sun_correction_fields;
@@ -550,7 +579,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[77];
+  mutable TDRPtable _table[86];
 
   const char *_className;
 

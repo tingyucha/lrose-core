@@ -771,7 +771,7 @@
     tt->ptype = STRUCT_TYPE;
     tt->param_name = tdrpStrDup("dbz_field");
     tt->descr = tdrpStrDup("Reflectivity field details.");
-    tt->help = tdrpStrDup("If the field name is specified, that is used. If the field name is empty, the field number is used.");
+    tt->help = tdrpStrDup("Specify the field name. The use of the field num is deprecated.");
     tt->val_offset = (char *) &dbz_field - &_start_;
     tt->struct_def.name = tdrpStrDup("field_t");
     tt->struct_def.nfields = 2;
@@ -861,7 +861,7 @@
     tt->ptype = STRUCT_TYPE;
     tt->param_name = tdrpStrDup("vel_field");
     tt->descr = tdrpStrDup("Velocity field details.");
-    tt->help = tdrpStrDup("If the field name is specified, that is used. If the field name is empty, the field number is used. Note that the usage must be consistent with the dbz_field parameter, i.e. if you specify the name for reflectivity you must also specify the name for velocity, and vice versa.");
+    tt->help = tdrpStrDup("Specify the field name. The use of the field num is deprecated.");
     tt->val_offset = (char *) &vel_field - &_start_;
     tt->struct_def.name = tdrpStrDup("field_t");
     tt->struct_def.nfields = 2;
@@ -902,7 +902,7 @@
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 6");
     tt->comment_hdr = tdrpStrDup("REMAPPING THE VERTICAL LEVELS TO CONSTANT SPACING.");
-    tt->comment_text = tdrpStrDup("If the input files do not have constant vertical levels, you will need to remap the vertical levels appropriately. See the following parameters.");
+    tt->comment_text = tdrpStrDup("If the input files do not have constant spacing between the vertical levels, they need to be remapped to a constant delta heights. Titan can do this automatically, using the smallest delta Z in the data grid. But you have the option to specify the remapping manually. In that case, use this section to set the following parameters.");
     tt++;
     
     // Parameter 'remap_z_to_constant_grid'
@@ -912,7 +912,7 @@
     tt->ptype = BOOL_TYPE;
     tt->param_name = tdrpStrDup("remap_z_to_constant_grid");
     tt->descr = tdrpStrDup("Option to remap the Z levels onto a grid with constant dz.");
-    tt->help = tdrpStrDup("Field data will be remapped onto the specified Z levels using the nearest neighbor method. See 'remap_z_grid'. Note that this actually changes the data. Whereas 'override_vlevels' only changes the vlevels in the headers, and does not change the data.");
+    tt->help = tdrpStrDup("Field data will be remapped onto the specified Z levels using the nearest neighbor method. See 'remap_z_grid'.");
     tt->val_offset = (char *) &remap_z_to_constant_grid - &_start_;
     tt->single_val.b = pFALSE;
     tt++;
@@ -923,7 +923,7 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = STRUCT_TYPE;
     tt->param_name = tdrpStrDup("remap_z_grid");
-    tt->descr = tdrpStrDup("Specified Z levels for remapping.");
+    tt->descr = tdrpStrDup("Specified Z levels for remapping the vertical levels.");
     tt->help = tdrpStrDup("");
     tt->val_offset = (char *) &remap_z_grid - &_start_;
     tt->struct_def.name = tdrpStrDup("remap_z_grid_t");
@@ -948,9 +948,9 @@
     tt->n_struct_vals = 3;
     tt->struct_vals = (tdrpVal_t *)
         tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
-      tt->struct_vals[0].i = 10;
-      tt->struct_vals[1].d = 0;
-      tt->struct_vals[2].d = 1;
+      tt->struct_vals[0].i = 40;
+      tt->struct_vals[1].d = 0.5;
+      tt->struct_vals[2].d = 0.5;
     tt++;
     
     // Parameter 'Comment 7'
@@ -1029,7 +1029,205 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 8");
-    tt->comment_hdr = tdrpStrDup("OPTIONS TO USE DUAL THRESHOLDS.");
+    tt->comment_hdr = tdrpStrDup("OPTION TO THRESHOLD ON CONVECTIVITY.");
+    tt->comment_text = tdrpStrDup("Prerequisite: Ecco has previously been run on this data set.\n\nTitan is generally intended for identifying and tracking convective storms. Regions of stratiform rain, especially with embedded bright-band, can confuse the algorithm and lead to the identification of large entities, often close to the radar. Using this option to identify convective regions prior to storm identification can help mitigate this problem.\n\nThis section gives you the option to constrain storms to regions of higher convectivity. This allows you to avoid stratiform regions and concentrate tracking convective storms.");
+    tt++;
+    
+    // Parameter 'apply_convectivity_threshold'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("apply_convectivity_threshold");
+    tt->descr = tdrpStrDup("Option to threshold storms on convectivity in addition to reflectivity.");
+    tt->help = tdrpStrDup("This assumes that the Ecco algorithm has been run on this data set. The Ecco algorithm performs convective/stratiform partitioning.\n\nSee:\n\thttps://doi.org/10.1175/JTECH-D-22-0018.1.\n\nConvectivity is a concept introduced by Ecco. Convectivity ranges from 0 to 1 - higher values suggest convective regions, lower values stratiform regions.\n\nThe values suggested by Ecco are:\n\t0.0 to 0.4: stratiform.\n\t0.4 to 0.5: mixed.\n\t0.5 to 1.0: convective.");
+    tt->val_offset = (char *) &apply_convectivity_threshold - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'convectivity_field_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("convectivity_field_name");
+    tt->descr = tdrpStrDup("Name of convectivity field in the input data.");
+    tt->help = tdrpStrDup("To compute this field, you must first run the Ecco application. Save out both the reflecivity convectivity fields.");
+    tt->val_offset = (char *) &convectivity_field_name - &_start_;
+    tt->single_val.s = tdrpStrDup("Convectivity3D");
+    tt++;
+    
+    // Parameter 'low_convectivity_threshold'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("low_convectivity_threshold");
+    tt->descr = tdrpStrDup("Lower convectivity threshold for storm identification.");
+    tt->help = tdrpStrDup("This threshold will be applied in addion to low_dbz_threshold.");
+    tt->val_offset = (char *) &low_convectivity_threshold - &_start_;
+    tt->single_val.d = 0.5;
+    tt++;
+    
+    // Parameter 'high_convectivity_threshold'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("high_convectivity_threshold");
+    tt->descr = tdrpStrDup("Upper convectivity threshold for storm identification.");
+    tt->help = tdrpStrDup("This threshold will be applied in addion to high_dbz_threshold.");
+    tt->val_offset = (char *) &high_convectivity_threshold - &_start_;
+    tt->single_val.d = 1;
+    tt++;
+    
+    // Parameter 'Comment 9'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 9");
+    tt->comment_hdr = tdrpStrDup("OPTION TO IDENTIFY CONVECTIVE REGIONS IN PLACE.");
+    tt->comment_text = tdrpStrDup("The recommended alternative is to run Ecco, and then threshold Titan storms using both reflectivity and convectivity. See 'apply_convectivity_threshold' above.\n\nThis procedure uses the same method as Ecco, but has fewer options than running Ecco itself. For example it does not support the temperature profile option. Ecco has an option to read in model data from which to determine the temperature profile.");
+    tt++;
+    
+    // Parameter 'identify_convective_regions'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("identify_convective_regions");
+    tt->descr = tdrpStrDup("Option to identify convective regions prior to storm identification.");
+    tt->help = tdrpStrDup("If TRUE, an algorithm will be run to identify the convective regions first, and then remove the non-convective regions before we identify the storms. The parameters in this section control the algorithm that finds the convective regions.");
+    tt->val_offset = (char *) &identify_convective_regions - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'convection_finder_min_valid_height'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_min_valid_height");
+    tt->descr = tdrpStrDup("Min height used in analysis (km).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &convection_finder_min_valid_height - &_start_;
+    tt->single_val.d = 0;
+    tt++;
+    
+    // Parameter 'convection_finder_max_valid_height'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_max_valid_height");
+    tt->descr = tdrpStrDup("Max height used in analysis (km).");
+    tt->help = tdrpStrDup("Only data at or below this altitude is used.");
+    tt->val_offset = (char *) &convection_finder_max_valid_height - &_start_;
+    tt->single_val.d = 25;
+    tt++;
+    
+    // Parameter 'convection_finder_min_valid_dbz'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_min_valid_dbz");
+    tt->descr = tdrpStrDup("Minimum reflectivity threshold for this analysis (dBZ).");
+    tt->help = tdrpStrDup("Reflectivity below this threshold is set to missing.");
+    tt->val_offset = (char *) &convection_finder_min_valid_dbz - &_start_;
+    tt->single_val.d = 10;
+    tt++;
+    
+    // Parameter 'convection_finder_texture_radius_km'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_texture_radius_km");
+    tt->descr = tdrpStrDup("Radius for texture analysis (km).");
+    tt->help = tdrpStrDup("We determine the reflectivity 'texture' at a point by computing the standard deviation of the square of the reflectivity, for all grid points within this radius of the central point. We then compute the square root of that sdev.");
+    tt->val_offset = (char *) &convection_finder_texture_radius_km - &_start_;
+    tt->single_val.d = 5;
+    tt++;
+    
+    // Parameter 'convection_finder_min_valid_fraction_for_texture'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_min_valid_fraction_for_texture");
+    tt->descr = tdrpStrDup("Minimum fraction of surroundingpoints for texture computations.");
+    tt->help = tdrpStrDup("For a valid computation of texture, we require at least this fraction of points around the central point to have reflectivity in excess of min_valid_dbz.");
+    tt->val_offset = (char *) &convection_finder_min_valid_fraction_for_texture - &_start_;
+    tt->single_val.d = 0.33;
+    tt++;
+    
+    // Parameter 'convection_finder_min_convectivity_for_convective'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_min_convectivity_for_convective");
+    tt->descr = tdrpStrDup("Minimum convectivity for convective at a point.");
+    tt->help = tdrpStrDup("If the convectivity at a point exceeds this value, we set the convective flag at this point.");
+    tt->val_offset = (char *) &convection_finder_min_convectivity_for_convective - &_start_;
+    tt->single_val.d = 0.5;
+    tt++;
+    
+    // Parameter 'convection_finder_max_convectivity_for_stratiform'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_max_convectivity_for_stratiform");
+    tt->descr = tdrpStrDup("Maximum convectivity for stratiform at a point.");
+    tt->help = tdrpStrDup("If the convectivity at a point is less than this value, we set the stratiform flag at this point. If it is above this but less than min_convectivity_for_convective we flag the point as MIXED.");
+    tt->val_offset = (char *) &convection_finder_max_convectivity_for_stratiform - &_start_;
+    tt->single_val.d = 0.4;
+    tt++;
+    
+    // Parameter 'convection_finder_min_overlap_for_convective_clumps'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_min_overlap_for_convective_clumps");
+    tt->descr = tdrpStrDup("Minimum grid overlap in convective regions.");
+    tt->help = tdrpStrDup("A convective region is identified as a series of adjacent 'runs' of grid cells data in the EW direction. When testing for overlap, some minimum number of overlap grids must be used. This is that minimum overlap in grid units.");
+    tt->val_offset = (char *) &convection_finder_min_overlap_for_convective_clumps - &_start_;
+    tt->single_val.i = 3;
+    tt++;
+    
+    // Parameter 'convection_finder_write_debug_files'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_write_debug_files");
+    tt->descr = tdrpStrDup("Option to write out the gridded fields computed for the convective filter.");
+    tt->help = tdrpStrDup("For debugging and analysis purposes it is useful to be able to write out and displa y the grids computed in this step.");
+    tt->val_offset = (char *) &convection_finder_write_debug_files - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'convection_finder_output_url'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("convection_finder_output_url");
+    tt->descr = tdrpStrDup("Output URL.");
+    tt->help = tdrpStrDup("Output files are written to this URL.");
+    tt->val_offset = (char *) &convection_finder_output_url - &_start_;
+    tt->single_val.s = tdrpStrDup("mdv/convection");
+    tt++;
+    
+    // Parameter 'Comment 10'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 10");
+    tt->comment_hdr = tdrpStrDup("OPTION TO USE DUAL THRESHOLDS.");
     tt->comment_text = tdrpStrDup("");
     tt++;
     
@@ -1111,11 +1309,11 @@
     tt->single_val.s = tdrpStrDup("mdv/dual_threshold");
     tt++;
     
-    // Parameter 'Comment 9'
+    // Parameter 'Comment 11'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 9");
+    tt->param_name = tdrpStrDup("Comment 11");
     tt->comment_hdr = tdrpStrDup("LIMITS TO BASE, TOP, STORM SIZE.");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1168,11 +1366,11 @@
     tt->single_val.d = 1e+09;
     tt++;
     
-    // Parameter 'Comment 10'
+    // Parameter 'Comment 12'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 10");
+    tt->param_name = tdrpStrDup("Comment 12");
     tt->comment_hdr = tdrpStrDup("OPTIONS TO CHECK RANGE LIMITS AND SECOND TRIP.");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1249,152 +1447,11 @@
     tt->single_val.d = 10;
     tt++;
     
-    // Parameter 'Comment 11'
+    // Parameter 'Comment 13'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 11");
-    tt->comment_hdr = tdrpStrDup("OPTION TO IDENTIFY CONVECTIVE REGIONS.");
-    tt->comment_text = tdrpStrDup("Titan is generally intended for identifying and tracking convective storms. Regions of stratiform rain, especially with embedded bright-band, can confuse the algorithm and lead to the identification of large blobs, often close to the radar. Using this option to identify convective regions prior to storm identification can help mitigate this problem.");
-    tt++;
-    
-    // Parameter 'identify_convective_regions'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("identify_convective_regions");
-    tt->descr = tdrpStrDup("Option to identify convective regions prior to storm identification.");
-    tt->help = tdrpStrDup("If TRUE, an algorithm will be run to identify the convective regions first, and then remove the non-convective regions before we identify the storms. The parameters in this section control the algorithm that finds the convective regions.");
-    tt->val_offset = (char *) &identify_convective_regions - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'convection_finder_min_valid_height'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("convection_finder_min_valid_height");
-    tt->descr = tdrpStrDup("Min height used in analysis (km).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &convection_finder_min_valid_height - &_start_;
-    tt->single_val.d = 0;
-    tt++;
-    
-    // Parameter 'convection_finder_max_valid_height'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("convection_finder_max_valid_height");
-    tt->descr = tdrpStrDup("Max height used in analysis (km).");
-    tt->help = tdrpStrDup("Only data at or below this altitude is used.");
-    tt->val_offset = (char *) &convection_finder_max_valid_height - &_start_;
-    tt->single_val.d = 25;
-    tt++;
-    
-    // Parameter 'convection_finder_min_valid_dbz'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("convection_finder_min_valid_dbz");
-    tt->descr = tdrpStrDup("Minimum reflectivity threshold for this analysis (dBZ).");
-    tt->help = tdrpStrDup("Reflectivity below this threshold is set to missing.");
-    tt->val_offset = (char *) &convection_finder_min_valid_dbz - &_start_;
-    tt->single_val.d = 10;
-    tt++;
-    
-    // Parameter 'dbz_threshold_for_definite_convection'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("dbz_threshold_for_definite_convection");
-    tt->descr = tdrpStrDup("Reflectivity value that indicates definite convection.");
-    tt->help = tdrpStrDup("If the reflectivity exceeds this value at a point, we assume convection is definitely active at that point. To use this, we first compute the column maximum reflectivity. If the column max dbz at a point exceeds this threshold, then we flag that point as convective.");
-    tt->val_offset = (char *) &dbz_threshold_for_definite_convection - &_start_;
-    tt->single_val.d = 53;
-    tt++;
-    
-    // Parameter 'convective_radius_km'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("convective_radius_km");
-    tt->descr = tdrpStrDup("Radius of convective influence (km).");
-    tt->help = tdrpStrDup("Given definite convection at a point (see above), we set all points within this radius to be convective.");
-    tt->val_offset = (char *) &convective_radius_km - &_start_;
-    tt->single_val.d = 5;
-    tt++;
-    
-    // Parameter 'convection_finder_texture_radius_km'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("convection_finder_texture_radius_km");
-    tt->descr = tdrpStrDup("Radius for texture analysis (km).");
-    tt->help = tdrpStrDup("We determine the reflectivity 'texture' at a point by computing the standard deviation of the square of the reflectivity, for all grid points within this radius of the central point. We then compute the square root of that sdev.");
-    tt->val_offset = (char *) &convection_finder_texture_radius_km - &_start_;
-    tt->single_val.d = 5;
-    tt++;
-    
-    // Parameter 'convection_finder_min_valid_fraction_for_texture'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("convection_finder_min_valid_fraction_for_texture");
-    tt->descr = tdrpStrDup("Minimum fraction of surroundingpoints for texture computations.");
-    tt->help = tdrpStrDup("For a valid computation of texture, we require at least this fraction of points around the central point to have reflectivity in excess of min_valid_dbz.");
-    tt->val_offset = (char *) &convection_finder_min_valid_fraction_for_texture - &_start_;
-    tt->single_val.d = 0.33;
-    tt++;
-    
-    // Parameter 'convection_finder_min_texture_value'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("convection_finder_min_texture_value");
-    tt->descr = tdrpStrDup("Minimum texture value for convection at a point.");
-    tt->help = tdrpStrDup("If the texture at a point exceeds this value, we set the convective flag at this point. We then expand the convective influence around the point using convetive_radius_km.");
-    tt->val_offset = (char *) &convection_finder_min_texture_value - &_start_;
-    tt->single_val.d = 15;
-    tt++;
-    
-    // Parameter 'convection_finder_write_debug_files'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("convection_finder_write_debug_files");
-    tt->descr = tdrpStrDup("Option to write out the gridded fields computed for the convective filter.");
-    tt->help = tdrpStrDup("For debugging and analysis purposes it is useful to be able to write out and displa y the grids computed in this step.");
-    tt->val_offset = (char *) &convection_finder_write_debug_files - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'convection_finder_output_url'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("convection_finder_output_url");
-    tt->descr = tdrpStrDup("Output URL.");
-    tt->help = tdrpStrDup("Output files are written to this URL.");
-    tt->val_offset = (char *) &convection_finder_output_url - &_start_;
-    tt->single_val.s = tdrpStrDup("mdv/convection");
-    tt++;
-    
-    // Parameter 'Comment 12'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 12");
+    tt->param_name = tdrpStrDup("Comment 13");
     tt->comment_hdr = tdrpStrDup("PRECIP RATE AND MASS PARAMETERS.");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1531,11 +1588,11 @@
     tt->single_val.d = 2;
     tt++;
     
-    // Parameter 'Comment 13'
+    // Parameter 'Comment 14'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 13");
+    tt->param_name = tdrpStrDup("Comment 14");
     tt->comment_hdr = tdrpStrDup("REFLECTIVITY DISTRIBUTION.");
     tt->comment_text = tdrpStrDup("NOTE: the 2D reflectivity histogram will be computed for a plane in the same manner as precipitation. See 'precip_mode' parameter for more details.");
     tt++;
@@ -1552,11 +1609,11 @@
     tt->single_val.d = 3;
     tt++;
     
-    // Parameter 'Comment 14'
+    // Parameter 'Comment 15'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 14");
+    tt->param_name = tdrpStrDup("Comment 15");
     tt->comment_hdr = tdrpStrDup("VERTICAL PROFILE - SOUNDING");
     tt->comment_text = tdrpStrDup("You can: \n\t(a) specify a vertical profile sounding in this param file or\n\t(b) read in a profile from soundings in SPDB.\n\nThe default sounding obtained using -print_params is the ICAO standard atmosphere.\n\nNOTE: the 'ht_of_freezing' parameter has been deprecated. Use this section instead.");
     tt++;
@@ -1571,13 +1628,15 @@
     tt->help = tdrpStrDup("SPECIFY_SOUNDING: if you do not have access to a measured or model sounding, specify the sounding in this parameter file.\n\nREAD_SOUNDING_FROM_SPDB: read in the closest sounding from SPDB. This assumes you have arranged to have the sounding(s) read in and stored in SPDB.");
     tt->val_offset = (char *) &sounding_mode - &_start_;
     tt->enum_def.name = tdrpStrDup("sounding_mode_t");
-    tt->enum_def.nfields = 2;
+    tt->enum_def.nfields = 3;
     tt->enum_def.fields = (enum_field_t *)
         tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
       tt->enum_def.fields[0].name = tdrpStrDup("SPECIFY_SOUNDING");
       tt->enum_def.fields[0].val = SPECIFY_SOUNDING;
       tt->enum_def.fields[1].name = tdrpStrDup("READ_SOUNDING_FROM_SPDB");
       tt->enum_def.fields[1].val = READ_SOUNDING_FROM_SPDB;
+      tt->enum_def.fields[2].name = tdrpStrDup("READ_SOUNDING_FROM_MODEL");
+      tt->enum_def.fields[2].val = READ_SOUNDING_FROM_MODEL;
     tt->single_val.e = SPECIFY_SOUNDING;
     tt++;
     
@@ -1790,11 +1849,92 @@
     tt->single_val.b = pTRUE;
     tt++;
     
-    // Parameter 'Comment 15'
+    // Parameter 'Comment 16'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 15");
+    tt->param_name = tdrpStrDup("Comment 16");
+    tt->comment_hdr = tdrpStrDup("MODEL DATA FOR SOUNDING");
+    tt->comment_text = tdrpStrDup("Applies if sounding_mode is READ_SOUNDING_FROM_MODEL. The model data must have been converted into 3-D CF-netCDF MDV format, with heights in km. Temperature is a required field.");
+    tt++;
+    
+    // Parameter 'model_input_url'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("model_input_url");
+    tt->descr = tdrpStrDup("URL for reading model data, in MDV/Netcdf-CF format.");
+    tt->help = tdrpStrDup("We read in the model data that is closest in time to the radar data.");
+    tt->val_offset = (char *) &model_input_url - &_start_;
+    tt->single_val.s = tdrpStrDup("mdv/model");
+    tt++;
+    
+    // Parameter 'model_search_margin_secs'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("model_search_margin_secs");
+    tt->descr = tdrpStrDup("Search margin for model data (secs)");
+    tt->help = tdrpStrDup("We search for model data within this margin of the radar data time.");
+    tt->val_offset = (char *) &model_search_margin_secs - &_start_;
+    tt->single_val.i = 10400;
+    tt++;
+    
+    // Parameter 'model_temperature_field_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("model_temperature_field_name");
+    tt->descr = tdrpStrDup("Name of the temperature field in the model.");
+    tt->help = tdrpStrDup("This is required if model data is to be used for the temperature profile.");
+    tt->val_offset = (char *) &model_temperature_field_name - &_start_;
+    tt->single_val.s = tdrpStrDup("TMP");
+    tt++;
+    
+    // Parameter 'model_convert_K_to_C'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("model_convert_K_to_C");
+    tt->descr = tdrpStrDup("Do we need to convert model temperature from Kelvin to Celcius.");
+    tt->help = tdrpStrDup("The temperature profile used by Titan is in Celcius.");
+    tt->val_offset = (char *) &model_convert_K_to_C - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'write_model_temp_files'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("write_model_temp_files");
+    tt->descr = tdrpStrDup("Write the model temperature files.");
+    tt->help = tdrpStrDup("This can be used for debugging.");
+    tt->val_offset = (char *) &write_model_temp_files - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'model_temp_output_url'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("model_temp_output_url");
+    tt->descr = tdrpStrDup("URL for writing model temperature files.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &model_temp_output_url - &_start_;
+    tt->single_val.s = tdrpStrDup("/tmp/mdv/model");
+    tt++;
+    
+    // Parameter 'Comment 17'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 17");
     tt->comment_hdr = tdrpStrDup("OPTION FOR CALCULATING HAIL METRICS.");
     tt->comment_text = tdrpStrDup("NOTE: the 'ht_of_freezing' parameter has been deprecated. Use the 'specified_sounding' parameter instead - see section above.");
     tt++;
@@ -1897,11 +2037,11 @@
     tt->single_val.d = 45;
     tt++;
     
-    // Parameter 'Comment 16'
+    // Parameter 'Comment 18'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 16");
+    tt->param_name = tdrpStrDup("Comment 18");
     tt->comment_hdr = tdrpStrDup("The Foote-Krauss Category (FOKR)");
     tt->comment_text = tdrpStrDup("The FOKR Category is intended to separate non-hailstorms (Category 0 and 1) from potentially developing hailers (Cat. 2), likely hailstorms (Cat. 3) and severe hailstorms (Cat. 4)");
     tt++;
@@ -1954,11 +2094,11 @@
     tt->single_val.d = 65;
     tt++;
     
-    // Parameter 'Comment 17'
+    // Parameter 'Comment 19'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 17");
+    tt->param_name = tdrpStrDup("Comment 19");
     tt->comment_hdr = tdrpStrDup("DATA OUTPUT.");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1987,11 +2127,11 @@
     tt->single_val.b = pTRUE;
     tt++;
     
-    // Parameter 'Comment 18'
+    // Parameter 'Comment 20'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 18");
+    tt->param_name = tdrpStrDup("Comment 20");
     tt->comment_hdr = tdrpStrDup("OPTION TO CREATE VERIFICATION FILES.");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2020,11 +2160,11 @@
     tt->single_val.s = tdrpStrDup("mdv/verify");
     tt++;
     
-    // Parameter 'Comment 19'
+    // Parameter 'Comment 21'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 19");
+    tt->param_name = tdrpStrDup("Comment 21");
     tt->comment_hdr = tdrpStrDup("TRACKING PARAMETERS.");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2119,11 +2259,11 @@
     tt->single_val.d = 0.6;
     tt++;
     
-    // Parameter 'Comment 20'
+    // Parameter 'Comment 22'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 20");
+    tt->param_name = tdrpStrDup("Comment 22");
     tt->comment_hdr = tdrpStrDup("FORECAST PARAMETERS.");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2303,20 +2443,20 @@
     tt->single_val.i = 5;
     tt++;
     
-    // Parameter 'Comment 21'
+    // Parameter 'Comment 23'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 21");
+    tt->param_name = tdrpStrDup("Comment 23");
     tt->comment_hdr = tdrpStrDup("SMOOTHING THE MOTION FORECAST.");
     tt->comment_text = tdrpStrDup("Options for smoothing motion forecasts. The smoothed motion is computed using the motion of surrounding storms. The storms included are out to a given radius from the storm undergoing smoothing. NOTE: this will not be performed if the field tracker option is used to override the speed/dirn forecast.");
     tt++;
     
-    // Parameter 'Comment 22'
+    // Parameter 'Comment 24'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 22");
+    tt->param_name = tdrpStrDup("Comment 24");
     tt->comment_hdr = tdrpStrDup("SMOOTHING CATEGORIES.");
     tt->comment_text = tdrpStrDup("For smoothing, you can turn on the following options separately or together: (a) tracking_smooth_invalid_forecasts: smooth motion for storms without a valid forecast; (b) tracking_spatial_smoothing: smooth motion for storms with a valid forecast; (c) tracking_smooth_fast_growth_decay: smooth the forecast for storms which have a rapid growth or decay. In addition to these main categories, you can set other parameters to control the way the smoothing is done.");
     tt++;
@@ -2345,11 +2485,11 @@
     tt->single_val.b = pTRUE;
     tt++;
     
-    // Parameter 'Comment 23'
+    // Parameter 'Comment 25'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 23");
+    tt->param_name = tdrpStrDup("Comment 25");
     tt->comment_hdr = tdrpStrDup("SMOOTHING RADIUS OF INFLUENCE");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2380,11 +2520,11 @@
     tt->single_val.i = 5;
     tt++;
     
-    // Parameter 'Comment 24'
+    // Parameter 'Comment 26'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 24");
+    tt->param_name = tdrpStrDup("Comment 26");
     tt->comment_hdr = tdrpStrDup("SMOOTHING WEIGHTS");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2425,11 +2565,11 @@
     tt->single_val.b = pFALSE;
     tt++;
     
-    // Parameter 'Comment 25'
+    // Parameter 'Comment 27'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 25");
+    tt->param_name = tdrpStrDup("Comment 27");
     tt->comment_hdr = tdrpStrDup("SMOOTHING THRESHOLDS FOR FAST GROWTH AND DECAY");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2470,11 +2610,11 @@
     tt->single_val.d = -0.5;
     tt++;
     
-    // Parameter 'Comment 26'
+    // Parameter 'Comment 28'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 26");
+    tt->param_name = tdrpStrDup("Comment 28");
     tt->comment_hdr = tdrpStrDup("SMOOTHING - DETECTING ERRATIC FORECASTS");
     tt->comment_text = tdrpStrDup("To determine whether a forecast is eratic, the error of the speed and direction is computed for a storm as compared with the mean motion for the storms within the radius of influence.");
     tt++;
@@ -2515,11 +2655,11 @@
     tt->single_val.d = 50;
     tt++;
     
-    // Parameter 'Comment 27'
+    // Parameter 'Comment 29'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 27");
+    tt->param_name = tdrpStrDup("Comment 29");
     tt->comment_hdr = tdrpStrDup("OVERRIDE EARLY STORM MOTION FROM FIELD TRACKER");
     tt->comment_text = tdrpStrDup("If this is activated, all other spatial smoothing will be turned off.");
     tt++;

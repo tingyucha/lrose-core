@@ -86,6 +86,18 @@ paramdef int {
   p_help = "See 'check_radar_id' above.";
 } radar_id;
 
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to specify the pulse width.";
+  p_help = "Only applicable if beam_method = BEAM_CONSTANT_PULSE_WIDTH. See 'fixed_pulse_width_us'. Pulses with different pulse widths are discarded.";
+} specify_pulse_width;
+
+paramdef double {
+  p_default = 1.0;
+  p_descr = "Specified pulse width in microseconds.";
+  p_help = "See 'specify_pulse_width'. Only applicable if beam_method = BEAM_CONSTANT_PULSE_WIDTH. Pulses with different pulse widths are discarded.";
+} fixed_pulse_width_us;
+
 commentdef {
   p_header = "SIGNAL GENERATOR CONTROL";
 };
@@ -122,9 +134,15 @@ paramdef boolean {
 } siggen_specify_power_sequence;
 
 paramdef double {
-  p_default = { 0, -5, -10, -15,-20, -25, -30, -35, -40, -45, -50, -55, -60, -65, -70, -75, -80, -85, -90, -95, -100, -105, -110, -115, -120, -125, -130 };
+  p_default = -38.62;
+  p_descr = "Start value for siggen power sequence (dBm)";
+  p_help = "The actual power is the sum of this value, with the delta power in the sequence.";
+} siggen_sequence_start_power;
+
+paramdef double {
+  p_default = { 0, -5, -10, -15, -20, -25, -30, -35, -40, -46.35, -51.35, -56.35, -61.35, -66.35, -71.35, -76.35, -81.35, -86.35, -91.35, -96.35, -101.35, -106.35, -111.35, -116.35, -121.35, -126.35, -131.35 };
   p_descr = "Min power for siggen signal (dBm)";
-} siggen_power_sequence[];
+} siggen_delta_power_sequence[];
 
 paramdef boolean {
   p_default = TRUE;
@@ -147,8 +165,20 @@ paramdef int {
 paramdef boolean {
   p_default = false;
   p_descr = "Option to manually set the siggen.";
-  p_help = "Use for testing etc.";
+  p_help = "The user will be prompted with the required siggen power.";
 } use_manual_siggen_control;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to prompt with attenuation instead of siggen power.";
+  p_help = "On some systems the injected power level is controlled with a variable attenuator instead of by setting the siggen power. If this is set to true, the user will be prompted with the required attenuation in dB.";
+} prompt_user_with_attenuation;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Initial attenuation value (dB)";
+  p_help = "This is the variable attenuator setting corresponding to the siggen_sequence_start_power. We use this value to compute the attenuation with which to prompt the user.";
+} variable_attenuation_start_value;
 
 paramdef boolean {
   p_default = false;

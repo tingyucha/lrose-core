@@ -86,8 +86,32 @@ public:
     DWELL_STATS_MEDIAN = 1,
     DWELL_STATS_MAXIMUM = 2,
     DWELL_STATS_MINIMUM = 3,
-    DWELL_STATS_MIDDLE = 4
+    DWELL_STATS_MIDDLE = 4,
+    DWELL_STATS_DISCRETE_MODE = 5
   } dwell_stats_method_t;
+
+  typedef enum {
+    PLATFORM_FIXED = 1,
+    PLATFORM_VEHICLE = 2,
+    PLATFORM_SHIP = 3,
+    PLATFORM_AIRCRAFT_FORE = 5,
+    PLATFORM_AIRCRAFT_AFT = 6,
+    PLATFORM_AIRCRAFT_TAIL = 7,
+    PLATFORM_AIRCRAFT_BELLY = 8,
+    PLATFORM_AIRCRAFT_ROOF = 9,
+    PLATFORM_AIRCRAFT_NOSE = 10,
+    PLATFORM_SATELLITE_ORBIT = 11,
+    PLATFORM_SATELLITE_GEOSTAT = 12
+  } platform_type_t;
+
+  typedef enum {
+    PRIMARY_AXIS_Z = 0,
+    PRIMARY_AXIS_Y = 1,
+    PRIMARY_AXIS_X = 2,
+    PRIMARY_AXIS_Z_PRIME = 3,
+    PRIMARY_AXIS_Y_PRIME = 4,
+    PRIMARY_AXIS_X_PRIME = 5
+  } primary_axis_t;
 
   typedef enum {
     LOGICAL_AND = 0,
@@ -109,19 +133,8 @@ public:
 
   typedef enum {
     OUTPUT_FORMAT_CFRADIAL = 0,
-    OUTPUT_FORMAT_DORADE = 1,
-    OUTPUT_FORMAT_FORAY = 2,
-    OUTPUT_FORMAT_NEXRAD = 3,
-    OUTPUT_FORMAT_UF = 4,
-    OUTPUT_FORMAT_MDV_RADIAL = 5
+    OUTPUT_FORMAT_CFRADIAL2 = 1
   } output_format_t;
-
-  typedef enum {
-    CLASSIC = 0,
-    NC64BIT = 1,
-    NETCDF4 = 2,
-    NETCDF4_CLASSIC = 3
-  } netcdf_style_t;
 
   typedef enum {
     START_AND_END_TIMES = 0,
@@ -143,6 +156,12 @@ public:
     char* field_name;
     dwell_stats_method_t stats_method;
   } stats_method_field_t;
+
+  typedef struct {
+    double latitudeDeg;
+    double longitudeDeg;
+    double altitudeKm;
+  } radar_location_t;
 
   typedef struct {
     char* name;
@@ -189,7 +208,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -495,8 +514,6 @@ public:
 
   tdrp_bool_t seek_to_end_of_input_fmq;
 
-  tdrp_bool_t aggregate_sweep_files_on_read;
-
   tdrp_bool_t set_max_range;
 
   double max_range_km;
@@ -537,6 +554,18 @@ public:
 
   char* author_override;
 
+  tdrp_bool_t fixed_location_mode;
+
+  radar_location_t fixed_radar_location;
+
+  tdrp_bool_t override_platform_type;
+
+  platform_type_t platform_type;
+
+  tdrp_bool_t override_primary_axis;
+
+  primary_axis_t primary_axis;
+
   tdrp_bool_t apply_censoring;
 
   censoring_field_t *_censoring_fields;
@@ -569,16 +598,6 @@ public:
   int transform_fields_n;
 
   output_format_t output_format;
-
-  netcdf_style_t netcdf_style;
-
-  tdrp_bool_t output_native_byte_order;
-
-  tdrp_bool_t output_compressed;
-
-  tdrp_bool_t output_force_ngates_vary;
-
-  int compression_level;
 
   char* output_dir;
 

@@ -97,6 +97,34 @@ public:
   //@{
 
   //////////////////////////////////////////////////////////////
+  /// Compute the output path
+  ///
+  /// The computed path will be based on the choices made
+  /// in setting up the RadxFile, using the following methods:
+  ///
+  ///   setWriteFileNameMode(file_name_mode_t val)
+  ///   setWriteFileNamePrefix(const string &val)
+  ///   setWriteFileNameSuffix(const string &val)
+  ///   setWriteInstrNameInFileName(bool val)
+  ///   setWriteSiteNameInFileName(bool val)
+  ///   setWriteSubsecsInFileName(bool val)
+  ///   setWriteScanTypeInFileName(bool val)
+  ///   setWriteScanIdInFileName(bool val)
+  ///   setWriteScanNameInFileName(bool val)
+  ///   setWriteRangeResolutionInFileName(bool val)
+  ///   setWriteVolNumInFileName(bool val)
+  ///   setWriteHyphenInDateTime(bool val)
+  
+  string computeWritePath(const RadxVol &vol,
+                          const RadxTime &startTime,
+                          int startMillisecs,
+                          const RadxTime &endTime,
+                          int endMillisecs,
+                          const RadxTime &fileTime,
+                          int fileMillisecs,
+                          const string &dir);
+  
+  //////////////////////////////////////////////////////////////
   /// Write data from RadxVol volume to the specified directory.
   ///
   /// If addDaySubDir is true, a subdirectory will be
@@ -427,6 +455,8 @@ private:
   vector<double> _dTimes;
   time_t _refTimeSecsFile;
   bool _rayTimesIncrease;
+  string _startTimeStr;
+  string _endTimeStr;
 
   int _volumeNumber;
   Radx::InstrumentType_t _instrumentType;
@@ -552,7 +582,27 @@ private:
   vector<double> _geoRollRate;
   vector<double> _geoDriveAngle1;
   vector<double> _geoDriveAngle2;
+  vector<double> _geoTrackRelRot;
+  vector<double> _geoTrackRelTilt;
+  vector<double> _geoTrackRelAz;
+  vector<double> _geoTrackRelEl;
+
+  // field meta-data
   
+  string _fieldName, _fieldUnits;
+  string _fieldStandardName, _fieldLongName;
+  string _fieldWmoParameterName, _fieldWmoParameterUri;
+  string _fieldCommentStr;
+  string _fieldAncillaryVariablesStr;
+  string _fieldLegendXml, _fieldThresholdingXml;
+  double _fieldSamplingRatio;
+  bool _fieldIsDiscrete;
+  vector<int> _fieldFlagValues;
+  vector<string> _fieldFlagMeanings;
+  bool _fieldFolds;
+  double _fieldFoldLimitLower, _fieldFoldLimitUpper;
+  double _fieldOffset, _fieldScale;
+
   // private methods for NcfRadial.cc
   
   int _writeSweepsToDir(const RadxVol &vol, const string &dir,
@@ -593,6 +643,7 @@ private:
   int _readGeorefVariables();
   void _clearRayVariables();
   int _readRayVariables();
+  int _checkSweepIndices();
   int _createRays(const string &path);
   int _readFrequencyVariable();
   void _readRayGateGeom();
@@ -608,16 +659,24 @@ private:
                             string &units,
                             string &standardName,
                             string &longName,
+                            string &wmoParamaterName,
+                            string &wmoParameterUri,
                             string &commentStr,
+                            string &ancillaryVariablesStr,
                             string &legendXml,
                             string &thresholdingXml,
                             double &samplingRatio,
                             bool &isDiscrete,
+                            vector<int> &flagValues,
+                            vector<string> &flagMeanings,
                             bool &fieldFolds,
                             double &foldLimitLower,
                             double &foldLimitUpper,
                             double &offset,
                             double &scale);
+
+  void _setFieldAttributes(RadxField *field,
+                           bool isQualifier);
 
   int _readRayVar(Nc3Var* &var, const string &name, 
                   vector<double> &vals, bool required = true);
@@ -647,49 +706,28 @@ private:
 
   int _addFl64FieldToRays(Nc3Var* var,
                           const string &name, const string &units,
-                          const string &standardName, const string &longName,
-                          bool isQualifier = false,
-                          bool isDiscrete = false,
-                          bool fieldFolds = false,
-                          float foldLimitLower = 0.0,
-                          float foldLimitUpper = 0.0);
+                          double scale, double offset,
+                          bool isQualifier = false);
   int _addFl32FieldToRays(Nc3Var* var,
                           const string &name, const string &units,
-                          const string &standardName, const string &longName,
-                          bool isQualifier = false,
-                          bool isDiscrete = false,
-                          bool fieldFolds = false,
-                          float foldLimitLower = 0.0,
-                          float foldLimitUpper = 0.0);
+                          double scale, double offset,
+                          bool isQualifier = false);
   int _addSi32FieldToRays(Nc3Var* var,
                           const string &name, const string &units,
-                          const string &standardName, const string &longName,
-                          double scale,
-                          double offset,
-                          bool isQualifier = false,
-                          bool isDiscrete = false,
-                          bool fieldFolds = false,
-                          float foldLimitLower = 0.0,
-                          float foldLimitUpper = 0.0);
+                          double scale, double offset,
+                          bool isQualifier = false);
   int _addSi16FieldToRays(Nc3Var* var,
                           const string &name, const string &units,
-                          const string &standardName, const string &longName,
                           double scale, double offset,
-                          bool isQualifier = false,
-                          bool isDiscrete = false,
-                          bool fieldFolds = false,
-                          float foldLimitLower = 0.0,
-                          float foldLimitUpper = 0.0,
-			  float samplingRatio = 1.0);
+                          bool isQualifier = false);
+  int _addUi16FieldToRays(Nc3Var* var,
+                          const string &name, const string &units,
+                          double scale, double offset,
+                          bool isQualifier = false);
   int _addSi08FieldToRays(Nc3Var* var,
                           const string &name, const string &units,
-                          const string &standardName, const string &longName,
                           double scale, double offset,
-                          bool isQualifier = false,
-                          bool isDiscrete = false,
-                          bool fieldFolds = false,
-                          float foldLimitLower = 0.0,
-                          float foldLimitUpper = 0.0);
+                          bool isQualifier = false);
 
   void _loadReadVolume();
 
@@ -736,15 +774,6 @@ private:
   Radx::fl64 _checkMissingDouble(double val);
   Radx::fl32 _checkMissingFloat(float val);
   
-  string _computeWritePath(const RadxVol &vol,
-                           const RadxTime &startTime,
-                           int startMillisecs,
-                           const RadxTime &endTime,
-                           int endMillisecs,
-                           const RadxTime &fileTime,
-                           int fileMillisecs,
-                           const string &dir);
-
 };
 
 #endif

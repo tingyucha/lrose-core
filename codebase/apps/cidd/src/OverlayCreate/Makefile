@@ -39,18 +39,14 @@ LOC_INCLUDES =
 LOC_CFLAGS =
 LOC_LDFLAGS =
 LOC_LIBS = \
-	-lrapmath -ltoolsa -ltdrp -lbz2 \
-	-lz -lm
-
-MODULE_TYPE = program
+	-lrapmath -ltoolsa -ldataport -ltdrp \
+	-lbz2 -lz -lm -lpthread
 
 HDRS = \
 	Args.h \
 	Circle.h \
 	OverlayCreate.h \
 	Params.h
-
-C_SRCS = $(TDRP_C)
 
 CPPC_SRCS = \
 	Args.cc \
@@ -75,9 +71,8 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
 # local targets
 #
 
-depend: $(TDRP_C) depend_generic
-
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_targets
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

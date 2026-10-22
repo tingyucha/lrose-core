@@ -133,23 +133,24 @@ commentdef {
 paramdef string {
   p_default = "time";
   p_descr = "name for netCDF dimension for time.";
+  p_help = "Specify 'none' if there is no time dimension.";
 } netcdf_dim_time;
-
-paramdef string {
-  p_default = "longitude";
-  p_descr = "netCDF dimension name for grid points in longitude.";
-} netcdf_dim_x;
-
-paramdef string {
-  p_default = "latitude";
-  p_descr = "netCDF dimension name for grid points in latitude.";
-} netcdf_dim_y;
 
 paramdef string {
   p_default = "altitude";
   p_descr = "netCDF dimension name for grid points in altitude.";
   p_descr = "Specify 'none' if there is no Z dimension.";
 } netcdf_dim_z;
+
+paramdef string {
+  p_default = "latitude";
+  p_descr = "netCDF dimension name for grid points in latitude or y.";
+} netcdf_dim_y;
+
+paramdef string {
+  p_default = "longitude";
+  p_descr = "netCDF dimension name for grid points in longitude or x.";
+} netcdf_dim_x;
 
 commentdef {
   p_header = "NETCDF variables";
@@ -443,6 +444,77 @@ paramdef double {
 } remap_offset_origin_longitude;
 
 commentdef {
+  p_header = "OPTIONS TO GET METADATA FROM GLOBAL ATTRIBUTES.";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Get the date and time from the global attributes.";
+  p_help = "If true, we read year, month, day, hour, minute, second from global attributes.";
+} get_date_and_time_from_global_attributes;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Get the missing value from the global attributes.";
+  p_help = "If true, we read missing_value from global attributes. Otherwise we get that from the field attributes.";
+} get_missing_value_from_global_attributes;
+
+commentdef {
+  p_header = "OPTION TO SELECT SPECIFIC FIELDS TO PROCESS.";
+  p_text = "Use this to select fields to include, and the rest will be excluded.";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to specify output fields.";
+  p_help = "If true, only the specified fields will be included in the output files.";
+} specify_output_fields;
+
+typedef struct {
+  string input_field_name; 
+  string output_field_name; 
+  string long_field_name; 
+  string output_units;
+} output_field_t;
+
+paramdef struct output_field_t {
+  p_default = {
+    { "dbz", "", "reflectivity", ""},
+    { "vel", "vel", "radial velocity", "m/s"}
+  };
+  p_descr = "Fields to be included in the output files.";
+  p_help = "The input_field_name must be specified. If the output_field_name is empty, the input field name will be used unchanged. If the long_field_name is empty, the long name from the input file will be used unchanged. If output_units is empty, the units from the input file will be used.";
+} output_fields[];
+
+commentdef {
+  p_header = "OPTION TO APPLY LINEAR TRANSFORM TO SPECIFIED FIELDS.";
+  p_text = "These transforms are fixed. The same transform is applied to all files.";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Apply linear transform to specified fields.";
+  p_help = "If true, we will apply a linear transform to selected fields.";
+} apply_linear_transforms;
+
+typedef struct {
+  string input_field_name; 
+  double scale;
+  double offset;
+  string output_field_name; 
+  string output_units;
+} transform_field_t;
+
+paramdef struct transform_field_t {
+  p_default = {
+    { "albedo", 100.0, 0.0, "albedo", "%"},
+    { "tbb", 1.0, 273.0, "TempC", "C"}
+  };
+  p_descr = "Transform field details.";
+  p_help = "Set the field name, scale and offset to be applied to the selected fields. Also set the ouptut field name and units";
+} transform_fields[];
+
+commentdef {
   p_header = "SUN ANGLE CORRECTION";
   p_text = "Applies only to satellite visible fields.";
 }
@@ -456,7 +528,7 @@ paramdef boolean {
 paramdef string {
   p_default = { "VIS" };
   p_descr = "Fields to which sun angle correction will be applied.";
-  p_help = "See 'perform_sun_angle_correction'.";
+  p_help = "The field name is used AFTER the linear transform step. See 'perform_sun_angle_correction'.";
 } sun_correction_fields[];
 
 paramdef double {

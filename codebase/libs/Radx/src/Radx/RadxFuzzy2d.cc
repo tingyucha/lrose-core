@@ -28,6 +28,8 @@
  */
 
 #include <Radx/RadxFuzzy2d.hh>
+#include <toolsa/safe_snprintf.hh>
+#include <toolsa/str.h>
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
@@ -86,7 +88,7 @@ static int _stringParse(const char *inpstr, const int nchars,
   int i, endFlag, inProgress;
   int	k = 0;
   char	tmpbuf[1000];
-  char  outtmp[1000];
+  char  outtmp[2000];
 
   instr = inpstr;
   tbuf = tmpbuf;
@@ -123,7 +125,7 @@ static int _stringParse(const char *inpstr, const int nchars,
     {	
       // tmpbuf is filled, terminate 
       *tbuf = '\0';	
-      strncpy(outtmp, tmpbuf, maxFLen-1);
+      STRncopy(outtmp, tmpbuf, maxFLen-1);
       string s = outtmp;
       outstr.push_back(s);
       k++;
@@ -139,7 +141,7 @@ static int _stringParse(const char *inpstr, const int nchars,
   {
     // still something in temp buffer
     *tbuf = '\0';
-    strncpy(outtmp, tmpbuf, maxFLen-1);
+    STRncopy(outtmp, tmpbuf, maxFLen-1);
     string s= outtmp;
     outstr.push_back(s);
     k++;
@@ -250,7 +252,7 @@ void RadxFuzzy2d::printTable(void) const
   {
     char buf[1000];
     string oneline;
-    sprintf(buf, "%lf", *x);
+    safe_snprintf(buf, "%lf", *x);
     oneline = buf;
     
     for (y = _y.begin(); y!= _y.end(); ++y)
@@ -258,7 +260,7 @@ void RadxFuzzy2d::printTable(void) const
       pair< double, double > index(*x, *y);
       map< pair< double, double>, double >::const_iterator value;
       value = _table.find(index);
-      sprintf(buf, "  %lf", value->second);
+      safe_snprintf(buf, "  %lf", value->second);
       oneline += buf;
     }
     printf("%s\n", oneline.c_str());

@@ -932,6 +932,51 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 5");
+    tt->comment_hdr = tdrpStrDup("OPTIONAL AZIMUTH LIMITS");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'set_azimuth_limits'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("set_azimuth_limits");
+    tt->descr = tdrpStrDup("Option to limits on azimuth range used.");
+    tt->help = tdrpStrDup("Only use rays between these azimuths.");
+    tt->val_offset = (char *) &set_azimuth_limits - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'lower_azimuth_limit'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("lower_azimuth_limit");
+    tt->descr = tdrpStrDup("Lower azimuth limit - degrees.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &lower_azimuth_limit - &_start_;
+    tt->single_val.d = 0;
+    tt++;
+    
+    // Parameter 'upper_azimuth_limit'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("upper_azimuth_limit");
+    tt->descr = tdrpStrDup("Upper azimuth limit - degrees.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &upper_azimuth_limit - &_start_;
+    tt->single_val.d = 359.99;
+    tt++;
+    
+    // Parameter 'Comment 6'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 6");
     tt->comment_hdr = tdrpStrDup("READ OPTIONS");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -960,11 +1005,11 @@
     tt->single_val.b = pTRUE;
     tt++;
     
-    // Parameter 'Comment 6'
+    // Parameter 'Comment 7'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 6");
+    tt->param_name = tdrpStrDup("Comment 7");
     tt->comment_hdr = tdrpStrDup("OPTION TO CORRECT ANTENNA ANGLES");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1017,11 +1062,11 @@
     tt->single_val.d = 0;
     tt++;
     
-    // Parameter 'Comment 7'
+    // Parameter 'Comment 8'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 7");
+    tt->param_name = tdrpStrDup("Comment 8");
     tt->comment_hdr = tdrpStrDup("CLUTTER ANALYSIS");
     tt->comment_text = tdrpStrDup("We use 'strong' clutter to montitor the clutter power change over time, and 'weak' clutter to detect the presence of weather echoes in the clutter field.");
     tt++;
@@ -1182,11 +1227,68 @@
     tt->single_val.d = 0.9;
     tt++;
     
-    // Parameter 'Comment 8'
+    // Parameter 'Comment 9'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 8");
+    tt->param_name = tdrpStrDup("Comment 9");
+    tt->comment_hdr = tdrpStrDup("OPTION TO MONITOR TRANSMIT POWER");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'monitor_transmit_power'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("monitor_transmit_power");
+    tt->descr = tdrpStrDup("Option to monitor the transmit power in the CfRadial files.");
+    tt->help = tdrpStrDup("If true, we will read the transmit power in the status XML of the CfRadial file, and write these out as part of the SPDB data results.");
+    tt->val_offset = (char *) &monitor_transmit_power - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'xmit_power_key_both'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("xmit_power_key_both");
+    tt->descr = tdrpStrDup("XML key for both channels combined.");
+    tt->help = tdrpStrDup("This XML key is used to extract the transmit power for both channels from the CfRadial status XML.");
+    tt->val_offset = (char *) &xmit_power_key_both - &_start_;
+    tt->single_val.s = tdrpStrDup("XmitPowerDbmTop");
+    tt++;
+    
+    // Parameter 'xmit_power_key_h'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("xmit_power_key_h");
+    tt->descr = tdrpStrDup("XML key for H channel.");
+    tt->help = tdrpStrDup("This XML key is used to extract the H transmit power from the CfRadial status XML.");
+    tt->val_offset = (char *) &xmit_power_key_h - &_start_;
+    tt->single_val.s = tdrpStrDup("XmitPowerDbmH");
+    tt++;
+    
+    // Parameter 'xmit_power_key_v'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("xmit_power_key_v");
+    tt->descr = tdrpStrDup("XML key for V channel.");
+    tt->help = tdrpStrDup("This XML key is used to extract the V transmit power from the CfRadial status XML.");
+    tt->val_offset = (char *) &xmit_power_key_v - &_start_;
+    tt->single_val.s = tdrpStrDup("XmitPowerDbmH");
+    tt++;
+    
+    // Parameter 'Comment 10'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 10");
     tt->comment_hdr = tdrpStrDup("WRITE RESULTS");
     tt->comment_text = tdrpStrDup("");
     tt++;

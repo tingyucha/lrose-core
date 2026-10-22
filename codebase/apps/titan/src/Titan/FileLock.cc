@@ -60,11 +60,11 @@ FileLock::FileLock(const string &prog_name, const Params &params) :
 
   _fd = ta_create_lock_file(_lockFilePath);
   
-  if (_fd == NULL) {
+  if (_fd == nullptr) {
     cerr << "ERROR - " << _progName << ":Filelock::Filelock" << endl;
     cerr << "  Cannot create lock file '" << _lockFilePath << "'" << endl;
     cerr << "  " << _progName
-	 << " probably aleady be running in this directory" << endl;
+	 << " probably already running in this directory" << endl;
     OK = FALSE;
   }
 
@@ -78,7 +78,7 @@ FileLock::~FileLock()
 
 {
 
-  if (_fd != NULL) {
+  if (_fd != nullptr) {
     ta_remove_lock_file(_lockFilePath, _fd);
   }
 

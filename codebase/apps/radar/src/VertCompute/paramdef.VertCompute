@@ -43,7 +43,7 @@ commentdef {
 };
 
 typedef enum {
-  DSR_MOMENTS_INPUT, TS_FILE_INPUT, TS_FMQ_INPUT
+  RADX_MOMENTS_INPUT, DSR_MOMENTS_INPUT, TS_FILE_INPUT, TS_FMQ_INPUT
 } input_mode_t;
 
 paramdef enum input_mode_t {
@@ -51,6 +51,10 @@ paramdef enum input_mode_t {
   p_descr = "Input mode - files or time series API.";
   p_help = "DSR_MOMENTS_INPUT: read moments data in DSR format. TS_FMQ_INPUT: read time series from a file message queue and process the pulses as they come in. TS_FILE_INPUT: read time series from files specified on the command line.";
 } input_mode;
+
+commentdef {
+  p_header = "REALTIME - DSR_MOMENTS_INPUT, TS_FMQ_INPUT";
+};
 
 paramdef string {
   p_default = "/tmp/fmq/ts";
@@ -61,8 +65,30 @@ paramdef string {
 paramdef boolean {
   p_default = FALSE;
   p_descr = "Option to seek to the start of the input FMQ.";
-  p_help = "If TRUE, the program will seek to the start of the fmq and read in data from the entire queue. If FALSE, it will only read new data as it is added to the FMQ.";
+  p_help = "Applies to DSR_MOMENTS_INPUT and TS_FMQ_INPUT. If TRUE, the program will seek to the start of the fmq and read in data from the entire queue. If FALSE, it will only read new data as it is added to the FMQ.";
 } seek_to_start_of_input;
+
+commentdef {
+  p_header = "ARCHIVE - RADX_MOMENTS_INPUT, TS_FILE_INPUT";
+};
+
+paramdef string {
+  p_default = ".";
+  p_descr = "Input directory for searching for files between start_time and end_time.";
+  p_help = "RADX_MOMENTS_INPUT, TS_FILE_INPUT: files will be searched for in this directory. This is ignored if the list of files is  specified on the command line using the -f option.";
+} input_dir;
+
+paramdef string {
+  p_default = "1970 01 01 00 00 00";
+  p_descr = "Set the start time for ARCHIVE mode analysis.";
+  p_help = " Applies to RADX_MOMENTS_INPUT and TS_FILE_INPUT. Format is 'yyyy mm dd hh mm ss'.";
+} start_time;
+
+paramdef string {
+  p_default = "1970 01 01 00 00 00";
+  p_descr = "Set the end time for ARCHIVE mode analysis.";
+  p_help = " Applies to RADX_MOMENTS_INPUT and TS_FILE_INPUT. Format is 'yyyy mm dd hh mm ss'.";
+} end_time;
 
 commentdef {
   p_header = "COMPUTING MOMENTS FROM TIME SERIES";
@@ -167,7 +193,7 @@ typedef enum {
 typedef struct {
 
   moments_id_t id;
-  string dsr_name;
+  string moments_name;
     
 } input_field_t;
 
@@ -192,8 +218,8 @@ paramdef struct input_field_t {
     { PHIDP, "PHIDP" },
     { RHOHV, "RHOHV" }
   };
-  p_descr = "List of input field from moments FMQ.";
-  p_help = "Only applies to DSR_MOMENTS_INPUT.";
+  p_descr = "List of input fields for moments.";
+  p_help = "Applies to RADX_MOMENTS_INPUT and DSR_MOMENTS_INPUT.";
 } input_fields[];
 
 commentdef {
@@ -216,8 +242,32 @@ paramdef double {
 } start_height;
 
 commentdef {
-  p_header = "ANALYSIS DETAILS";
+  p_header = "COMPUTING STATISTICS";
 };
+
+paramdef double {
+  p_default = 1080;
+  p_descr = "Cumulative delta az for computing stats (deg).";
+  p_help = "We only compute stats after the antenna has scanned this number of degrees.";
+} cumulative_azimuth_moved_for_stats;
+
+paramdef double {
+  p_default = 1080;
+  p_descr = "Cumulative delta az for printing debug stats (deg).";
+  p_help = "If not needed, set equal to cumulative_azimuth_moved_for_stats.";
+} cumulative_azimuth_moved_for_debug_print;
+
+paramdef double {
+  p_default = 3600;
+  p_descr = "Max time gap in data for stats (s).";
+  p_help = "If we find a gap that exceeds this, we clear the stats and start again.";
+} max_time_gap_for_stats;
+
+paramdef double {
+  p_default = 2000;
+  p_descr = "Min number of valid points for stats.";
+  p_help = "A valid point is a range gate that satisfies the thresholds below.";
+} min_valid_count_for_stats;
 
 paramdef double {
   p_default = 10.0;
@@ -274,26 +324,20 @@ paramdef double {
 } max_ht_for_stats;
 
 commentdef {
-  p_header = "OUTPUT RESULTS";
+  p_header = "OUTPUT STATISTICS";
 };
-
-paramdef string {
-  p_default = "./output";
-  p_descr = "Dir for output files.";
-  p_help = "The results will be written to sub-directories named from the data time.";
-} output_dir;
 
 paramdef boolean {
   p_default = true;
-  p_descr = "Option to write global statistics to a text file.";
+  p_descr = "Option to write statistics to a text file.";
   p_help = "If true, stats for the entire run will be writted to a text file.";
-} write_global_stats_to_text_file;
+} write_stats_to_text_file;
 
-paramdef boolean {
-  p_default = false;
-  p_descr = "Option to write statistics for each rotation to a text file.";
-  p_help = "If true, stats for each rotation will be writted to a text file.";
-} write_360deg_stats_to_text_file;
+paramdef string {
+  p_default = "./output/text";
+  p_descr = "Dir for output text files.";
+  p_help = "The results will be written to sub-directories named from the data time.";
+} text_output_dir;
 
 paramdef boolean {
   p_default = false;
@@ -301,14 +345,20 @@ paramdef boolean {
   p_help = "If true, the individual zdrm values, plus metadata such as height, is written to a text file.";
 } write_zdr_point_values_to_text_file;
 
+paramdef string {
+  p_default = "./output/zdr_points";
+  p_descr = "Dir for output text files.";
+  p_help = "The results will be written to sub-directories named from the data time.";
+} zdr_points_output_dir;
+
 paramdef boolean {
-  p_default = false;
-  p_descr = "Option to write out results to SPDB.";
+  p_default = true;
+  p_descr = "Option to write out stats results to SPDB.";
   p_help = "The results will be written in XML, stored in SPDB. The data can then be retrieved for plotting or other purposes.";
-} write_results_to_spdb;
+} write_stats_to_spdb;
 
 paramdef string {
-  p_default = "/tmp/spdb/vert";
+  p_default = "./output/spdb";
   p_descr = "URL for SPDB XML.";
   p_help = "For local writes, specify the directory. For remote writes, specify the full url: spdbp:://host::dir";
 } spdb_output_url;
@@ -317,5 +367,5 @@ paramdef string {
   p_default = "SPOL";
   p_descr = "Radar name for tagging SPDB output data.";
   p_help = "This is used to set the data_type in SPDB.";
-} radar_name;
+} radar_name_for_spdb;
 

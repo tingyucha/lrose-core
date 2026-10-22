@@ -40,6 +40,7 @@
 #include <titan/storm.h>
 #include <titan/track.h>
 #include <string>
+#include <vector>
 using namespace std;
 
 class TitanTrackFile
@@ -57,6 +58,10 @@ public:
 
   // data access
 
+  int n_simple_tracks() { return _header.n_simple_tracks; }
+  int n_complex_tracks() { return _header.n_complex_tracks; }
+  int n_scan_entries() { return _n_scan_entries; }
+  
   const track_file_header_t &header() const { return _header; }
   const track_file_params_t &params() const { return _header.params; }
   const simple_track_params_t &simple_params() const;
@@ -65,19 +70,18 @@ public:
   const track_file_entry_t *scan_entries() const { return _scan_entries; }
   const track_file_scan_index_t *scan_index() const { return _scan_index; }
   const track_utime_t *track_utime() const { return _track_utime; }
-  int n_scan_entries() { return _n_scan_entries; }
-  
-  const string &header_file_path() { return _header_file_path; }
-  const string &header_file_label() { return _header_file_label; }
-  const string &data_file_path() { return _data_file_path; }
-  const string &data_file_label() { return _data_file_label; }
 
-  const si32 *complex_track_nums() { return _complex_track_nums; }
-  const si32 *complex_track_offsets() { return _complex_track_offsets; }
-  const si32 *simple_track_offsets() { return _simple_track_offsets; }
-  const si32 *nsimples_per_complex() { return _nsimples_per_complex; }
-  const si32 *simples_per_complex_offsets() { return _simples_per_complex_offsets; }
-  si32 **simples_per_complex() { return _simples_per_complex; }
+  const string &header_file_path() const { return _header_file_path; }
+  const string &header_file_label() const { return _header_file_label; }
+  const string &data_file_path() const { return _data_file_path; }
+  const string &data_file_label() const { return _data_file_label; }
+
+  const si32 *complex_track_nums() const { return _complex_track_nums; }
+  const si32 *complex_track_offsets() const { return _complex_track_offsets; }
+  const si32 *simple_track_offsets() const { return _simple_track_offsets; }
+  const si32 *nsimples_per_complex() const { return _n_simples_per_complex; }
+  const si32 *simples_per_complex_offsets() const { return _simples_per_complex_offsets; }
+  si32 **simples_per_complex() const { return _simples_per_complex; }
 
   // memory allocation and freeing
 
@@ -160,6 +164,17 @@ public:
   
   int ReadSimplesPerComplex();
   
+  // read in the array of simple tracks for specified complex track
+  // returns 0 on success, -1 on failure
+
+  int ReadSimplesPerComplex(int complex_track_num);
+
+  // load vector with simples per complex, in linear order
+  // in memory these are stored in a si32** 2-d array
+  
+  void LoadVecSimplesPerComplex(vector<si32> &simpsPerComplexLin,
+                                vector<si32> &simpsPerComplexOffsets);
+  
   // read in entries for a scan
   // returns 0 on success, -1 on failure
 
@@ -203,17 +218,43 @@ public:
   // write the track_file_header_t structure to a track data file
   // returns 0 on success, -1 on failure
 
+  int WriteHeader(const track_file_header_t &track_file_header,
+                  const si32 *complex_track_nums,
+                  const si32 *n_simples_per_complex,
+                  const si32 **simples_per_complex);
+
+  int WriteHeader(const track_file_header_t &track_file_header,
+                  const vector<si32> &complex_track_nums,
+                  const vector<si32> &n_simples_per_complex,
+                  const vector<vector<si32> > &simples_per_complex);
+
   int WriteHeader();
 
   // write simple track params at the end of the file
   // returns 0 on success, -1 on failure
   
+  int WriteSimpleParams(const simple_track_params_t &sparams);
   int WriteSimpleParams(int track_num);
      
   // write complex track params
   // returns 0 on success, -1 on failure
   
+  int WriteComplexParams(int complex_index,
+                         const complex_track_params_t &cparams);
   int WriteComplexParams(int track_num);
+     
+  // Write an entry for a track in the track data file
+  // The entry is written at the end of the file
+  //
+  // returns offset of last entry written on success, -1 on failure
+  //
+  // Use of this method assumes that the entries for a simple track
+  // will be written in time order, so that the offsets can be set
+  // accordingly.
+  //
+  ///////////////////////////////////////////////////////////////////////////
+  
+  long WriteEntry(const track_file_entry_t &entry);
      
   // write an entry for a track in the track data file
   // The entry is written at the end of the file
@@ -225,7 +266,7 @@ public:
   ///////////////////////////////////////////////////////////////////
   // error string
   
-  const string &getErrStr() { return (_errStr); }
+  const string &getErrStr() const { return (_errStr); }
 
 protected:
 
@@ -255,11 +296,16 @@ protected:
   si32 *_complex_track_nums;
   si32 *_complex_track_offsets;
   si32 *_simple_track_offsets;
-  si32 *_nsimples_per_complex;
+  si32 *_n_simples_per_complex;
   si32 *_simples_per_complex_offsets;
   si32 **_simples_per_complex;
   int _n_scan_entries;
+
+  // track entry offsets
   
+  long _prev_in_track_offset;
+  long _prev_in_scan_offset;
+
   // memory allocation control
 
   int _n_simple_allocated;

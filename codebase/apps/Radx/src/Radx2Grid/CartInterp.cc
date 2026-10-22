@@ -112,7 +112,7 @@ CartInterp::CartInterp(const string &progName,
 
   _createThreads();
 
-  // set up ConvStrat object
+  // set up ConvStratFinder object
 
   if (_params.identify_convective_stratiform_split) {
     if (_params.debug >= Params::DEBUG_VERBOSE) {
@@ -123,14 +123,15 @@ CartInterp::CartInterp(const string &progName,
     _convStrat.setMinValidHtKm(_params.conv_strat_min_valid_height);
     _convStrat.setMaxValidHtKm(_params.conv_strat_max_valid_height);
     _convStrat.setMinValidDbz(_params.conv_strat_min_valid_dbz);
-    _convStrat.setDbzForDefiniteConvection
-      (_params.conv_strat_dbz_threshold_for_definite_convection);
-    _convStrat.setConvectiveRadiusKm(_params.conv_strat_convective_radius_km);
     _convStrat.setTextureRadiusKm(_params.conv_strat_texture_radius_km);
     _convStrat.setMinValidFractionForTexture
       (_params.conv_strat_min_valid_fraction_for_texture);
-    _convStrat.setMinTextureForConvection
-      (_params.conv_strat_min_texture_for_convection);
+    _convStrat.setMinConvectivityForConvective
+      (_params.conv_strat_min_convectivity_for_convective);
+    _convStrat.setMaxConvectivityForStratiform
+      (_params.conv_strat_max_convectivity_for_stratiform);
+    _convStrat.setMinGridOverlapForClumping
+      (_params.conv_strat_min_overlap_for_convective_clumps);
   }
   _gotConvStrat = false;
 
@@ -255,10 +256,9 @@ int CartInterp::interpVol()
       _echoOrientationAvailable = false;
     }
     if (_echoOrientationAvailable) {
-      _orient->loadSdevFields(_gridLoc,
-                              _sdevDbzH,
-                              _sdevDbzV);
+      _orient->loadSdevFields(_gridLoc, _dbzH, _dbzV, _sdevDbzH, _sdevDbzV);
     }
+    // _orient->clearRhiData();
   }
 
   // interpolate
@@ -269,6 +269,12 @@ int CartInterp::interpVol()
   _printRunTime("Cart interp - before doInterp");
   _doInterp();
   _printRunTime("Interpolating");
+
+  // transform for output
+  // this will change any transformed fields back to
+  // their original form as appropriate
+
+  _transformForOutput();
 
   // compute convective stratiform split
 
@@ -282,10 +288,6 @@ int CartInterp::interpVol()
     _printRunTime("Cart interp - after strat/conv");
   }
   
-  // transform for output
-
-  _transformForOutput();
-
   // write out data
 
   _printRunTime("Cart interp - before _writeOutputFile");
@@ -413,9 +415,15 @@ void CartInterp::_createDebugFields()
   _derived3DFields.push_back(_urAzDebug);
 
   if (_params.use_echo_orientation) {
-    _sdevDbzH = new DerivedField("SdevDbzH", "sdev_of_dbz_horizontal", "dBZ", true);
+    _dbzH = new DerivedField("DbzH", "dbz_horizontal", "dBZ", true);
+    _derived3DFields.push_back(_dbzH);
+    _dbzV = new DerivedField("DbzV", "dbz_vertical", "dBZ", true);
+    _derived3DFields.push_back(_dbzV);
+    _sdevDbzH = new DerivedField("SdevDbzH", "sdev_of_dbz_horizontal",
+                                 "dBZ", true);
     _derived3DFields.push_back(_sdevDbzH);
-    _sdevDbzV = new DerivedField("SdevDbzV", "sdev_of_dbz_vertical", "dBZ", true);
+    _sdevDbzV = new DerivedField("SdevDbzV", "sdev_of_dbz_vertical",
+                                 "dBZ", true);
     _derived3DFields.push_back(_sdevDbzV);
   }
   
@@ -2382,13 +2390,15 @@ int CartInterp::_writeOutputFile()
   out.setMasterHeader(_readVol);
   for (size_t ifield = 0; ifield < _interpFields.size(); ifield++) {
     const Field &ifld = _interpFields[ifield];
-    out.addField(_readVol, _proj, _gridZLevels,
-                 ifld.outputName, ifld.longName, ifld.units,
-                 ifld.inputDataType,
-                 ifld.inputScale,
-                 ifld.inputOffset,
-                 missingFl32,
-                 _outputFields[ifield]);
+    if (!out.suppressThisField(ifld.outputName)) {
+      out.addField(_readVol, _proj, _gridZLevels,
+                   ifld.outputName, ifld.longName, ifld.units,
+                   ifld.inputDataType,
+                   ifld.inputScale,
+                   ifld.inputOffset,
+                   missingFl32,
+                   _outputFields[ifield]);
+    }
   } // ifield
 
   // debug (test) fields
@@ -2681,7 +2691,7 @@ void CartInterp::_addMatrixField(DsMdvx &mdvx,
 int CartInterp::_convStratCompute()
 {
 
-  // set the grid in the ConvStrat object
+  // set the grid in the ConvStratFinder object
 
   bool isLatLon = (_params.grid_projection == Params::PROJ_LATLON);
   _convStrat.setGrid(_gridNx, _gridNy,
@@ -2690,7 +2700,7 @@ int CartInterp::_convStratCompute()
                      _gridZLevels,
                      isLatLon);
 
-  // get the dbz field for ConvStrat
+  // get the dbz field for ConvStratFinder
 
   string dbzName(_params.conv_strat_dbz_field_name);
   fl32 *dbzVals = NULL;
@@ -2710,7 +2720,7 @@ int CartInterp::_convStratCompute()
 
   // compute the convective/stratiform partition
   
-  if (_convStrat.computePartition(dbzVals, missingFl32)) {
+  if (_convStrat.computeEchoType(dbzVals, missingFl32)) {
     cerr << "ERROR - CartInterp::_convStratCompute()" << endl;
     cerr << "  _convStrat.computePartition() failed" << endl;
     return -1;

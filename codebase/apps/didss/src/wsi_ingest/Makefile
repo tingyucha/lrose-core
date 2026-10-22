@@ -40,15 +40,15 @@ LOC_CFLAGS =
 LOC_CPPC_CFLAGS =
 LOC_LDFLAGS =
 LOC_LIBS = \
-	-ltdrp -ltoolsa -lpthread -ldataport -lbz2 \
-	-lz -lm
+	-ltoolsa -ldataport -ltdrp -lpthread \
+	-lbz2 -lz -lm
 
 HDRS = fs.h
 
-C_SRCS = \
-	$(TDRP_C) \
-	wsiIngest.c \
-	wsi_net_io.c
+CPPC_SRCS = \
+	Params.cc \
+	wsiIngest.cc \
+	wsi_net_io.cc
 
 #
 # tdrp support
@@ -60,7 +60,7 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_macros
 # standard targets
 #
 
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c_targets
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
 
 #
 # local targets
@@ -68,7 +68,8 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c_targets
 
 depend: $(TDRP_C) depend_generic
 
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_targets
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

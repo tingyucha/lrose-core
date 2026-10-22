@@ -26,6 +26,7 @@
 #include <rapmath/Math.hh>
 #include <toolsa/LogStream.hh>
 #include <toolsa/TaXml.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <cstdio>
 #include <cmath>
 
@@ -182,7 +183,7 @@ string Point::sprint(void) const
 {
   string ret = sprintAtt();
   char buf[100];
-  sprintf(buf, "(%.2lf,%.2lf)", _x, _y);
+  safe_snprintf(buf, "(%.2lf,%.2lf)", _x, _y);
   ret += buf;
   return ret;
 }

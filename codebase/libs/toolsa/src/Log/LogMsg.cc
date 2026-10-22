@@ -33,6 +33,7 @@
 #include <cstdio>
 #include <toolsa/LogMsg.hh>
 #include <toolsa/DateTime.hh>
+#include <toolsa/safe_snprintf.hh>
 
 #define ARRAY_LEN_LONG 1024
 
@@ -160,7 +161,7 @@ void LogMsg::logf(const std::string &fname, const int line,
   va_list args;
   va_start( args, format );
   char buf[ARRAY_LEN_LONG];
-  vsprintf( buf, format.c_str(), args );
+  vsnprintf(buf, sizeof(buf), format.c_str(), args);
   msg += buf;
   va_end( args );
   pLog(msg);
@@ -222,7 +223,7 @@ void LogMsg::accumulatef(string format, ...) const
   va_list args;
   va_start( args, format );
   char buf[ARRAY_LEN_LONG];
-  vsprintf( buf, format.c_str(), args );
+  vsnprintf(buf, sizeof(buf), format.c_str(), args);
   sAccum += buf;
   va_end( args );
 }
@@ -358,7 +359,7 @@ string LogMsg::pHeader(const string &fname, const int line,
   if (severity != PRINT)
   {
     char buf[ARRAY_LEN_LONG];
-    sprintf(buf, "%s[%d]:", fname.c_str(), line);
+    safe_snprintf(buf, "%s[%d]:", fname.c_str(), line);
     ret = buf;
     ret += method;
     ret += "()::";

@@ -37,6 +37,7 @@
 #include <string>
 #include <vector>
 #include <fftw3.h>
+#include <pthread.h>
 #include <radar/RadarComplex.hh>
 
 using namespace std;
@@ -55,8 +56,8 @@ public:
   void init(int n);
   
   // constructor - initializes for given size
-  // note that the constructor and destructor are not
-  // thread-safe, but the other methods are thread-safe
+  // note that fftw initialization is not inherently thread-safe
+  // so we use a mutex for safety
   
   RadarFft(int n);
   
@@ -87,12 +88,41 @@ public:
   
   void unshift(RadarComplex_t *spectrum) const;
   
+  // copy between RadarComplex_t and fftw_complex
+  
+  static void copy(fftw_complex *dest,
+                   const RadarComplex_t *src,
+                   size_t nn);
+  
+  static void copy(RadarComplex_t *dest,
+                   const fftw_complex *src,
+                   size_t nn);
+  
+  static void copy(RadarComplex_t *dest,
+                   const RadarComplex_t *src,
+                   size_t nn);
+
+  static void copy(fftw_complex *dest,
+                   const fftw_complex *src,
+                   size_t nn);
+  
+
   // get references to sin and cos arrays
   // will be loaded as required
-
+  
   const vector<vector<double> > &getCosArray() const;
   const vector<vector<double> > &getSinArray() const;
 
+  // compute DFT
+  
+  static void computeDft(const vector<double> &inReal,
+                         const vector<double> &inImag,
+                         vector<double> &outReal,
+                         vector<double> &outImag);
+  
+  static void computeDft(const vector<RadarComplex_t> &in,
+                         vector<RadarComplex_t> &out);
+	
 protected:
   
 private:
@@ -104,6 +134,8 @@ private:
   fftw_complex *_in;
   fftw_complex *_out;
   fftw_complex *_tmp;
+
+  static pthread_mutex_t _initMutex;
   
   mutable vector<vector<double> > _cosArray;
   mutable vector<vector<double> > _sinArray;
@@ -113,7 +145,6 @@ private:
 };
 
 #endif
-
 
 
 

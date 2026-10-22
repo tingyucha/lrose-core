@@ -189,6 +189,7 @@ int RadxMon::_runPrint()
   // register with procmap
   
   PMU_auto_register("_runPrint");
+  RadxTime prevTime;
 
   while (true) { 
     
@@ -202,6 +203,16 @@ int RadxMon::_runPrint()
       continue;
     }
     ray->convertToFl32();
+
+    RadxTime thisTime = ray->getRadxTime();
+    if (_params.check_for_increasing_time &&
+        (thisTime - prevTime < 0)) {
+      cerr << "WARNING, time going backwards, prevTime, thisTime, deltaSecs: "
+           << prevTime.asString(3) << ", "
+           << thisTime.asString(3) << ", "
+           << thisTime - prevTime << endl;
+    }
+    prevTime = thisTime;
 
     // print events if they apply
     
@@ -524,6 +535,7 @@ void RadxMon::_printSummary(const RadxRay *ray)
   switch(ray->getSweepMode()) {
     case Radx::SWEEP_MODE_SECTOR:
     case Radx::SWEEP_MODE_MANUAL_PPI:
+    case Radx::SWEEP_MODE_APAR_SECTOR_PPI:
       sprintf(scanModeStr, "SECT");
       break;
     case Radx::SWEEP_MODE_COPLANE:
@@ -531,7 +543,13 @@ void RadxMon::_printSummary(const RadxRay *ray)
       break;
     case Radx::SWEEP_MODE_RHI:
     case Radx::SWEEP_MODE_MANUAL_RHI:
+    case Radx::SWEEP_MODE_APAR_DUALPOL_RHI:
       sprintf(scanModeStr, " RHI");
+      isPpi = false;
+      break;
+    case Radx::SWEEP_MODE_APAR_FORE_DOPPLER:
+    case Radx::SWEEP_MODE_APAR_AFT_DOPPLER:
+      sprintf(scanModeStr, " ELDOP");
       isPpi = false;
       break;
     case Radx::SWEEP_MODE_VERTICAL_POINTING:
@@ -554,6 +572,9 @@ void RadxMon::_printSummary(const RadxRay *ray)
       break;
     case Radx::SWEEP_MODE_IDLE:
       sprintf(scanModeStr, "IDLE");
+      break;
+    case Radx::SWEEP_MODE_FILL:
+      sprintf(scanModeStr, "FILL");
       break;
     default:
       sprintf(scanModeStr, "%4d", ray->getSweepMode());
@@ -612,6 +633,10 @@ void RadxMon::_printSummary(const RadxRay *ray)
     fprintf(stdout, format, subsecs);
   }
 
+  if (_params.scan_name_in_summary_mode && ray->getScanName().size() > 0) {
+    fprintf(stdout, " %s", ray->getScanName().c_str());
+  }
+  
   if (ray->getAntennaTransition()) {
     fprintf(stdout, " *");
   }

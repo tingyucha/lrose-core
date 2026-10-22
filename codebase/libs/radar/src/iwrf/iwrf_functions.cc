@@ -52,7 +52,7 @@ bool iwrf_int_is_missing(si32 val)
 
 bool iwrf_float_is_missing(fl32 val)
 {
-  if (isnan(val)) {
+  if (std::isnan(val)) {
     return true;
   } else if (fabs(val - IWRF_MISSING_FLOAT) < 0.001)  {
     return true;
@@ -617,6 +617,9 @@ void iwrf_pulse_header_init(iwrf_pulse_header_t &val)
   val.offset = 0.0;
   val.n_gates_burst = 0;
 
+  val.tx_phase_deg = IWRF_MISSING_FLOAT;
+  val.block_id = IWRF_MISSING_INT; 
+  
 }
 
 //////////////////////////////////////////////////////
@@ -2834,6 +2837,7 @@ void iwrf_pulse_header_print(FILE *out,
   fprintf(out, "  start_range_m: %g\n", copy.start_range_m);
   fprintf(out, "  gate_spacing_m: %g\n", copy.gate_spacing_m);
 
+  fprintf(out, "  event_flags: %d\n", copy.event_flags);
   if (copy.event_flags & IWRF_END_OF_SWEEP) {
     fprintf(out, "  event: end_of_sweep\n");
   }
@@ -2846,13 +2850,23 @@ void iwrf_pulse_header_print(FILE *out,
   if (copy.event_flags & IWRF_START_OF_VOLUME) {
     fprintf(out, "  event: start_of_volume\n");
   }
+  if (copy.event_flags & IWRF_START_OF_BLOCK) {
+    fprintf(out, "  event: start_of_block\n");
+  }
+  if (copy.event_flags & IWRF_END_OF_BLOCK) {
+    fprintf(out, "  event: end_of_block\n");
+  }
 
+  fprintf(out, "  txrx_state: %d\n", copy.txrx_state);
   if (copy.txrx_state & IWRF_TXRX_LONG_PRT) {
     fprintf(out, "  txrx state: long PRT\n");
   }
   if (copy.txrx_state & IWRF_TXRX_SHORT_PRT) {
     fprintf(out, "  txrx state: short PRT\n");
   }
+  
+  fprintf(out, "  tx_phase_deg: %g\n", copy.tx_phase_deg);
+  fprintf(out, "  block_id: %d\n", copy.block_id);
 
   if (georef != NULL) {
     iwrf_platform_georef_t gcopy = *georef;
@@ -4159,7 +4173,8 @@ void iwrf_pulse_header_print_format(FILE *out, const iwrf_pulse_header_t &val)
   fprintf(out, _dform, "fl32", "gate_spacing_m", sizeof(val.gate_spacing_m), (char *) &val.gate_spacing_m - id);
   fprintf(out, _dform, "si32", "event_flags", sizeof(val.event_flags), (char *) &val.event_flags - id);
   fprintf(out, _dform, "si32", "txrx_state", sizeof(val.txrx_state), (char *) &val.txrx_state - id);
-  fprintf(out, _dform, "si32", "unused[6]", sizeof(val.unused), (char *) val.unused - id);
+  fprintf(out, _dform, "fl32", "tx_phase_deg", sizeof(val.tx_phase_deg), (char *) &val.tx_phase_deg - id);
+  fprintf(out, _dform, "si32", "unused[5]", sizeof(val.unused), (char *) val.unused - id);
 
   _print_format_divider('-', out);
 

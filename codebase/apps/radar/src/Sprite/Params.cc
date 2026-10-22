@@ -278,6 +278,18 @@
   }
 
   ////////////////////////////////////////////
+  // isArgValid()
+  // 
+  // Check if a command line arg is a valid TDRP arg.
+  // return number of args consumed.
+  //
+
+  int Params::isArgValidN(const char *arg)
+  {
+    return (tdrpIsArgValidN(arg));
+  }
+
+  ////////////////////////////////////////////
   // load()
   //
   // Loads up TDRP for a given class.
@@ -636,7 +648,7 @@
     tt->ptype = ENUM_TYPE;
     tt->param_name = tdrpStrDup("input_mode");
     tt->descr = tdrpStrDup("Method for reading the input time series data");
-    tt->help = tdrpStrDup("\n\nREALTIME_FMQ_MODE: read a real-time IWRF data stream from an FMQ.\n\nREALTIME_TCP_MODE: read a real-time IWRF data stream from a TCP server.\n\nARCHIVE_TIME_MODE: given a time span and data directory, identify the list of files within that time span and read those files.\n\nFILE_LIST_MODE: the list of time series files is specified on the command line.\n\nFOLLOW_MOMENTS_MODE: the user is running a moments display (e.g. HawkEye or CIDD) and clicks on locations of interest. Sprite polls a shared memory segment for information on the user's clicks, and reads in the data for the time and location specified in the latest click.");
+    tt->help = tdrpStrDup("\n\nREALTIME_FMQ_MODE: read a real-time IWRF data stream from an FMQ.\n\nREALTIME_TCP_MODE: read a real-time IWRF data stream from a TCP server.\n\nARCHIVE_TIME_MODE: given a time span and data directory, identify the list of files within that time span and read those files.\n\nFILE_LIST_MODE: the list of time series files is specified on the command line.\n\nFOLLOW_DISPLAY_MODE: the user is running a moments display (e.g. HawkEye or CIDD) and clicks on locations of interest. Sprite polls a shared memory segment for information on the user's clicks, and reads in the data for the time and location specified in the latest click.");
     tt->val_offset = (char *) &input_mode - &_start_;
     tt->enum_def.name = tdrpStrDup("input_mode_t");
     tt->enum_def.nfields = 5;
@@ -650,8 +662,8 @@
       tt->enum_def.fields[2].val = ARCHIVE_TIME_MODE;
       tt->enum_def.fields[3].name = tdrpStrDup("FILE_LIST_MODE");
       tt->enum_def.fields[3].val = FILE_LIST_MODE;
-      tt->enum_def.fields[4].name = tdrpStrDup("FOLLOW_MOMENTS_MODE");
-      tt->enum_def.fields[4].val = FOLLOW_MOMENTS_MODE;
+      tt->enum_def.fields[4].name = tdrpStrDup("FOLLOW_DISPLAY_MODE");
+      tt->enum_def.fields[4].val = FOLLOW_DISPLAY_MODE;
     tt->single_val.e = REALTIME_FMQ_MODE;
     tt++;
     
@@ -756,32 +768,44 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 3");
-    tt->comment_hdr = tdrpStrDup("GETTING CLICK-POINT INFO FROM MOMENTS DISPLAY (CIDD or HawkEye)");
+    tt->comment_hdr = tdrpStrDup("INITIAL location");
     tt->comment_text = tdrpStrDup("");
     tt++;
     
-    // Parameter 'moments_shmem_key'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("moments_shmem_key");
-    tt->descr = tdrpStrDup("The shared memory key for the moments display coordinate struct.");
-    tt->help = tdrpStrDup("When the user clicks in the moments main window, the coordinate struct is updated with the location and time.");
-    tt->val_offset = (char *) &moments_shmem_key - &_start_;
-    tt->single_val.i = 61500;
-    tt++;
-    
-    // Parameter 'moments_max_search_angle_error'
+    // Parameter 'start_elevation'
     // ctype is 'double'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("moments_max_search_angle_error");
-    tt->descr = tdrpStrDup("Max angular error when searching for spectra close to the click point (deg).");
-    tt->help = tdrpStrDup("When the user clicks in CIDD, the (x) location is saved. From this, the elevation, elevation and range of the click point can be determined. The data base is then searched for spectra from a beam close to this. This parameter gives the max angular error allowable in this search.");
-    tt->val_offset = (char *) &moments_max_search_angle_error - &_start_;
-    tt->single_val.d = 10;
+    tt->param_name = tdrpStrDup("start_elevation");
+    tt->descr = tdrpStrDup("Initial elevation for selecting a radar gate (deg).");
+    tt->help = tdrpStrDup("The display begins using this elevation. The user can then change the elevation either by selecting a point in HawkEye, or by clicking in the ascope plots.");
+    tt->val_offset = (char *) &start_elevation - &_start_;
+    tt->single_val.d = 0.5;
+    tt++;
+    
+    // Parameter 'start_azimuth'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("start_azimuth");
+    tt->descr = tdrpStrDup("Initial azimuth for selecting a radar gate (deg).");
+    tt->help = tdrpStrDup("The display begins using this azimuth. The user can then change the azimuth either by selecting a point in HawkEye, or by clicking in the ascope plots.");
+    tt->val_offset = (char *) &start_azimuth - &_start_;
+    tt->single_val.d = 0.5;
+    tt++;
+    
+    // Parameter 'start_range_km'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("start_range_km");
+    tt->descr = tdrpStrDup("Initial range for selecting a radar gate (km).");
+    tt->help = tdrpStrDup("The display begins using this range. The user can then change the range either by selecting a point in CIDD or HawkEye, or by clicking in the ascope plots.");
+    tt->val_offset = (char *) &start_range_km - &_start_;
+    tt->single_val.d = 50;
     tt++;
     
     // Parameter 'Comment 4'
@@ -789,27 +813,6 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 4");
-    tt->comment_hdr = tdrpStrDup("INITIAL RANGE");
-    tt->comment_text = tdrpStrDup("");
-    tt++;
-    
-    // Parameter 'selected_range_km'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("selected_range_km");
-    tt->descr = tdrpStrDup("Initial range for selecting a radar gate (km).");
-    tt->help = tdrpStrDup("The display begins using this range. The user can then change the range either by selecting a point in CIDD or HawkEye, or by clicking in the ascope plots.");
-    tt->val_offset = (char *) &selected_range_km - &_start_;
-    tt->single_val.d = 50;
-    tt++;
-    
-    // Parameter 'Comment 5'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 5");
     tt->comment_hdr = tdrpStrDup("STATUS TO BE SHOWN IN GUI");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -976,6 +979,39 @@
       tt->struct_vals[23].b = pTRUE;
     tt++;
     
+    // Parameter 'Comment 5'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 5");
+    tt->comment_hdr = tdrpStrDup("SET MAX RANGE");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'set_max_range'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("set_max_range");
+    tt->descr = tdrpStrDup("Option to set the max range to be used for plotting.");
+    tt->help = tdrpStrDup("If FALSE, the max range of the data will be used. If TRUE, max_range_km will override the max range in the data.");
+    tt->val_offset = (char *) &set_max_range - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'max_range_km'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("max_range_km");
+    tt->descr = tdrpStrDup("Max range for the display (km).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &max_range_km - &_start_;
+    tt->single_val.d = 120;
+    tt++;
+    
     // Parameter 'Comment 6'
     
     memset(tt, 0, sizeof(TDRPtable));
@@ -994,7 +1030,7 @@
     tt->descr = tdrpStrDup("Startup width of main window (pixels).");
     tt->help = tdrpStrDup("");
     tt->val_offset = (char *) &main_window_width - &_start_;
-    tt->single_val.i = 1250;
+    tt->single_val.i = 1500;
     tt++;
     
     // Parameter 'main_window_height'
@@ -1117,18 +1153,6 @@
     tt->single_val.s = tdrpStrDup("yellow");
     tt++;
     
-    // Parameter 'main_color_scale_width'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("main_color_scale_width");
-    tt->descr = tdrpStrDup("Width of color scale (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &main_color_scale_width - &_start_;
-    tt->single_val.i = 40;
-    tt++;
-    
     // Parameter 'click_cross_size'
     // ctype is 'int'
     
@@ -1141,494 +1165,61 @@
     tt->single_val.i = 11;
     tt++;
     
+    // Parameter 'x_grid_lines_on'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("x_grid_lines_on");
+    tt->descr = tdrpStrDup("Option to draw grid lines in the X direction.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &x_grid_lines_on - &_start_;
+    tt->single_val.b = pTRUE;
+    tt++;
+    
+    // Parameter 'y_grid_lines_on'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("y_grid_lines_on");
+    tt->descr = tdrpStrDup("Option to draw grid lines in the Y direction.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &y_grid_lines_on - &_start_;
+    tt->single_val.b = pTRUE;
+    tt++;
+    
+    // Parameter 'legends_on'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("legends_on");
+    tt->descr = tdrpStrDup("Option to add legends to the plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &legends_on - &_start_;
+    tt->single_val.b = pTRUE;
+    tt++;
+    
     // Parameter 'Comment 7'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 7");
-    tt->comment_hdr = tdrpStrDup("IQ PLOTS");
-    tt->comment_text = tdrpStrDup("");
-    tt++;
-    
-    // Parameter 'iqplots_n_rows'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplots_n_rows");
-    tt->descr = tdrpStrDup("Number of rows of plots in iq plots.");
-    tt->help = tdrpStrDup("The iq plots are made up of a matrix of plots, n_rows by n_colums. This is the starting value for the number of rows.");
-    tt->val_offset = (char *) &iqplots_n_rows - &_start_;
-    tt->single_val.i = 2;
-    tt++;
-    
-    // Parameter 'iqplots_n_columns'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplots_n_columns");
-    tt->descr = tdrpStrDup("Number of columns of plots in iq plots.");
-    tt->help = tdrpStrDup("The iq plots are made up of a matrix of plots, n_rows by n_colums. This is the starting value for the number of columns.");
-    tt->val_offset = (char *) &iqplots_n_columns - &_start_;
-    tt->single_val.i = 2;
-    tt++;
-    
-    // Parameter 'iqplot_types'
-    // ctype is '_iqplot_type_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = ENUM_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_types");
-    tt->descr = tdrpStrDup("Array of types of IQ plots for each sub panel.");
-    tt->help = tdrpStrDup("The array size must match n_rows times n_columns.");
-    tt->array_offset = (char *) &_iqplot_types - &_start_;
-    tt->array_n_offset = (char *) &iqplot_types_n - &_start_;
-    tt->is_array = TRUE;
-    tt->array_len_fixed = FALSE;
-    tt->array_elem_size = sizeof(iqplot_type_t);
-    tt->array_n = 4;
-    tt->enum_def.name = tdrpStrDup("iqplot_type_t");
-    tt->enum_def.nfields = 4;
-    tt->enum_def.fields = (enum_field_t *)
-        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
-      tt->enum_def.fields[0].name = tdrpStrDup("SPECTRUM");
-      tt->enum_def.fields[0].val = SPECTRUM;
-      tt->enum_def.fields[1].name = tdrpStrDup("TIME_SERIES");
-      tt->enum_def.fields[1].val = TIME_SERIES;
-      tt->enum_def.fields[2].name = tdrpStrDup("I_VS_Q");
-      tt->enum_def.fields[2].val = I_VS_Q;
-      tt->enum_def.fields[3].name = tdrpStrDup("PHASOR");
-      tt->enum_def.fields[3].val = PHASOR;
-    tt->array_vals = (tdrpVal_t *)
-        tdrpMalloc(tt->array_n * sizeof(tdrpVal_t));
-      tt->array_vals[0].e = SPECTRUM;
-      tt->array_vals[1].e = TIME_SERIES;
-      tt->array_vals[2].e = I_VS_Q;
-      tt->array_vals[3].e = PHASOR;
-    tt++;
-    
-    // Parameter 'iqplot_top_margin'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_top_margin");
-    tt->descr = tdrpStrDup("Height of top margin in IQPLOT mode (pixels).");
-    tt->help = tdrpStrDup("Titles go in the top margin.");
-    tt->val_offset = (char *) &iqplot_top_margin - &_start_;
-    tt->single_val.i = 0;
-    tt++;
-    
-    // Parameter 'iqplot_bottom_margin'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_bottom_margin");
-    tt->descr = tdrpStrDup("Height of bottom margin in IQPLOT mode (pixels).");
-    tt->help = tdrpStrDup("Time scale goes in the bottom margin.");
-    tt->val_offset = (char *) &iqplot_bottom_margin - &_start_;
-    tt->single_val.i = 18;
-    tt++;
-    
-    // Parameter 'iqplot_left_margin'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_left_margin");
-    tt->descr = tdrpStrDup("Width of left margin in IQPLOT mode (pixels).");
-    tt->help = tdrpStrDup("Height scale goes in the left margin.");
-    tt->val_offset = (char *) &iqplot_left_margin - &_start_;
-    tt->single_val.i = 20;
-    tt++;
-    
-    // Parameter 'iqplot_right_margin'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_right_margin");
-    tt->descr = tdrpStrDup("Width of right margin in IQPLOT mode (pixels).");
-    tt->help = tdrpStrDup("Height scale goes in the right margin.");
-    tt->val_offset = (char *) &iqplot_right_margin - &_start_;
-    tt->single_val.i = 0;
-    tt++;
-    
-    // Parameter 'iqplot_axis_tick_len'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_axis_tick_len");
-    tt->descr = tdrpStrDup("Length of ticks on axes (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_axis_tick_len - &_start_;
-    tt->single_val.i = 4;
-    tt++;
-    
-    // Parameter 'iqplot_n_ticks_ideal'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_n_ticks_ideal");
-    tt->descr = tdrpStrDup("Ideal number of ticks on axes.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_n_ticks_ideal - &_start_;
-    tt->single_val.i = 5;
-    tt++;
-    
-    // Parameter 'iqplot_title_text_margin'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_title_text_margin");
-    tt->descr = tdrpStrDup("Margin around title text (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_title_text_margin - &_start_;
-    tt->single_val.i = 3;
-    tt++;
-    
-    // Parameter 'iqplot_legend_text_margin'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_legend_text_margin");
-    tt->descr = tdrpStrDup("Margin around legend text (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_legend_text_margin - &_start_;
-    tt->single_val.i = 3;
-    tt++;
-    
-    // Parameter 'iqplot_axis_text_margin'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_axis_text_margin");
-    tt->descr = tdrpStrDup("Margin around axis text (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_axis_text_margin - &_start_;
-    tt->single_val.i = 2;
-    tt++;
-    
-    // Parameter 'Comment 8'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 8");
-    tt->comment_hdr = tdrpStrDup("IQPLOT TITLES, LABELS AND AXES");
-    tt->comment_text = tdrpStrDup("");
-    tt++;
-    
-    // Parameter 'iqplot_title_font_size'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_title_font_size");
-    tt->descr = tdrpStrDup("Font size of center title (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_title_font_size - &_start_;
-    tt->single_val.i = 10;
-    tt++;
-    
-    // Parameter 'iqplot_axis_label_font_size'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_axis_label_font_size");
-    tt->descr = tdrpStrDup("Font size of axis labels in iq plots (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_axis_label_font_size - &_start_;
-    tt->single_val.i = 8;
-    tt++;
-    
-    // Parameter 'iqplot_tick_values_font_size'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_tick_values_font_size");
-    tt->descr = tdrpStrDup("Font size of axis tick values (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_tick_values_font_size - &_start_;
-    tt->single_val.i = 6;
-    tt++;
-    
-    // Parameter 'iqplot_legend_font_size'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_legend_font_size");
-    tt->descr = tdrpStrDup("Font size for plot legends (pixels).");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_legend_font_size - &_start_;
-    tt->single_val.i = 6;
-    tt++;
-    
-    // Parameter 'iqplot_axis_label_color'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_axis_label_color");
-    tt->descr = tdrpStrDup("Color of iqplot axis labels.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_axis_label_color - &_start_;
-    tt->single_val.s = tdrpStrDup("white");
-    tt++;
-    
-    // Parameter 'iqplot_title_color'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_title_color");
-    tt->descr = tdrpStrDup("Color of plot title.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_title_color - &_start_;
-    tt->single_val.s = tdrpStrDup("orange");
-    tt++;
-    
-    // Parameter 'iqplot_axes_color'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_axes_color");
-    tt->descr = tdrpStrDup("Color of axes in iq plots.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_axes_color - &_start_;
-    tt->single_val.s = tdrpStrDup("green");
-    tt++;
-    
-    // Parameter 'iqplot_grid_color'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_grid_color");
-    tt->descr = tdrpStrDup("Color of grid lines on iq plots.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_grid_color - &_start_;
-    tt->single_val.s = tdrpStrDup("gray");
-    tt++;
-    
-    // Parameter 'iqplot_fill_color'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_fill_color");
-    tt->descr = tdrpStrDup("Color of area fill for IQ plots.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_fill_color - &_start_;
-    tt->single_val.s = tdrpStrDup("pink");
-    tt++;
-    
-    // Parameter 'iqplot_labels_color'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_labels_color");
-    tt->descr = tdrpStrDup("Color of labels in iq plots.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_labels_color - &_start_;
-    tt->single_val.s = tdrpStrDup("red");
-    tt++;
-    
-    // Parameter 'iqplot_y_grid_lines_on'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_y_grid_lines_on");
-    tt->descr = tdrpStrDup("Option to draw grid lines in the Y direction.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_y_grid_lines_on - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'iqplot_x_grid_lines_on'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_x_grid_lines_on");
-    tt->descr = tdrpStrDup("Option to draw grid lines in the X direction.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_x_grid_lines_on - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'iqplot_draw_instrument_height_line'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_draw_instrument_height_line");
-    tt->descr = tdrpStrDup("Option to draw a line for the instrument location.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &iqplot_draw_instrument_height_line - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'iqplot_x_axis_labels_inside'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_x_axis_labels_inside");
-    tt->descr = tdrpStrDup("Location of tick labels, relative to x axis.");
-    tt->help = tdrpStrDup("These can either be outside the axes, or inside - i.e. within the data area of the plot.");
-    tt->val_offset = (char *) &iqplot_x_axis_labels_inside - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'iqplot_y_axis_labels_inside'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_y_axis_labels_inside");
-    tt->descr = tdrpStrDup("Location of tick labels, relative to y axis.");
-    tt->help = tdrpStrDup("These can either be outside the axes, or inside - i.e. within the data area of the plot.");
-    tt->val_offset = (char *) &iqplot_y_axis_labels_inside - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'Comment 9'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 9");
-    tt->comment_hdr = tdrpStrDup("IQPLOT LEGENDS");
-    tt->comment_text = tdrpStrDup("");
-    tt++;
-    
-    // Parameter 'iqplot_main_legend_pos'
-    // ctype is '_legend_pos_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = ENUM_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_main_legend_pos");
-    tt->descr = tdrpStrDup("Position of main legend in the IQPLOT plot window");
-    tt->help = tdrpStrDup("This include time, field name and elevation angle.");
-    tt->val_offset = (char *) &iqplot_main_legend_pos - &_start_;
-    tt->enum_def.name = tdrpStrDup("legend_pos_t");
-    tt->enum_def.nfields = 4;
-    tt->enum_def.fields = (enum_field_t *)
-        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
-      tt->enum_def.fields[0].name = tdrpStrDup("LEGEND_TOP_LEFT");
-      tt->enum_def.fields[0].val = LEGEND_TOP_LEFT;
-      tt->enum_def.fields[1].name = tdrpStrDup("LEGEND_TOP_RIGHT");
-      tt->enum_def.fields[1].val = LEGEND_TOP_RIGHT;
-      tt->enum_def.fields[2].name = tdrpStrDup("LEGEND_BOTTOM_LEFT");
-      tt->enum_def.fields[2].val = LEGEND_BOTTOM_LEFT;
-      tt->enum_def.fields[3].name = tdrpStrDup("LEGEND_BOTTOM_RIGHT");
-      tt->enum_def.fields[3].val = LEGEND_BOTTOM_RIGHT;
-    tt->single_val.e = LEGEND_TOP_LEFT;
-    tt++;
-    
-    // Parameter 'iqplot_plot_legend1'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_plot_legend1");
-    tt->descr = tdrpStrDup("Option to plot the starting lat/lon position as a legend.");
-    tt->help = tdrpStrDup("This helps in geolocating the data from a mobile system.");
-    tt->val_offset = (char *) &iqplot_plot_legend1 - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'iqplot_legend1_pos'
-    // ctype is '_legend_pos_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = ENUM_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_legend1_pos");
-    tt->descr = tdrpStrDup("Position of lat/lon legend in plot");
-    tt->help = tdrpStrDup("The starting latitude/longitude will be plotted as a legend in the location specified. See 'iqplot_plot_starting_latlon_as_legend'.");
-    tt->val_offset = (char *) &iqplot_legend1_pos - &_start_;
-    tt->enum_def.name = tdrpStrDup("legend_pos_t");
-    tt->enum_def.nfields = 4;
-    tt->enum_def.fields = (enum_field_t *)
-        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
-      tt->enum_def.fields[0].name = tdrpStrDup("LEGEND_TOP_LEFT");
-      tt->enum_def.fields[0].val = LEGEND_TOP_LEFT;
-      tt->enum_def.fields[1].name = tdrpStrDup("LEGEND_TOP_RIGHT");
-      tt->enum_def.fields[1].val = LEGEND_TOP_RIGHT;
-      tt->enum_def.fields[2].name = tdrpStrDup("LEGEND_BOTTOM_LEFT");
-      tt->enum_def.fields[2].val = LEGEND_BOTTOM_LEFT;
-      tt->enum_def.fields[3].name = tdrpStrDup("LEGEND_BOTTOM_RIGHT");
-      tt->enum_def.fields[3].val = LEGEND_BOTTOM_RIGHT;
-    tt->single_val.e = LEGEND_TOP_LEFT;
-    tt++;
-    
-    // Parameter 'iqplot_legend2_pos'
-    // ctype is '_legend_pos_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = ENUM_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_legend2_pos");
-    tt->descr = tdrpStrDup("Position of lat/lon legend in plot");
-    tt->help = tdrpStrDup("The starting latitude/longitude will be plotted as a legend in the location specified. See 'iqplot_plot_starting_latlon_as_legend'.");
-    tt->val_offset = (char *) &iqplot_legend2_pos - &_start_;
-    tt->enum_def.name = tdrpStrDup("legend_pos_t");
-    tt->enum_def.nfields = 4;
-    tt->enum_def.fields = (enum_field_t *)
-        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
-      tt->enum_def.fields[0].name = tdrpStrDup("LEGEND_TOP_LEFT");
-      tt->enum_def.fields[0].val = LEGEND_TOP_LEFT;
-      tt->enum_def.fields[1].name = tdrpStrDup("LEGEND_TOP_RIGHT");
-      tt->enum_def.fields[1].val = LEGEND_TOP_RIGHT;
-      tt->enum_def.fields[2].name = tdrpStrDup("LEGEND_BOTTOM_LEFT");
-      tt->enum_def.fields[2].val = LEGEND_BOTTOM_LEFT;
-      tt->enum_def.fields[3].name = tdrpStrDup("LEGEND_BOTTOM_RIGHT");
-      tt->enum_def.fields[3].val = LEGEND_BOTTOM_RIGHT;
-    tt->single_val.e = LEGEND_TOP_LEFT;
-    tt++;
-    
-    // Parameter 'iqplot_plot_legend2'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("iqplot_plot_legend2");
-    tt->descr = tdrpStrDup("Option to plot the starting lat/lon position as a legend.");
-    tt->help = tdrpStrDup("This helps in geolocating the data from a mobile system.");
-    tt->val_offset = (char *) &iqplot_plot_legend2 - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'Comment 10'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 10");
     tt->comment_hdr = tdrpStrDup("ASCOPE DISPLAY PANEL");
     tt->comment_text = tdrpStrDup("The ascope panel shows the power plotted against range. It can be configured for both the spectra plot and the waterfall plot.");
     tt++;
     
-    // Parameter 'ascope_n_panels_in_spectra_window'
+    // Parameter 'ascope_n_panels'
     // ctype is 'int'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("ascope_n_panels_in_spectra_window");
+    tt->param_name = tdrpStrDup("ascope_n_panels");
     tt->descr = tdrpStrDup("Number of ascope panels in spectra window (pixels).");
     tt->help = tdrpStrDup("The ascopes will be on the left of the plot. Set to 0 for no ASCOPE panel.");
-    tt->val_offset = (char *) &ascope_n_panels_in_spectra_window - &_start_;
-    tt->single_val.i = 2;
+    tt->val_offset = (char *) &ascope_n_panels - &_start_;
+    tt->single_val.i = 1;
     tt++;
     
     // Parameter 'ascope_moments'
@@ -1644,7 +1235,7 @@
     tt->is_array = TRUE;
     tt->array_len_fixed = FALSE;
     tt->array_elem_size = sizeof(moment_type_t);
-    tt->array_n = 2;
+    tt->array_n = 1;
     tt->enum_def.name = tdrpStrDup("moment_type_t");
     tt->enum_def.nfields = 11;
     tt->enum_def.fields = (enum_field_t *)
@@ -1674,18 +1265,17 @@
     tt->array_vals = (tdrpVal_t *)
         tdrpMalloc(tt->array_n * sizeof(tdrpVal_t));
       tt->array_vals[0].e = DBZ;
-      tt->array_vals[1].e = VEL;
     tt++;
     
-    // Parameter 'ascope_width_in_spectra_window'
+    // Parameter 'ascope_width'
     // ctype is 'int'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("ascope_width_in_spectra_window");
+    tt->param_name = tdrpStrDup("ascope_width");
     tt->descr = tdrpStrDup("Width of ASCOPE panel in spectra window (pixels).");
     tt->help = tdrpStrDup("The ASCOPE will be on the left of the plot. Set to 0 for no ASCOPE panel.");
-    tt->val_offset = (char *) &ascope_width_in_spectra_window - &_start_;
+    tt->val_offset = (char *) &ascope_width - &_start_;
     tt->single_val.i = 150;
     tt++;
     
@@ -1821,30 +1411,6 @@
     tt->single_val.i = 18;
     tt++;
     
-    // Parameter 'ascope_x_grid_lines_on'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("ascope_x_grid_lines_on");
-    tt->descr = tdrpStrDup("Option to draw grid lines in the X direction.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &ascope_x_grid_lines_on - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'ascope_y_grid_lines_on'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("ascope_y_grid_lines_on");
-    tt->descr = tdrpStrDup("Option to draw grid lines in the Y direction.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &ascope_y_grid_lines_on - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
     // Parameter 'ascope_axis_label_color'
     // ctype is 'char*'
     
@@ -1953,13 +1519,1589 @@
     tt->single_val.b = pFALSE;
     tt++;
     
+    // Parameter 'Comment 8'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 8");
+    tt->comment_hdr = tdrpStrDup("WATERFALL DISPLAY PANEL");
+    tt->comment_text = tdrpStrDup("The waterfall plots show spectra plotted against range.");
+    tt++;
+    
+    // Parameter 'waterfall_n_panels'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_n_panels");
+    tt->descr = tdrpStrDup("Number of waterfall panels in spectra window (pixels).");
+    tt->help = tdrpStrDup("The waterfalls will be on the left of the plot. Set to 0 for no WATERFALL panel.");
+    tt->val_offset = (char *) &waterfall_n_panels - &_start_;
+    tt->single_val.i = 1;
+    tt++;
+    
+    // Parameter 'waterfall_plots'
+    // ctype is '_waterfall_plot_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_plots");
+    tt->descr = tdrpStrDup("Details of waterfall plots for each sub panel.");
+    tt->help = tdrpStrDup("HC: H-Co power spectrum vs range.\nVC: V-Co power spectrum vs range.\nHX: H-cross power spectrum vs range.\nVX: V-cross power spectrum vs range.\nZDR: zdr spectrum vs range.\nPHIDP: phidp spectrum vs. range.\nSDEV_ZDR: standard deviation of ZDR.\nSDEV_PHIDP: standard deviation of PHIDP.\nCMD: interest field for clutter likelihood. For the regression filter, set the order to -1 to compute the order automatically in the filter.");
+    tt->array_offset = (char *) &_waterfall_plots - &_start_;
+    tt->array_n_offset = (char *) &waterfall_plots_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(waterfall_plot_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("waterfall_plot_t");
+    tt->struct_def.nfields = 8;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("waterfall_type_t");
+      tt->struct_def.fields[0].fname = tdrpStrDup("plot_type");
+      tt->struct_def.fields[0].ptype = ENUM_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_waterfall_plots->plot_type - (char *) _waterfall_plots;
+        tt->struct_def.fields[0].enum_def.name = tdrpStrDup("waterfall_type_t");
+        tt->struct_def.fields[0].enum_def.nfields = 17;
+        tt->struct_def.fields[0].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[0].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[0].enum_def.fields[0].name = tdrpStrDup("WATERFALL_HC");
+        tt->struct_def.fields[0].enum_def.fields[0].val = WATERFALL_HC;
+        tt->struct_def.fields[0].enum_def.fields[1].name = tdrpStrDup("WATERFALL_VC");
+        tt->struct_def.fields[0].enum_def.fields[1].val = WATERFALL_VC;
+        tt->struct_def.fields[0].enum_def.fields[2].name = tdrpStrDup("WATERFALL_HX");
+        tt->struct_def.fields[0].enum_def.fields[2].val = WATERFALL_HX;
+        tt->struct_def.fields[0].enum_def.fields[3].name = tdrpStrDup("WATERFALL_VX");
+        tt->struct_def.fields[0].enum_def.fields[3].val = WATERFALL_VX;
+        tt->struct_def.fields[0].enum_def.fields[4].name = tdrpStrDup("WATERFALL_DBZ");
+        tt->struct_def.fields[0].enum_def.fields[4].val = WATERFALL_DBZ;
+        tt->struct_def.fields[0].enum_def.fields[5].name = tdrpStrDup("WATERFALL_SNR");
+        tt->struct_def.fields[0].enum_def.fields[5].val = WATERFALL_SNR;
+        tt->struct_def.fields[0].enum_def.fields[6].name = tdrpStrDup("WATERFALL_ZDR");
+        tt->struct_def.fields[0].enum_def.fields[6].val = WATERFALL_ZDR;
+        tt->struct_def.fields[0].enum_def.fields[7].name = tdrpStrDup("WATERFALL_PHIDP");
+        tt->struct_def.fields[0].enum_def.fields[7].val = WATERFALL_PHIDP;
+        tt->struct_def.fields[0].enum_def.fields[8].name = tdrpStrDup("WATERFALL_RHOHV");
+        tt->struct_def.fields[0].enum_def.fields[8].val = WATERFALL_RHOHV;
+        tt->struct_def.fields[0].enum_def.fields[9].name = tdrpStrDup("WATERFALL_TDBZ");
+        tt->struct_def.fields[0].enum_def.fields[9].val = WATERFALL_TDBZ;
+        tt->struct_def.fields[0].enum_def.fields[10].name = tdrpStrDup("WATERFALL_SDEV_ZDR");
+        tt->struct_def.fields[0].enum_def.fields[10].val = WATERFALL_SDEV_ZDR;
+        tt->struct_def.fields[0].enum_def.fields[11].name = tdrpStrDup("WATERFALL_SDEV_PHIDP");
+        tt->struct_def.fields[0].enum_def.fields[11].val = WATERFALL_SDEV_PHIDP;
+        tt->struct_def.fields[0].enum_def.fields[12].name = tdrpStrDup("WATERFALL_TDBZ_INT");
+        tt->struct_def.fields[0].enum_def.fields[12].val = WATERFALL_TDBZ_INT;
+        tt->struct_def.fields[0].enum_def.fields[13].name = tdrpStrDup("WATERFALL_SDEV_ZDR_INT");
+        tt->struct_def.fields[0].enum_def.fields[13].val = WATERFALL_SDEV_ZDR_INT;
+        tt->struct_def.fields[0].enum_def.fields[14].name = tdrpStrDup("WATERFALL_SDEV_PHIDP_INT");
+        tt->struct_def.fields[0].enum_def.fields[14].val = WATERFALL_SDEV_PHIDP_INT;
+        tt->struct_def.fields[0].enum_def.fields[15].name = tdrpStrDup("WATERFALL_CMD");
+        tt->struct_def.fields[0].enum_def.fields[15].val = WATERFALL_CMD;
+        tt->struct_def.fields[0].enum_def.fields[16].name = tdrpStrDup("WATERFALL_CMD_MEAN");
+        tt->struct_def.fields[0].enum_def.fields[16].val = WATERFALL_CMD_MEAN;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("fft_window_t");
+      tt->struct_def.fields[1].fname = tdrpStrDup("fft_window");
+      tt->struct_def.fields[1].ptype = ENUM_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_waterfall_plots->fft_window - (char *) _waterfall_plots;
+        tt->struct_def.fields[1].enum_def.name = tdrpStrDup("fft_window_t");
+        tt->struct_def.fields[1].enum_def.nfields = 8;
+        tt->struct_def.fields[1].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[1].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[1].enum_def.fields[0].name = tdrpStrDup("FFT_WINDOW_RECT");
+        tt->struct_def.fields[1].enum_def.fields[0].val = FFT_WINDOW_RECT;
+        tt->struct_def.fields[1].enum_def.fields[1].name = tdrpStrDup("FFT_WINDOW_VONHANN");
+        tt->struct_def.fields[1].enum_def.fields[1].val = FFT_WINDOW_VONHANN;
+        tt->struct_def.fields[1].enum_def.fields[2].name = tdrpStrDup("FFT_WINDOW_BLACKMAN");
+        tt->struct_def.fields[1].enum_def.fields[2].val = FFT_WINDOW_BLACKMAN;
+        tt->struct_def.fields[1].enum_def.fields[3].name = tdrpStrDup("FFT_WINDOW_BLACKMAN_NUTTALL");
+        tt->struct_def.fields[1].enum_def.fields[3].val = FFT_WINDOW_BLACKMAN_NUTTALL;
+        tt->struct_def.fields[1].enum_def.fields[4].name = tdrpStrDup("FFT_WINDOW_TUKEY_10");
+        tt->struct_def.fields[1].enum_def.fields[4].val = FFT_WINDOW_TUKEY_10;
+        tt->struct_def.fields[1].enum_def.fields[5].name = tdrpStrDup("FFT_WINDOW_TUKEY_20");
+        tt->struct_def.fields[1].enum_def.fields[5].val = FFT_WINDOW_TUKEY_20;
+        tt->struct_def.fields[1].enum_def.fields[6].name = tdrpStrDup("FFT_WINDOW_TUKEY_30");
+        tt->struct_def.fields[1].enum_def.fields[6].val = FFT_WINDOW_TUKEY_30;
+        tt->struct_def.fields[1].enum_def.fields[7].name = tdrpStrDup("FFT_WINDOW_TUKEY_50");
+        tt->struct_def.fields[1].enum_def.fields[7].val = FFT_WINDOW_TUKEY_50;
+      tt->struct_def.fields[2].ftype = tdrpStrDup("int");
+      tt->struct_def.fields[2].fname = tdrpStrDup("median_filter_len");
+      tt->struct_def.fields[2].ptype = INT_TYPE;
+      tt->struct_def.fields[2].rel_offset = 
+        (char *) &_waterfall_plots->median_filter_len - (char *) _waterfall_plots;
+      tt->struct_def.fields[3].ftype = tdrpStrDup("clutter_filter_type_t");
+      tt->struct_def.fields[3].fname = tdrpStrDup("clutter_filter_type");
+      tt->struct_def.fields[3].ptype = ENUM_TYPE;
+      tt->struct_def.fields[3].rel_offset = 
+        (char *) &_waterfall_plots->clutter_filter_type - (char *) _waterfall_plots;
+        tt->struct_def.fields[3].enum_def.name = tdrpStrDup("clutter_filter_type_t");
+        tt->struct_def.fields[3].enum_def.nfields = 5;
+        tt->struct_def.fields[3].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[3].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[3].enum_def.fields[0].name = tdrpStrDup("CLUTTER_FILTER_ADAPTIVE");
+        tt->struct_def.fields[3].enum_def.fields[0].val = CLUTTER_FILTER_ADAPTIVE;
+        tt->struct_def.fields[3].enum_def.fields[1].name = tdrpStrDup("CLUTTER_FILTER_REGRESSION");
+        tt->struct_def.fields[3].enum_def.fields[1].val = CLUTTER_FILTER_REGRESSION;
+        tt->struct_def.fields[3].enum_def.fields[2].name = tdrpStrDup("CLUTTER_FILTER_NOTCH");
+        tt->struct_def.fields[3].enum_def.fields[2].val = CLUTTER_FILTER_NOTCH;
+        tt->struct_def.fields[3].enum_def.fields[3].name = tdrpStrDup("CLUTTER_FILTER_TSR");
+        tt->struct_def.fields[3].enum_def.fields[3].val = CLUTTER_FILTER_TSR;
+        tt->struct_def.fields[3].enum_def.fields[4].name = tdrpStrDup("CLUTTER_FILTER_NONE");
+        tt->struct_def.fields[3].enum_def.fields[4].val = CLUTTER_FILTER_NONE;
+      tt->struct_def.fields[4].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[4].fname = tdrpStrDup("clutter_model_width_mps");
+      tt->struct_def.fields[4].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[4].rel_offset = 
+        (char *) &_waterfall_plots->clutter_model_width_mps - (char *) _waterfall_plots;
+      tt->struct_def.fields[5].ftype = tdrpStrDup("boolean");
+      tt->struct_def.fields[5].fname = tdrpStrDup("use_regression_filter");
+      tt->struct_def.fields[5].ptype = BOOL_TYPE;
+      tt->struct_def.fields[5].rel_offset = 
+        (char *) &_waterfall_plots->use_regression_filter - (char *) _waterfall_plots;
+      tt->struct_def.fields[6].ftype = tdrpStrDup("int");
+      tt->struct_def.fields[6].fname = tdrpStrDup("regression_order");
+      tt->struct_def.fields[6].ptype = INT_TYPE;
+      tt->struct_def.fields[6].rel_offset = 
+        (char *) &_waterfall_plots->regression_order - (char *) _waterfall_plots;
+      tt->struct_def.fields[7].ftype = tdrpStrDup("notch_interp_method_t");
+      tt->struct_def.fields[7].fname = tdrpStrDup("regression_filter_notch_interp_method");
+      tt->struct_def.fields[7].ptype = ENUM_TYPE;
+      tt->struct_def.fields[7].rel_offset = 
+        (char *) &_waterfall_plots->regression_filter_notch_interp_method - (char *) _waterfall_plots;
+        tt->struct_def.fields[7].enum_def.name = tdrpStrDup("notch_interp_method_t");
+        tt->struct_def.fields[7].enum_def.nfields = 3;
+        tt->struct_def.fields[7].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[7].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[7].enum_def.fields[0].name = tdrpStrDup("INTERP_METHOD_NONE");
+        tt->struct_def.fields[7].enum_def.fields[0].val = INTERP_METHOD_NONE;
+        tt->struct_def.fields[7].enum_def.fields[1].name = tdrpStrDup("INTERP_METHOD_LINEAR");
+        tt->struct_def.fields[7].enum_def.fields[1].val = INTERP_METHOD_LINEAR;
+        tt->struct_def.fields[7].enum_def.fields[2].name = tdrpStrDup("INTERP_METHOD_GAUSSIAN");
+        tt->struct_def.fields[7].enum_def.fields[2].val = INTERP_METHOD_GAUSSIAN;
+    tt->n_struct_vals = 16;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].e = WATERFALL_HC;
+      tt->struct_vals[1].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[2].i = 1;
+      tt->struct_vals[3].e = CLUTTER_FILTER_NONE;
+      tt->struct_vals[4].d = 0.75;
+      tt->struct_vals[5].b = pFALSE;
+      tt->struct_vals[6].i = -1;
+      tt->struct_vals[7].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[8].e = WATERFALL_ZDR;
+      tt->struct_vals[9].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[10].i = 1;
+      tt->struct_vals[11].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[12].d = 0.75;
+      tt->struct_vals[13].b = pFALSE;
+      tt->struct_vals[14].i = -1;
+      tt->struct_vals[15].e = INTERP_METHOD_GAUSSIAN;
+    tt++;
+    
+    // Parameter 'waterfall_width'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_width");
+    tt->descr = tdrpStrDup("Width of WATERFALL panel in spectra window (pixels).");
+    tt->help = tdrpStrDup("The WATERFALL will be on the left of the plot. Set to 0 for no WATERFALL panel.");
+    tt->val_offset = (char *) &waterfall_width - &_start_;
+    tt->single_val.i = 200;
+    tt++;
+    
+    // Parameter 'waterfall_color_scale_width'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_color_scale_width");
+    tt->descr = tdrpStrDup("Width of color scale in waterfall plots (pixels).");
+    tt->help = tdrpStrDup("The color scale sits to the right of the data.");
+    tt->val_offset = (char *) &waterfall_color_scale_width - &_start_;
+    tt->single_val.i = 30;
+    tt++;
+    
+    // Parameter 'waterfall_tdbz_kernel_ngates'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_tdbz_kernel_ngates");
+    tt->descr = tdrpStrDup("Kernal size in range for computing TDBZ");
+    tt->help = tdrpStrDup("The standard deviation of DBZ-squared is computed over a rectangular kernel, and then the square-root is computed. This is the size of that kernel in range.");
+    tt->val_offset = (char *) &waterfall_tdbz_kernel_ngates - &_start_;
+    tt->single_val.i = 5;
+    tt++;
+    
+    // Parameter 'waterfall_tdbz_kernel_nsamples'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_tdbz_kernel_nsamples");
+    tt->descr = tdrpStrDup("Kernal size in samples for computing sdev of TDBZ");
+    tt->help = tdrpStrDup("The standard deviation of DBZ-squared is computed over a rectangular kernel, and then the square-root is computed. This is the number of samples in the kernel.");
+    tt->val_offset = (char *) &waterfall_tdbz_kernel_nsamples - &_start_;
+    tt->single_val.i = 3;
+    tt++;
+    
+    // Parameter 'waterfall_sdev_zdr_kernel_ngates'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_sdev_zdr_kernel_ngates");
+    tt->descr = tdrpStrDup("Kernal size in range for computing sdev of zdr");
+    tt->help = tdrpStrDup("The standard deviation of ZDR is computed over a rectangular kernel. This is the size of that kernel in range.");
+    tt->val_offset = (char *) &waterfall_sdev_zdr_kernel_ngates - &_start_;
+    tt->single_val.i = 5;
+    tt++;
+    
+    // Parameter 'waterfall_sdev_zdr_kernel_nsamples'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_sdev_zdr_kernel_nsamples");
+    tt->descr = tdrpStrDup("Kernal size in samples for computing sdev of zdr");
+    tt->help = tdrpStrDup("The standard deviation of ZDR is computed over a rectangular kernel. This is the number of samples in that kernel.");
+    tt->val_offset = (char *) &waterfall_sdev_zdr_kernel_nsamples - &_start_;
+    tt->single_val.i = 3;
+    tt++;
+    
+    // Parameter 'waterfall_sdev_phidp_kernel_ngates'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_sdev_phidp_kernel_ngates");
+    tt->descr = tdrpStrDup("Kernal size in range for computing sdev of phidp");
+    tt->help = tdrpStrDup("The standard deviation of PHIDP is computed over a rectangular kernel. This is the size of that kernel in range.");
+    tt->val_offset = (char *) &waterfall_sdev_phidp_kernel_ngates - &_start_;
+    tt->single_val.i = 5;
+    tt++;
+    
+    // Parameter 'waterfall_sdev_phidp_kernel_nsamples'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_sdev_phidp_kernel_nsamples");
+    tt->descr = tdrpStrDup("Kernal size in samples for computing sdev of phidp");
+    tt->help = tdrpStrDup("The standard deviation of PHIDP is computed over a rectangular kernel. This is the number of samples in that kernel.");
+    tt->val_offset = (char *) &waterfall_sdev_phidp_kernel_nsamples - &_start_;
+    tt->single_val.i = 3;
+    tt++;
+    
+    // Parameter 'color_scale_dir'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("color_scale_dir");
+    tt->descr = tdrpStrDup("Directory for color scales");
+    tt->help = tdrpStrDup("You can set this in 2 ways:\n\n(a) Set to the absolute path\n\n(b)Set as a path relative to the location of the application binary executable.");
+    tt->val_offset = (char *) &color_scale_dir - &_start_;
+    tt->single_val.s = tdrpStrDup("../share/color_scales");
+    tt++;
+    
+    // Parameter 'waterfall_dbz_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_dbz_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for dbz");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_dbz_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("dbz.colors");
+    tt++;
+    
+    // Parameter 'waterfall_snr_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_snr_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for snr");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_snr_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("snr.colors");
+    tt++;
+    
+    // Parameter 'waterfall_dbm_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_dbm_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for dbm");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_dbm_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("dbm_spectra.colors");
+    tt++;
+    
+    // Parameter 'waterfall_zdr_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_zdr_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for zdr");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_zdr_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("zdr.colors");
+    tt++;
+    
+    // Parameter 'waterfall_phidp_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_phidp_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for phidp");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_phidp_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("phidp.colors");
+    tt++;
+    
+    // Parameter 'waterfall_rhohv_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_rhohv_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for rhohv");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_rhohv_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("rhohv.colors");
+    tt++;
+    
+    // Parameter 'waterfall_tdbz_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_tdbz_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for TDBZ");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_tdbz_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("dbz.colors");
+    tt++;
+    
+    // Parameter 'waterfall_sdev_zdr_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_sdev_zdr_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for sdev of zdr");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_sdev_zdr_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("sdzdr_spectra.colors");
+    tt++;
+    
+    // Parameter 'waterfall_sdev_phidp_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_sdev_phidp_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for sdev of phidp");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_sdev_phidp_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("sdphidp_spectra.colors");
+    tt++;
+    
+    // Parameter 'waterfall_interest_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_interest_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for interest values");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_interest_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("interest.colors");
+    tt++;
+    
+    // Parameter 'waterfall_cmd_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_cmd_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for CMD");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_cmd_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("cmd_spectra.colors");
+    tt++;
+    
+    // Parameter 'waterfall_cmd_mean_color_scale_name'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_cmd_mean_color_scale_name");
+    tt->descr = tdrpStrDup("Color scale name for CMD SPECTRAL MEAN");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_cmd_mean_color_scale_name - &_start_;
+    tt->single_val.s = tdrpStrDup("cmd_mean.colors");
+    tt++;
+    
+    // Parameter 'waterfall_title_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_title_font_size");
+    tt->descr = tdrpStrDup("Font size of center title (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_title_font_size - &_start_;
+    tt->single_val.i = 10;
+    tt++;
+    
+    // Parameter 'waterfall_axis_label_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_axis_label_font_size");
+    tt->descr = tdrpStrDup("Font size of axis labels in waterfall (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_axis_label_font_size - &_start_;
+    tt->single_val.i = 8;
+    tt++;
+    
+    // Parameter 'waterfall_tick_values_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_tick_values_font_size");
+    tt->descr = tdrpStrDup("Font size of axis tick values (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_tick_values_font_size - &_start_;
+    tt->single_val.i = 6;
+    tt++;
+    
+    // Parameter 'waterfall_legend_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_legend_font_size");
+    tt->descr = tdrpStrDup("Font size for plot legends (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_legend_font_size - &_start_;
+    tt->single_val.i = 6;
+    tt++;
+    
+    // Parameter 'waterfall_color_scale_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_color_scale_font_size");
+    tt->descr = tdrpStrDup("Font size for labels in color scales (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_color_scale_font_size - &_start_;
+    tt->single_val.i = 6;
+    tt++;
+    
+    // Parameter 'waterfall_title_text_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_title_text_margin");
+    tt->descr = tdrpStrDup("Margin around title text (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_title_text_margin - &_start_;
+    tt->single_val.i = 3;
+    tt++;
+    
+    // Parameter 'waterfall_legend_text_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_legend_text_margin");
+    tt->descr = tdrpStrDup("Margin around legend text (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_legend_text_margin - &_start_;
+    tt->single_val.i = 3;
+    tt++;
+    
+    // Parameter 'waterfall_axis_text_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_axis_text_margin");
+    tt->descr = tdrpStrDup("Margin around axis text (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_axis_text_margin - &_start_;
+    tt->single_val.i = 2;
+    tt++;
+    
+    // Parameter 'waterfall_axis_tick_len'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_axis_tick_len");
+    tt->descr = tdrpStrDup("Length of ticks on axes (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_axis_tick_len - &_start_;
+    tt->single_val.i = 4;
+    tt++;
+    
+    // Parameter 'waterfall_n_ticks_ideal'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_n_ticks_ideal");
+    tt->descr = tdrpStrDup("Ideal number of ticks on axes.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_n_ticks_ideal - &_start_;
+    tt->single_val.i = 5;
+    tt++;
+    
+    // Parameter 'waterfall_left_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_left_margin");
+    tt->descr = tdrpStrDup("Width of left margin for waterfall plot (pixels).");
+    tt->help = tdrpStrDup("The Y axis labels are plotted here.");
+    tt->val_offset = (char *) &waterfall_left_margin - &_start_;
+    tt->single_val.i = 18;
+    tt++;
+    
+    // Parameter 'waterfall_bottom_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_bottom_margin");
+    tt->descr = tdrpStrDup("Height of bottom margin for waterfall plot (pixels).");
+    tt->help = tdrpStrDup("The X axis labels are plotted here.");
+    tt->val_offset = (char *) &waterfall_bottom_margin - &_start_;
+    tt->single_val.i = 18;
+    tt++;
+    
+    // Parameter 'waterfall_axis_label_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_axis_label_color");
+    tt->descr = tdrpStrDup("Color of waterfall axis labels.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_axis_label_color - &_start_;
+    tt->single_val.s = tdrpStrDup("white");
+    tt++;
+    
+    // Parameter 'waterfall_axes_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_axes_color");
+    tt->descr = tdrpStrDup("Color of axes in waterfall.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_axes_color - &_start_;
+    tt->single_val.s = tdrpStrDup("green");
+    tt++;
+    
+    // Parameter 'waterfall_grid_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_grid_color");
+    tt->descr = tdrpStrDup("Color of grid lines on waterfall.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_grid_color - &_start_;
+    tt->single_val.s = tdrpStrDup("gray");
+    tt++;
+    
+    // Parameter 'waterfall_line_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_line_color");
+    tt->descr = tdrpStrDup("Color of waterfall line.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_line_color - &_start_;
+    tt->single_val.s = tdrpStrDup("lightgray");
+    tt++;
+    
+    // Parameter 'waterfall_selected_range_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_selected_range_color");
+    tt->descr = tdrpStrDup("Color of line showing currently selected range.");
+    tt->help = tdrpStrDup("The user can double click in the waterfall to move this line.");
+    tt->val_offset = (char *) &waterfall_selected_range_color - &_start_;
+    tt->single_val.s = tdrpStrDup("cyan");
+    tt++;
+    
+    // Parameter 'waterfall_fill_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_fill_color");
+    tt->descr = tdrpStrDup("Color of waterfall fill.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_fill_color - &_start_;
+    tt->single_val.s = tdrpStrDup("darkgreen");
+    tt++;
+    
+    // Parameter 'waterfall_title_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_title_color");
+    tt->descr = tdrpStrDup("Color of waterfall title.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &waterfall_title_color - &_start_;
+    tt->single_val.s = tdrpStrDup("yellow");
+    tt++;
+    
+    // Parameter 'waterfall_x_axis_labels_inside'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_x_axis_labels_inside");
+    tt->descr = tdrpStrDup("Location of tick labels, relative to x axis.");
+    tt->help = tdrpStrDup("These can either be outside the axes, or inside - i.e. within the data area of the plot.");
+    tt->val_offset = (char *) &waterfall_x_axis_labels_inside - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'waterfall_y_axis_labels_inside'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("waterfall_y_axis_labels_inside");
+    tt->descr = tdrpStrDup("Location of tick labels, relative to y axis.");
+    tt->help = tdrpStrDup("These can either be outside the axes, or inside - i.e. within the data area of the plot.");
+    tt->val_offset = (char *) &waterfall_y_axis_labels_inside - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'Comment 9'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 9");
+    tt->comment_hdr = tdrpStrDup("IQ PLOTS");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'iqplots_n_rows'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplots_n_rows");
+    tt->descr = tdrpStrDup("Number of rows of plots in iq plots.");
+    tt->help = tdrpStrDup("The iq plots are made up of a matrix of plots, n_rows by n_colums. This is the starting value for the number of rows.");
+    tt->val_offset = (char *) &iqplots_n_rows - &_start_;
+    tt->single_val.i = 2;
+    tt++;
+    
+    // Parameter 'iqplots_n_columns'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplots_n_columns");
+    tt->descr = tdrpStrDup("Number of columns of plots in iq plots.");
+    tt->help = tdrpStrDup("The iq plots are made up of a matrix of plots, n_rows by n_colums. This is the starting value for the number of columns.");
+    tt->val_offset = (char *) &iqplots_n_columns - &_start_;
+    tt->single_val.i = 4;
+    tt++;
+    
+    // Parameter 'iq_plots'
+    // ctype is '_iq_plot_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("iq_plots");
+    tt->descr = tdrpStrDup("Details of IQ plots for each sub panel.");
+    tt->help = tdrpStrDup("SPECTRAL_POWER: power spectrum, log.\nSPECTRAL_PHASE: phase in the spectral domain.\nSPECTRAL_ZDR: (H/V) power ratio of the spectrum.\nSPECTRAL_PHIDP: H/V phase difference in the spectrum.\nTS_POWER: time domain power, log.\nTS_PHASE: time domain phase.\nI_VALS: I vals of time series.\nQ_VALS: Q vals of time series.\nI_VS_Q: I on x axis, Q on y axis.\nPHASE: sum of I vs sum of Q. I on x axis.\n\nmedian_filter_len: median filter for spectra. For the regression filter, set the order to -1 to compute the order automatically in the filter");
+    tt->array_offset = (char *) &_iq_plots - &_start_;
+    tt->array_n_offset = (char *) &iq_plots_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(iq_plot_t);
+    tt->array_n = 8;
+    tt->struct_def.name = tdrpStrDup("iq_plot_t");
+    tt->struct_def.nfields = 10;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("iq_plot_type_t");
+      tt->struct_def.fields[0].fname = tdrpStrDup("plot_type");
+      tt->struct_def.fields[0].ptype = ENUM_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_iq_plots->plot_type - (char *) _iq_plots;
+        tt->struct_def.fields[0].enum_def.name = tdrpStrDup("iq_plot_type_t");
+        tt->struct_def.fields[0].enum_def.nfields = 12;
+        tt->struct_def.fields[0].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[0].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[0].enum_def.fields[0].name = tdrpStrDup("SPECTRAL_POWER");
+        tt->struct_def.fields[0].enum_def.fields[0].val = SPECTRAL_POWER;
+        tt->struct_def.fields[0].enum_def.fields[1].name = tdrpStrDup("SPECTRAL_PHASE");
+        tt->struct_def.fields[0].enum_def.fields[1].val = SPECTRAL_PHASE;
+        tt->struct_def.fields[0].enum_def.fields[2].name = tdrpStrDup("SPECTRAL_ZDR");
+        tt->struct_def.fields[0].enum_def.fields[2].val = SPECTRAL_ZDR;
+        tt->struct_def.fields[0].enum_def.fields[3].name = tdrpStrDup("SPECTRAL_PHIDP");
+        tt->struct_def.fields[0].enum_def.fields[3].val = SPECTRAL_PHIDP;
+        tt->struct_def.fields[0].enum_def.fields[4].name = tdrpStrDup("SPECTRAL_RHOHV");
+        tt->struct_def.fields[0].enum_def.fields[4].val = SPECTRAL_RHOHV;
+        tt->struct_def.fields[0].enum_def.fields[5].name = tdrpStrDup("SPECTRAL_SZ864");
+        tt->struct_def.fields[0].enum_def.fields[5].val = SPECTRAL_SZ864;
+        tt->struct_def.fields[0].enum_def.fields[6].name = tdrpStrDup("TS_POWER");
+        tt->struct_def.fields[0].enum_def.fields[6].val = TS_POWER;
+        tt->struct_def.fields[0].enum_def.fields[7].name = tdrpStrDup("TS_PHASE");
+        tt->struct_def.fields[0].enum_def.fields[7].val = TS_PHASE;
+        tt->struct_def.fields[0].enum_def.fields[8].name = tdrpStrDup("I_VALS");
+        tt->struct_def.fields[0].enum_def.fields[8].val = I_VALS;
+        tt->struct_def.fields[0].enum_def.fields[9].name = tdrpStrDup("Q_VALS");
+        tt->struct_def.fields[0].enum_def.fields[9].val = Q_VALS;
+        tt->struct_def.fields[0].enum_def.fields[10].name = tdrpStrDup("I_VS_Q");
+        tt->struct_def.fields[0].enum_def.fields[10].val = I_VS_Q;
+        tt->struct_def.fields[0].enum_def.fields[11].name = tdrpStrDup("PHASOR");
+        tt->struct_def.fields[0].enum_def.fields[11].val = PHASOR;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("rx_channel_t");
+      tt->struct_def.fields[1].fname = tdrpStrDup("rx_channel");
+      tt->struct_def.fields[1].ptype = ENUM_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_iq_plots->rx_channel - (char *) _iq_plots;
+        tt->struct_def.fields[1].enum_def.name = tdrpStrDup("rx_channel_t");
+        tt->struct_def.fields[1].enum_def.nfields = 4;
+        tt->struct_def.fields[1].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[1].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[1].enum_def.fields[0].name = tdrpStrDup("CHANNEL_HC");
+        tt->struct_def.fields[1].enum_def.fields[0].val = CHANNEL_HC;
+        tt->struct_def.fields[1].enum_def.fields[1].name = tdrpStrDup("CHANNEL_VC");
+        tt->struct_def.fields[1].enum_def.fields[1].val = CHANNEL_VC;
+        tt->struct_def.fields[1].enum_def.fields[2].name = tdrpStrDup("CHANNEL_HX");
+        tt->struct_def.fields[1].enum_def.fields[2].val = CHANNEL_HX;
+        tt->struct_def.fields[1].enum_def.fields[3].name = tdrpStrDup("CHANNEL_VX");
+        tt->struct_def.fields[1].enum_def.fields[3].val = CHANNEL_VX;
+      tt->struct_def.fields[2].ftype = tdrpStrDup("fft_window_t");
+      tt->struct_def.fields[2].fname = tdrpStrDup("fft_window");
+      tt->struct_def.fields[2].ptype = ENUM_TYPE;
+      tt->struct_def.fields[2].rel_offset = 
+        (char *) &_iq_plots->fft_window - (char *) _iq_plots;
+        tt->struct_def.fields[2].enum_def.name = tdrpStrDup("fft_window_t");
+        tt->struct_def.fields[2].enum_def.nfields = 8;
+        tt->struct_def.fields[2].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[2].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[2].enum_def.fields[0].name = tdrpStrDup("FFT_WINDOW_RECT");
+        tt->struct_def.fields[2].enum_def.fields[0].val = FFT_WINDOW_RECT;
+        tt->struct_def.fields[2].enum_def.fields[1].name = tdrpStrDup("FFT_WINDOW_VONHANN");
+        tt->struct_def.fields[2].enum_def.fields[1].val = FFT_WINDOW_VONHANN;
+        tt->struct_def.fields[2].enum_def.fields[2].name = tdrpStrDup("FFT_WINDOW_BLACKMAN");
+        tt->struct_def.fields[2].enum_def.fields[2].val = FFT_WINDOW_BLACKMAN;
+        tt->struct_def.fields[2].enum_def.fields[3].name = tdrpStrDup("FFT_WINDOW_BLACKMAN_NUTTALL");
+        tt->struct_def.fields[2].enum_def.fields[3].val = FFT_WINDOW_BLACKMAN_NUTTALL;
+        tt->struct_def.fields[2].enum_def.fields[4].name = tdrpStrDup("FFT_WINDOW_TUKEY_10");
+        tt->struct_def.fields[2].enum_def.fields[4].val = FFT_WINDOW_TUKEY_10;
+        tt->struct_def.fields[2].enum_def.fields[5].name = tdrpStrDup("FFT_WINDOW_TUKEY_20");
+        tt->struct_def.fields[2].enum_def.fields[5].val = FFT_WINDOW_TUKEY_20;
+        tt->struct_def.fields[2].enum_def.fields[6].name = tdrpStrDup("FFT_WINDOW_TUKEY_30");
+        tt->struct_def.fields[2].enum_def.fields[6].val = FFT_WINDOW_TUKEY_30;
+        tt->struct_def.fields[2].enum_def.fields[7].name = tdrpStrDup("FFT_WINDOW_TUKEY_50");
+        tt->struct_def.fields[2].enum_def.fields[7].val = FFT_WINDOW_TUKEY_50;
+      tt->struct_def.fields[3].ftype = tdrpStrDup("int");
+      tt->struct_def.fields[3].fname = tdrpStrDup("median_filter_len");
+      tt->struct_def.fields[3].ptype = INT_TYPE;
+      tt->struct_def.fields[3].rel_offset = 
+        (char *) &_iq_plots->median_filter_len - (char *) _iq_plots;
+      tt->struct_def.fields[4].ftype = tdrpStrDup("clutter_filter_type_t");
+      tt->struct_def.fields[4].fname = tdrpStrDup("clutter_filter_type");
+      tt->struct_def.fields[4].ptype = ENUM_TYPE;
+      tt->struct_def.fields[4].rel_offset = 
+        (char *) &_iq_plots->clutter_filter_type - (char *) _iq_plots;
+        tt->struct_def.fields[4].enum_def.name = tdrpStrDup("clutter_filter_type_t");
+        tt->struct_def.fields[4].enum_def.nfields = 5;
+        tt->struct_def.fields[4].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[4].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[4].enum_def.fields[0].name = tdrpStrDup("CLUTTER_FILTER_ADAPTIVE");
+        tt->struct_def.fields[4].enum_def.fields[0].val = CLUTTER_FILTER_ADAPTIVE;
+        tt->struct_def.fields[4].enum_def.fields[1].name = tdrpStrDup("CLUTTER_FILTER_REGRESSION");
+        tt->struct_def.fields[4].enum_def.fields[1].val = CLUTTER_FILTER_REGRESSION;
+        tt->struct_def.fields[4].enum_def.fields[2].name = tdrpStrDup("CLUTTER_FILTER_NOTCH");
+        tt->struct_def.fields[4].enum_def.fields[2].val = CLUTTER_FILTER_NOTCH;
+        tt->struct_def.fields[4].enum_def.fields[3].name = tdrpStrDup("CLUTTER_FILTER_TSR");
+        tt->struct_def.fields[4].enum_def.fields[3].val = CLUTTER_FILTER_TSR;
+        tt->struct_def.fields[4].enum_def.fields[4].name = tdrpStrDup("CLUTTER_FILTER_NONE");
+        tt->struct_def.fields[4].enum_def.fields[4].val = CLUTTER_FILTER_NONE;
+      tt->struct_def.fields[5].ftype = tdrpStrDup("boolean");
+      tt->struct_def.fields[5].fname = tdrpStrDup("plot_clutter_model");
+      tt->struct_def.fields[5].ptype = BOOL_TYPE;
+      tt->struct_def.fields[5].rel_offset = 
+        (char *) &_iq_plots->plot_clutter_model - (char *) _iq_plots;
+      tt->struct_def.fields[6].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[6].fname = tdrpStrDup("clutter_model_width_mps");
+      tt->struct_def.fields[6].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[6].rel_offset = 
+        (char *) &_iq_plots->clutter_model_width_mps - (char *) _iq_plots;
+      tt->struct_def.fields[7].ftype = tdrpStrDup("int");
+      tt->struct_def.fields[7].fname = tdrpStrDup("regression_order");
+      tt->struct_def.fields[7].ptype = INT_TYPE;
+      tt->struct_def.fields[7].rel_offset = 
+        (char *) &_iq_plots->regression_order - (char *) _iq_plots;
+      tt->struct_def.fields[8].ftype = tdrpStrDup("notch_interp_method_t");
+      tt->struct_def.fields[8].fname = tdrpStrDup("regression_filter_notch_interp_method");
+      tt->struct_def.fields[8].ptype = ENUM_TYPE;
+      tt->struct_def.fields[8].rel_offset = 
+        (char *) &_iq_plots->regression_filter_notch_interp_method - (char *) _iq_plots;
+        tt->struct_def.fields[8].enum_def.name = tdrpStrDup("notch_interp_method_t");
+        tt->struct_def.fields[8].enum_def.nfields = 3;
+        tt->struct_def.fields[8].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[8].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[8].enum_def.fields[0].name = tdrpStrDup("INTERP_METHOD_NONE");
+        tt->struct_def.fields[8].enum_def.fields[0].val = INTERP_METHOD_NONE;
+        tt->struct_def.fields[8].enum_def.fields[1].name = tdrpStrDup("INTERP_METHOD_LINEAR");
+        tt->struct_def.fields[8].enum_def.fields[1].val = INTERP_METHOD_LINEAR;
+        tt->struct_def.fields[8].enum_def.fields[2].name = tdrpStrDup("INTERP_METHOD_GAUSSIAN");
+        tt->struct_def.fields[8].enum_def.fields[2].val = INTERP_METHOD_GAUSSIAN;
+      tt->struct_def.fields[9].ftype = tdrpStrDup("boolean");
+      tt->struct_def.fields[9].fname = tdrpStrDup("compute_plot_range_dynamically");
+      tt->struct_def.fields[9].ptype = BOOL_TYPE;
+      tt->struct_def.fields[9].rel_offset = 
+        (char *) &_iq_plots->compute_plot_range_dynamically - (char *) _iq_plots;
+    tt->n_struct_vals = 80;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].e = SPECTRAL_POWER;
+      tt->struct_vals[1].e = CHANNEL_HC;
+      tt->struct_vals[2].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[3].i = 1;
+      tt->struct_vals[4].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[5].b = pFALSE;
+      tt->struct_vals[6].d = 0.75;
+      tt->struct_vals[7].i = -1;
+      tt->struct_vals[8].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[9].b = pTRUE;
+      tt->struct_vals[10].e = SPECTRAL_PHASE;
+      tt->struct_vals[11].e = CHANNEL_HC;
+      tt->struct_vals[12].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[13].i = 1;
+      tt->struct_vals[14].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[15].b = pFALSE;
+      tt->struct_vals[16].d = 0.75;
+      tt->struct_vals[17].i = -1;
+      tt->struct_vals[18].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[19].b = pTRUE;
+      tt->struct_vals[20].e = TS_POWER;
+      tt->struct_vals[21].e = CHANNEL_HC;
+      tt->struct_vals[22].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[23].i = 1;
+      tt->struct_vals[24].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[25].b = pFALSE;
+      tt->struct_vals[26].d = 0.75;
+      tt->struct_vals[27].i = -1;
+      tt->struct_vals[28].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[29].b = pTRUE;
+      tt->struct_vals[30].e = TS_PHASE;
+      tt->struct_vals[31].e = CHANNEL_HC;
+      tt->struct_vals[32].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[33].i = 1;
+      tt->struct_vals[34].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[35].b = pFALSE;
+      tt->struct_vals[36].d = 0.75;
+      tt->struct_vals[37].i = -1;
+      tt->struct_vals[38].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[39].b = pTRUE;
+      tt->struct_vals[40].e = I_VALS;
+      tt->struct_vals[41].e = CHANNEL_HC;
+      tt->struct_vals[42].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[43].i = 1;
+      tt->struct_vals[44].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[45].b = pFALSE;
+      tt->struct_vals[46].d = 0.75;
+      tt->struct_vals[47].i = -1;
+      tt->struct_vals[48].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[49].b = pTRUE;
+      tt->struct_vals[50].e = Q_VALS;
+      tt->struct_vals[51].e = CHANNEL_HC;
+      tt->struct_vals[52].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[53].i = 1;
+      tt->struct_vals[54].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[55].b = pFALSE;
+      tt->struct_vals[56].d = 0.75;
+      tt->struct_vals[57].i = -1;
+      tt->struct_vals[58].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[59].b = pTRUE;
+      tt->struct_vals[60].e = I_VS_Q;
+      tt->struct_vals[61].e = CHANNEL_HC;
+      tt->struct_vals[62].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[63].i = 1;
+      tt->struct_vals[64].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[65].b = pFALSE;
+      tt->struct_vals[66].d = 0.75;
+      tt->struct_vals[67].i = -1;
+      tt->struct_vals[68].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[69].b = pTRUE;
+      tt->struct_vals[70].e = PHASOR;
+      tt->struct_vals[71].e = CHANNEL_HC;
+      tt->struct_vals[72].e = FFT_WINDOW_VONHANN;
+      tt->struct_vals[73].i = 1;
+      tt->struct_vals[74].e = CLUTTER_FILTER_ADAPTIVE;
+      tt->struct_vals[75].b = pFALSE;
+      tt->struct_vals[76].d = 0.75;
+      tt->struct_vals[77].i = -1;
+      tt->struct_vals[78].e = INTERP_METHOD_GAUSSIAN;
+      tt->struct_vals[79].b = pTRUE;
+    tt++;
+    
+    // Parameter 'iq_plot_static_ranges'
+    // ctype is '_iq_plot_static_range_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("iq_plot_static_ranges");
+    tt->descr = tdrpStrDup("Static plot ranges for the IQ plot types.");
+    tt->help = tdrpStrDup("These are used if compute_plot_range_dynamically is false. Otherwise the plot range is computed from the data. There must be 1 entry for each plot type.");
+    tt->array_offset = (char *) &_iq_plot_static_ranges - &_start_;
+    tt->array_n_offset = (char *) &iq_plot_static_ranges_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = TRUE;
+    tt->array_elem_size = sizeof(iq_plot_static_range_t);
+    tt->array_n = 10;
+    tt->struct_def.name = tdrpStrDup("iq_plot_static_range_t");
+    tt->struct_def.nfields = 3;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("iq_plot_type_t");
+      tt->struct_def.fields[0].fname = tdrpStrDup("plot_type");
+      tt->struct_def.fields[0].ptype = ENUM_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_iq_plot_static_ranges->plot_type - (char *) _iq_plot_static_ranges;
+        tt->struct_def.fields[0].enum_def.name = tdrpStrDup("iq_plot_type_t");
+        tt->struct_def.fields[0].enum_def.nfields = 12;
+        tt->struct_def.fields[0].enum_def.fields = (enum_field_t *) tdrpMalloc
+          (tt->struct_def.fields[0].enum_def.nfields * sizeof(enum_field_t));
+        tt->struct_def.fields[0].enum_def.fields[0].name = tdrpStrDup("SPECTRAL_POWER");
+        tt->struct_def.fields[0].enum_def.fields[0].val = SPECTRAL_POWER;
+        tt->struct_def.fields[0].enum_def.fields[1].name = tdrpStrDup("SPECTRAL_PHASE");
+        tt->struct_def.fields[0].enum_def.fields[1].val = SPECTRAL_PHASE;
+        tt->struct_def.fields[0].enum_def.fields[2].name = tdrpStrDup("SPECTRAL_ZDR");
+        tt->struct_def.fields[0].enum_def.fields[2].val = SPECTRAL_ZDR;
+        tt->struct_def.fields[0].enum_def.fields[3].name = tdrpStrDup("SPECTRAL_PHIDP");
+        tt->struct_def.fields[0].enum_def.fields[3].val = SPECTRAL_PHIDP;
+        tt->struct_def.fields[0].enum_def.fields[4].name = tdrpStrDup("SPECTRAL_RHOHV");
+        tt->struct_def.fields[0].enum_def.fields[4].val = SPECTRAL_RHOHV;
+        tt->struct_def.fields[0].enum_def.fields[5].name = tdrpStrDup("SPECTRAL_SZ864");
+        tt->struct_def.fields[0].enum_def.fields[5].val = SPECTRAL_SZ864;
+        tt->struct_def.fields[0].enum_def.fields[6].name = tdrpStrDup("TS_POWER");
+        tt->struct_def.fields[0].enum_def.fields[6].val = TS_POWER;
+        tt->struct_def.fields[0].enum_def.fields[7].name = tdrpStrDup("TS_PHASE");
+        tt->struct_def.fields[0].enum_def.fields[7].val = TS_PHASE;
+        tt->struct_def.fields[0].enum_def.fields[8].name = tdrpStrDup("I_VALS");
+        tt->struct_def.fields[0].enum_def.fields[8].val = I_VALS;
+        tt->struct_def.fields[0].enum_def.fields[9].name = tdrpStrDup("Q_VALS");
+        tt->struct_def.fields[0].enum_def.fields[9].val = Q_VALS;
+        tt->struct_def.fields[0].enum_def.fields[10].name = tdrpStrDup("I_VS_Q");
+        tt->struct_def.fields[0].enum_def.fields[10].val = I_VS_Q;
+        tt->struct_def.fields[0].enum_def.fields[11].name = tdrpStrDup("PHASOR");
+        tt->struct_def.fields[0].enum_def.fields[11].val = PHASOR;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[1].fname = tdrpStrDup("min_val");
+      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_iq_plot_static_ranges->min_val - (char *) _iq_plot_static_ranges;
+      tt->struct_def.fields[2].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[2].fname = tdrpStrDup("max_val");
+      tt->struct_def.fields[2].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[2].rel_offset = 
+        (char *) &_iq_plot_static_ranges->max_val - (char *) _iq_plot_static_ranges;
+    tt->n_struct_vals = 30;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].e = SPECTRAL_POWER;
+      tt->struct_vals[1].d = -120;
+      tt->struct_vals[2].d = 10;
+      tt->struct_vals[3].e = SPECTRAL_PHASE;
+      tt->struct_vals[4].d = -180;
+      tt->struct_vals[5].d = 180;
+      tt->struct_vals[6].e = SPECTRAL_ZDR;
+      tt->struct_vals[7].d = -10;
+      tt->struct_vals[8].d = 20;
+      tt->struct_vals[9].e = SPECTRAL_PHIDP;
+      tt->struct_vals[10].d = -180;
+      tt->struct_vals[11].d = 180;
+      tt->struct_vals[12].e = TS_POWER;
+      tt->struct_vals[13].d = -80;
+      tt->struct_vals[14].d = 10;
+      tt->struct_vals[15].e = TS_PHASE;
+      tt->struct_vals[16].d = -180;
+      tt->struct_vals[17].d = 180;
+      tt->struct_vals[18].e = I_VALS;
+      tt->struct_vals[19].d = -1;
+      tt->struct_vals[20].d = 1;
+      tt->struct_vals[21].e = Q_VALS;
+      tt->struct_vals[22].d = -1;
+      tt->struct_vals[23].d = 1;
+      tt->struct_vals[24].e = I_VS_Q;
+      tt->struct_vals[25].d = -1;
+      tt->struct_vals[26].d = 1;
+      tt->struct_vals[27].e = PHASOR;
+      tt->struct_vals[28].d = -20;
+      tt->struct_vals[29].d = 20;
+    tt++;
+    
+    // Parameter 'iqplot_top_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_top_margin");
+    tt->descr = tdrpStrDup("Height of top margin in IQPLOT mode (pixels).");
+    tt->help = tdrpStrDup("Titles go in the top margin.");
+    tt->val_offset = (char *) &iqplot_top_margin - &_start_;
+    tt->single_val.i = 0;
+    tt++;
+    
+    // Parameter 'iqplot_bottom_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_bottom_margin");
+    tt->descr = tdrpStrDup("Height of bottom margin in IQPLOT mode (pixels).");
+    tt->help = tdrpStrDup("Time scale goes in the bottom margin.");
+    tt->val_offset = (char *) &iqplot_bottom_margin - &_start_;
+    tt->single_val.i = 18;
+    tt++;
+    
+    // Parameter 'iqplot_left_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_left_margin");
+    tt->descr = tdrpStrDup("Width of left margin in IQPLOT mode (pixels).");
+    tt->help = tdrpStrDup("Height scale goes in the left margin.");
+    tt->val_offset = (char *) &iqplot_left_margin - &_start_;
+    tt->single_val.i = 30;
+    tt++;
+    
+    // Parameter 'iqplot_right_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_right_margin");
+    tt->descr = tdrpStrDup("Width of right margin in IQPLOT mode (pixels).");
+    tt->help = tdrpStrDup("Height scale goes in the right margin.");
+    tt->val_offset = (char *) &iqplot_right_margin - &_start_;
+    tt->single_val.i = 0;
+    tt++;
+    
+    // Parameter 'iqplot_axis_tick_len'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_axis_tick_len");
+    tt->descr = tdrpStrDup("Length of ticks on axes (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_axis_tick_len - &_start_;
+    tt->single_val.i = 4;
+    tt++;
+    
+    // Parameter 'iqplot_n_ticks_ideal'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_n_ticks_ideal");
+    tt->descr = tdrpStrDup("Ideal number of ticks on axes.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_n_ticks_ideal - &_start_;
+    tt->single_val.i = 5;
+    tt++;
+    
+    // Parameter 'iqplot_title_text_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_title_text_margin");
+    tt->descr = tdrpStrDup("Margin around title text (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_title_text_margin - &_start_;
+    tt->single_val.i = 3;
+    tt++;
+    
+    // Parameter 'iqplot_legend_text_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_legend_text_margin");
+    tt->descr = tdrpStrDup("Margin around legend text (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_legend_text_margin - &_start_;
+    tt->single_val.i = 3;
+    tt++;
+    
+    // Parameter 'iqplot_axis_text_margin'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_axis_text_margin");
+    tt->descr = tdrpStrDup("Margin around axis text (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_axis_text_margin - &_start_;
+    tt->single_val.i = 2;
+    tt++;
+    
+    // Parameter 'Comment 10'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 10");
+    tt->comment_hdr = tdrpStrDup("IQPLOT TITLES, LABELS AND AXES");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'iqplot_title_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_title_font_size");
+    tt->descr = tdrpStrDup("Font size of center title (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_title_font_size - &_start_;
+    tt->single_val.i = 10;
+    tt++;
+    
+    // Parameter 'iqplot_axis_label_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_axis_label_font_size");
+    tt->descr = tdrpStrDup("Font size of axis labels in iq plots (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_axis_label_font_size - &_start_;
+    tt->single_val.i = 8;
+    tt++;
+    
+    // Parameter 'iqplot_tick_values_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_tick_values_font_size");
+    tt->descr = tdrpStrDup("Font size of axis tick values (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_tick_values_font_size - &_start_;
+    tt->single_val.i = 6;
+    tt++;
+    
+    // Parameter 'iqplot_legend_font_size'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_legend_font_size");
+    tt->descr = tdrpStrDup("Font size for plot legends (pixels).");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_legend_font_size - &_start_;
+    tt->single_val.i = 8;
+    tt++;
+    
+    // Parameter 'iqplot_axis_label_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_axis_label_color");
+    tt->descr = tdrpStrDup("Color of iqplot axis labels.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_axis_label_color - &_start_;
+    tt->single_val.s = tdrpStrDup("white");
+    tt++;
+    
+    // Parameter 'iqplot_title_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_title_color");
+    tt->descr = tdrpStrDup("Color of plot title.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_title_color - &_start_;
+    tt->single_val.s = tdrpStrDup("orange");
+    tt++;
+    
+    // Parameter 'iqplot_axes_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_axes_color");
+    tt->descr = tdrpStrDup("Color of axes in iq plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_axes_color - &_start_;
+    tt->single_val.s = tdrpStrDup("green");
+    tt++;
+    
+    // Parameter 'iqplot_grid_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_grid_color");
+    tt->descr = tdrpStrDup("Color of grid lines on iq plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_grid_color - &_start_;
+    tt->single_val.s = tdrpStrDup("gray");
+    tt++;
+    
+    // Parameter 'iqplot_fill_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_fill_color");
+    tt->descr = tdrpStrDup("Color of area fill for IQ plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_fill_color - &_start_;
+    tt->single_val.s = tdrpStrDup("pink");
+    tt++;
+    
+    // Parameter 'iqplot_labels_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_labels_color");
+    tt->descr = tdrpStrDup("Color of labels in iq plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_labels_color - &_start_;
+    tt->single_val.s = tdrpStrDup("red");
+    tt++;
+    
+    // Parameter 'iqplot_line_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_line_color");
+    tt->descr = tdrpStrDup("Color of data lines in iq plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_line_color - &_start_;
+    tt->single_val.s = tdrpStrDup("yellow");
+    tt++;
+    
+    // Parameter 'iqplot_line_width'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_line_width");
+    tt->descr = tdrpStrDup("Width of data lines in iq plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_line_width - &_start_;
+    tt->single_val.i = 1;
+    tt++;
+    
+    // Parameter 'iqplot_adaptive_filtered_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_adaptive_filtered_color");
+    tt->descr = tdrpStrDup("Color of adaptive filtered lines in spectra plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_adaptive_filtered_color - &_start_;
+    tt->single_val.s = tdrpStrDup("pink");
+    tt++;
+    
+    // Parameter 'iqplot_tsr_unfiltered_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_tsr_unfiltered_color");
+    tt->descr = tdrpStrDup("Color of TSR unfiltered in spectra plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_tsr_unfiltered_color - &_start_;
+    tt->single_val.s = tdrpStrDup("magenta");
+    tt++;
+    
+    // Parameter 'iqplot_tsr_filtered_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_tsr_filtered_color");
+    tt->descr = tdrpStrDup("Color of TSR filtered in spectra plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_tsr_filtered_color - &_start_;
+    tt->single_val.s = tdrpStrDup("green");
+    tt++;
+    
+    // Parameter 'iqplot_clutter_model_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_clutter_model_color");
+    tt->descr = tdrpStrDup("Color of clutter model iq plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_clutter_model_color - &_start_;
+    tt->single_val.s = tdrpStrDup("red");
+    tt++;
+    
+    // Parameter 'iqplot_regression_filtered_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_regression_filtered_color");
+    tt->descr = tdrpStrDup("Color of regression filtered lines in spectra plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_regression_filtered_color - &_start_;
+    tt->single_val.s = tdrpStrDup("orange");
+    tt++;
+    
+    // Parameter 'iqplot_polynomial_fit_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_polynomial_fit_color");
+    tt->descr = tdrpStrDup("Color of polynomial fit in time series.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_polynomial_fit_color - &_start_;
+    tt->single_val.s = tdrpStrDup("orange");
+    tt++;
+    
+    // Parameter 'iqplot_polynomial_residual_color'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_polynomial_residual_color");
+    tt->descr = tdrpStrDup("Color of polynomial residuals in time series.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_polynomial_residual_color - &_start_;
+    tt->single_val.s = tdrpStrDup("red");
+    tt++;
+    
+    // Parameter 'iqplot_polynomial_line_width'
+    // ctype is 'int'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = INT_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_polynomial_line_width");
+    tt->descr = tdrpStrDup("Width of data lines in polynomial plots.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_polynomial_line_width - &_start_;
+    tt->single_val.i = 2;
+    tt++;
+    
+    // Parameter 'iqplot_draw_instrument_height_line'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_draw_instrument_height_line");
+    tt->descr = tdrpStrDup("Option to draw a line for the instrument location.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &iqplot_draw_instrument_height_line - &_start_;
+    tt->single_val.b = pTRUE;
+    tt++;
+    
+    // Parameter 'iqplot_x_axis_labels_inside'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_x_axis_labels_inside");
+    tt->descr = tdrpStrDup("Location of tick labels, relative to x axis.");
+    tt->help = tdrpStrDup("These can either be outside the axes, or inside - i.e. within the data area of the plot.");
+    tt->val_offset = (char *) &iqplot_x_axis_labels_inside - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'iqplot_y_axis_labels_inside'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_y_axis_labels_inside");
+    tt->descr = tdrpStrDup("Location of tick labels, relative to y axis.");
+    tt->help = tdrpStrDup("These can either be outside the axes, or inside - i.e. within the data area of the plot.");
+    tt->val_offset = (char *) &iqplot_y_axis_labels_inside - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
     // Parameter 'Comment 11'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 11");
+    tt->comment_hdr = tdrpStrDup("IQPLOT LEGENDS");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'iqplot_main_legend_pos'
+    // ctype is '_legend_pos_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = ENUM_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_main_legend_pos");
+    tt->descr = tdrpStrDup("Position of main legend in the IQPLOT plot window");
+    tt->help = tdrpStrDup("This include time, field name and elevation angle.");
+    tt->val_offset = (char *) &iqplot_main_legend_pos - &_start_;
+    tt->enum_def.name = tdrpStrDup("legend_pos_t");
+    tt->enum_def.nfields = 4;
+    tt->enum_def.fields = (enum_field_t *)
+        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
+      tt->enum_def.fields[0].name = tdrpStrDup("LEGEND_TOP_LEFT");
+      tt->enum_def.fields[0].val = LEGEND_TOP_LEFT;
+      tt->enum_def.fields[1].name = tdrpStrDup("LEGEND_TOP_RIGHT");
+      tt->enum_def.fields[1].val = LEGEND_TOP_RIGHT;
+      tt->enum_def.fields[2].name = tdrpStrDup("LEGEND_BOTTOM_LEFT");
+      tt->enum_def.fields[2].val = LEGEND_BOTTOM_LEFT;
+      tt->enum_def.fields[3].name = tdrpStrDup("LEGEND_BOTTOM_RIGHT");
+      tt->enum_def.fields[3].val = LEGEND_BOTTOM_RIGHT;
+    tt->single_val.e = LEGEND_TOP_LEFT;
+    tt++;
+    
+    // Parameter 'iqplot_plot_legend1'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_plot_legend1");
+    tt->descr = tdrpStrDup("Option to plot the starting lat/lon position as a legend.");
+    tt->help = tdrpStrDup("This helps in geolocating the data from a mobile system.");
+    tt->val_offset = (char *) &iqplot_plot_legend1 - &_start_;
+    tt->single_val.b = pTRUE;
+    tt++;
+    
+    // Parameter 'iqplot_legend1_pos'
+    // ctype is '_legend_pos_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = ENUM_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_legend1_pos");
+    tt->descr = tdrpStrDup("Position of lat/lon legend in plot");
+    tt->help = tdrpStrDup("The starting latitude/longitude will be plotted as a legend in the location specified. See 'iqplot_plot_starting_latlon_as_legend'.");
+    tt->val_offset = (char *) &iqplot_legend1_pos - &_start_;
+    tt->enum_def.name = tdrpStrDup("legend_pos_t");
+    tt->enum_def.nfields = 4;
+    tt->enum_def.fields = (enum_field_t *)
+        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
+      tt->enum_def.fields[0].name = tdrpStrDup("LEGEND_TOP_LEFT");
+      tt->enum_def.fields[0].val = LEGEND_TOP_LEFT;
+      tt->enum_def.fields[1].name = tdrpStrDup("LEGEND_TOP_RIGHT");
+      tt->enum_def.fields[1].val = LEGEND_TOP_RIGHT;
+      tt->enum_def.fields[2].name = tdrpStrDup("LEGEND_BOTTOM_LEFT");
+      tt->enum_def.fields[2].val = LEGEND_BOTTOM_LEFT;
+      tt->enum_def.fields[3].name = tdrpStrDup("LEGEND_BOTTOM_RIGHT");
+      tt->enum_def.fields[3].val = LEGEND_BOTTOM_RIGHT;
+    tt->single_val.e = LEGEND_TOP_LEFT;
+    tt++;
+    
+    // Parameter 'iqplot_legend2_pos'
+    // ctype is '_legend_pos_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = ENUM_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_legend2_pos");
+    tt->descr = tdrpStrDup("Position of lat/lon legend in plot");
+    tt->help = tdrpStrDup("The starting latitude/longitude will be plotted as a legend in the location specified. See 'iqplot_plot_starting_latlon_as_legend'.");
+    tt->val_offset = (char *) &iqplot_legend2_pos - &_start_;
+    tt->enum_def.name = tdrpStrDup("legend_pos_t");
+    tt->enum_def.nfields = 4;
+    tt->enum_def.fields = (enum_field_t *)
+        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
+      tt->enum_def.fields[0].name = tdrpStrDup("LEGEND_TOP_LEFT");
+      tt->enum_def.fields[0].val = LEGEND_TOP_LEFT;
+      tt->enum_def.fields[1].name = tdrpStrDup("LEGEND_TOP_RIGHT");
+      tt->enum_def.fields[1].val = LEGEND_TOP_RIGHT;
+      tt->enum_def.fields[2].name = tdrpStrDup("LEGEND_BOTTOM_LEFT");
+      tt->enum_def.fields[2].val = LEGEND_BOTTOM_LEFT;
+      tt->enum_def.fields[3].name = tdrpStrDup("LEGEND_BOTTOM_RIGHT");
+      tt->enum_def.fields[3].val = LEGEND_BOTTOM_RIGHT;
+    tt->single_val.e = LEGEND_TOP_LEFT;
+    tt++;
+    
+    // Parameter 'iqplot_plot_legend2'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("iqplot_plot_legend2");
+    tt->descr = tdrpStrDup("Option to plot the starting lat/lon position as a legend.");
+    tt->help = tdrpStrDup("This helps in geolocating the data from a mobile system.");
+    tt->val_offset = (char *) &iqplot_plot_legend2 - &_start_;
+    tt->single_val.b = pTRUE;
+    tt++;
+    
+    // Parameter 'Comment 12'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 12");
     tt->comment_hdr = tdrpStrDup("CLUTTER FILTERING");
     tt->comment_text = tdrpStrDup("The default clutter filtering method is the Adaptive Filter, with residue correction activated.");
+    tt++;
+    
+    // Parameter 'ascope_clutter_filter_type'
+    // ctype is '_clutter_filter_type_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = ENUM_TYPE;
+    tt->param_name = tdrpStrDup("ascope_clutter_filter_type");
+    tt->descr = tdrpStrDup("Type of clutter filter to use.");
+    tt->help = tdrpStrDup("ADAPTIVE: spectral filter with gaussian interpolation. REGRESSION: polynomial filter with specified interpolation. NOTCH: simple notch filter of specified width. NONE: cancels clutter filtering.");
+    tt->val_offset = (char *) &ascope_clutter_filter_type - &_start_;
+    tt->enum_def.name = tdrpStrDup("clutter_filter_type_t");
+    tt->enum_def.nfields = 5;
+    tt->enum_def.fields = (enum_field_t *)
+        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
+      tt->enum_def.fields[0].name = tdrpStrDup("CLUTTER_FILTER_ADAPTIVE");
+      tt->enum_def.fields[0].val = CLUTTER_FILTER_ADAPTIVE;
+      tt->enum_def.fields[1].name = tdrpStrDup("CLUTTER_FILTER_REGRESSION");
+      tt->enum_def.fields[1].val = CLUTTER_FILTER_REGRESSION;
+      tt->enum_def.fields[2].name = tdrpStrDup("CLUTTER_FILTER_NOTCH");
+      tt->enum_def.fields[2].val = CLUTTER_FILTER_NOTCH;
+      tt->enum_def.fields[3].name = tdrpStrDup("CLUTTER_FILTER_TSR");
+      tt->enum_def.fields[3].val = CLUTTER_FILTER_TSR;
+      tt->enum_def.fields[4].name = tdrpStrDup("CLUTTER_FILTER_NONE");
+      tt->enum_def.fields[4].val = CLUTTER_FILTER_NONE;
+    tt->single_val.e = CLUTTER_FILTER_ADAPTIVE;
     tt++;
     
     // Parameter 'apply_residue_correction_in_adaptive_filter'
@@ -1986,40 +3128,64 @@
     tt->single_val.d = 75;
     tt++;
     
-    // Parameter 'use_polynomial_regression_clutter_filter'
+    // Parameter 'regression_filter_determine_order_from_cnr'
     // ctype is 'tdrp_bool_t'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("use_polynomial_regression_clutter_filter");
-    tt->descr = tdrpStrDup("Option to apply a regression clutter filter.");
-    tt->help = tdrpStrDup("For the regression filter, a polynomial fit is performed on the I and Q data individually. The filtered time series is computed as the original minus the regression fit. If true, this takes preference over the notch filter.");
-    tt->val_offset = (char *) &use_polynomial_regression_clutter_filter - &_start_;
-    tt->single_val.b = pFALSE;
+    tt->param_name = tdrpStrDup("regression_filter_determine_order_from_cnr");
+    tt->descr = tdrpStrDup("Option to determine the polynomial order from the Clutter-to-Noise-Ratio (CNR).");
+    tt->help = tdrpStrDup("If TRUE, we compute the CNR from the 3 central spectral points. Then, we compute the order using CNR, antenna speed etc.");
+    tt->val_offset = (char *) &regression_filter_determine_order_from_cnr - &_start_;
+    tt->single_val.b = pTRUE;
     tt++;
     
-    // Parameter 'regression_filter_polynomial_order'
+    // Parameter 'regression_filter_specified_polynomial_order'
     // ctype is 'int'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("regression_filter_polynomial_order");
+    tt->param_name = tdrpStrDup("regression_filter_specified_polynomial_order");
     tt->descr = tdrpStrDup("Order of the polynomial fit for the regression filter.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &regression_filter_polynomial_order - &_start_;
+    tt->help = tdrpStrDup("Used if regression_filter_determine_order_from_cnr is false");
+    tt->val_offset = (char *) &regression_filter_specified_polynomial_order - &_start_;
     tt->single_val.i = 5;
     tt++;
     
-    // Parameter 'regression_filter_interp_across_notch'
-    // ctype is 'tdrp_bool_t'
+    // Parameter 'regression_filter_clutter_width_factor'
+    // ctype is 'double'
     
     memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("regression_filter_interp_across_notch");
-    tt->descr = tdrpStrDup("For the regression filter, option to interpolate power across the notch.");
-    tt->help = tdrpStrDup("If true, the spectral power in the notch created by the filter will be interpolated using values to each side of the notch.");
-    tt->val_offset = (char *) &regression_filter_interp_across_notch - &_start_;
-    tt->single_val.b = pTRUE;
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("regression_filter_clutter_width_factor");
+    tt->descr = tdrpStrDup("Width factor used when automatically computing polynomial order.");
+    tt->help = tdrpStrDup("Applies if regression_filter_determine_order_from_cnr it true. Default is 1. If less than 1, order will decrease. If more than 1, order will increase.");
+    tt->val_offset = (char *) &regression_filter_clutter_width_factor - &_start_;
+    tt->single_val.d = 1;
+    tt++;
+    
+    // Parameter 'regression_filter_cnr_exponent'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("regression_filter_cnr_exponent");
+    tt->descr = tdrpStrDup("CNR exponent used when automatically computing polynomial order.");
+    tt->help = tdrpStrDup("Applies if regression_filter_determine_order_from_cnr it true. Default is 2/3. If less than 2/3, order will decrease. If more than 2/3, order will increase.");
+    tt->val_offset = (char *) &regression_filter_cnr_exponent - &_start_;
+    tt->single_val.d = 0.666667;
+    tt++;
+    
+    // Parameter 'regression_filter_min_cnr_db'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("regression_filter_min_cnr_db");
+    tt->descr = tdrpStrDup("Min valid CNR - Clutter-to-Signal-Ratio - for applying the filter (dB).");
+    tt->help = tdrpStrDup("As a first step, we compute the CNR the central 3 spectral points. If the CNR is below this threshold, we do not apply the filter at all, and simply return the unfiltered spectrum.");
+    tt->val_offset = (char *) &regression_filter_min_cnr_db - &_start_;
+    tt->single_val.d = -5;
     tt++;
     
     // Parameter 'use_simple_notch_clutter_filter'
@@ -2058,11 +3224,11 @@
     tt->single_val.i = 1;
     tt++;
     
-    // Parameter 'Comment 12'
+    // Parameter 'Comment 13'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 12");
+    tt->param_name = tdrpStrDup("Comment 13");
     tt->comment_hdr = tdrpStrDup("SPECTRUM WIDTH METHOD");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2089,228 +3255,32 @@
     tt->single_val.e = WIDTH_METHOD_R0R1;
     tt++;
     
-    // Parameter 'Comment 13'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 13");
-    tt->comment_hdr = tdrpStrDup("COMPUTING KDP USING ADAPTIVE FILTER METHOD");
-    tt->comment_text = tdrpStrDup("Parameters for computing KDP.");
-    tt++;
-    
-    // Parameter 'KDP_fir_filter_len'
-    // ctype is '_fir_filter_len_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = ENUM_TYPE;
-    tt->param_name = tdrpStrDup("KDP_fir_filter_len");
-    tt->descr = tdrpStrDup("Filter length for the FIR filter for PHIDP (gates)");
-    tt->help = tdrpStrDup("When computing KDP, an FIR filter is first applied to PHIDP to smooth it. This is the length of that filter, in gates.");
-    tt->val_offset = (char *) &KDP_fir_filter_len - &_start_;
-    tt->enum_def.name = tdrpStrDup("fir_filter_len_t");
-    tt->enum_def.nfields = 6;
-    tt->enum_def.fields = (enum_field_t *)
-        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
-      tt->enum_def.fields[0].name = tdrpStrDup("FIR_LEN_125");
-      tt->enum_def.fields[0].val = FIR_LEN_125;
-      tt->enum_def.fields[1].name = tdrpStrDup("FIR_LEN_60");
-      tt->enum_def.fields[1].val = FIR_LEN_60;
-      tt->enum_def.fields[2].name = tdrpStrDup("FIR_LEN_40");
-      tt->enum_def.fields[2].val = FIR_LEN_40;
-      tt->enum_def.fields[3].name = tdrpStrDup("FIR_LEN_30");
-      tt->enum_def.fields[3].val = FIR_LEN_30;
-      tt->enum_def.fields[4].name = tdrpStrDup("FIR_LEN_20");
-      tt->enum_def.fields[4].val = FIR_LEN_20;
-      tt->enum_def.fields[5].name = tdrpStrDup("FIR_LEN_10");
-      tt->enum_def.fields[5].val = FIR_LEN_10;
-    tt->single_val.e = FIR_LEN_20;
-    tt++;
-    
-    // Parameter 'KDP_n_filt_iterations_unfolded'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("KDP_n_filt_iterations_unfolded");
-    tt->descr = tdrpStrDup("Sets the number of iterations for the initial FIR filter for unfolded PHIDP.");
-    tt->help = tdrpStrDup("After unfolding PHIDP, the FIR filter is applied to the unfolded phidp, a number of times, to smooth it. The effect of the filter is a combination of the filter length and the number of iterations.");
-    tt->val_offset = (char *) &KDP_n_filt_iterations_unfolded - &_start_;
-    tt->single_val.i = 2;
-    tt++;
-    
-    // Parameter 'KDP_n_filt_iterations_conditioned'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("KDP_n_filt_iterations_conditioned");
-    tt->descr = tdrpStrDup("Sets the number of iterations for the final FIR filter for conditioned PHIDP.");
-    tt->help = tdrpStrDup("In order to identify phase shift on backscatter (PSOB), we condition the PHIDP to keep it generally increasing with range. The FIR filter is applied to the conditioned phidp a number of times, to smooth it. The effect of the filter is a combination of the filter length and the number of iterations.");
-    tt->val_offset = (char *) &KDP_n_filt_iterations_conditioned - &_start_;
-    tt->single_val.i = 2;
-    tt++;
-    
-    // Parameter 'KDP_use_iterative_filtering'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("KDP_use_iterative_filtering");
-    tt->descr = tdrpStrDup("Perform iterative filtering to locate backscatter phase shift.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &KDP_use_iterative_filtering - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'KDP_phidp_difference_threshold'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("KDP_phidp_difference_threshold");
-    tt->descr = tdrpStrDup("Difference threshold for the iterative filtering method.");
-    tt->help = tdrpStrDup("The FIR filter is applied successively, KDP_n_filt_iterations_conditioned times. After each iteration the result is checked against the original. If the difference is less than this parameter, the original value at that gate is retained. If the difference exceeds this parameter, the new filtered value is retained.");
-    tt->val_offset = (char *) &KDP_phidp_difference_threshold - &_start_;
-    tt->single_val.d = 4;
-    tt++;
-    
-    // Parameter 'KDP_ngates_for_stats'
-    // ctype is 'int'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = INT_TYPE;
-    tt->param_name = tdrpStrDup("KDP_ngates_for_stats");
-    tt->descr = tdrpStrDup("Number of gates over which the phidp mean, sdev and jitter are computed.");
-    tt->help = tdrpStrDup("The mean, sdev and jitter of phidp are computed over a consecutive number of gates in range, centered on the current gate of interest. This parameter is the number of gates over which these statistics are computed.");
-    tt->val_offset = (char *) &KDP_ngates_for_stats - &_start_;
-    tt->single_val.i = 9;
-    tt++;
-    
-    // Parameter 'KDP_phidp_sdev_max'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("KDP_phidp_sdev_max");
-    tt->descr = tdrpStrDup("Sets the threshold for the standard deviation of phidp in range.");
-    tt->help = tdrpStrDup("The sdev of phidp is a good test for valid phidp. The sdev is computed in the circle, so that it takes account of folding if present. If the sdev is less than this value, it is assumed we are in weather. Applies to computation of KDP only.");
-    tt->val_offset = (char *) &KDP_phidp_sdev_max - &_start_;
-    tt->single_val.d = 20;
-    tt++;
-    
-    // Parameter 'KDP_phidp_jitter_max'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("KDP_phidp_jitter_max");
-    tt->descr = tdrpStrDup("Sets the threshold for the jitter of phidp in range.");
-    tt->help = tdrpStrDup("The jitter of phidp is defined as the mean absolute change in angle between successive phidp measurements in range. It is computed on the circle to take account of folding. If the jitter is less than this value, it is assumed we are in weather. Applies to computation of KDP only.");
-    tt->val_offset = (char *) &KDP_phidp_jitter_max - &_start_;
-    tt->single_val.d = 25;
-    tt++;
-    
-    // Parameter 'KDP_check_snr'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("KDP_check_snr");
-    tt->descr = tdrpStrDup("Check the SNR.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &KDP_check_snr - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'KDP_snr_threshold'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("KDP_snr_threshold");
-    tt->descr = tdrpStrDup("Sets the threshold for checking SNR (dB).");
-    tt->help = tdrpStrDup("If the SNR drops below this value, KDP will not be computed at this gate.");
-    tt->val_offset = (char *) &KDP_snr_threshold - &_start_;
-    tt->single_val.d = -6;
-    tt++;
-    
-    // Parameter 'KDP_check_rhohv'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("KDP_check_rhohv");
-    tt->descr = tdrpStrDup("Check the RHOHV.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &KDP_check_rhohv - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'KDP_rhohv_threshold'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("KDP_rhohv_threshold");
-    tt->descr = tdrpStrDup("Sets the threshold for checking RHOHV.");
-    tt->help = tdrpStrDup("If the RHOHV drops below this value, KDP will not be computed at this gate.");
-    tt->val_offset = (char *) &KDP_rhohv_threshold - &_start_;
-    tt->single_val.d = 0.95;
-    tt++;
-    
-    // Parameter 'KDP_check_zdr_sdev'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("KDP_check_zdr_sdev");
-    tt->descr = tdrpStrDup("Check the standard deviation of ZDR in range?");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &KDP_check_zdr_sdev - &_start_;
-    tt->single_val.b = pTRUE;
-    tt++;
-    
-    // Parameter 'KDP_zdr_sdev_max'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("KDP_zdr_sdev_max");
-    tt->descr = tdrpStrDup("Sets the threshold for the standard deviation of zdr in range.");
-    tt->help = tdrpStrDup("The sdev of zdr is a good test for clutter. If the sdev is less than this value, it is assumed we are in weather. Applies to computation of KDP only.");
-    tt->val_offset = (char *) &KDP_zdr_sdev_max - &_start_;
-    tt->single_val.d = 2;
-    tt++;
-    
-    // Parameter 'KDP_min_valid_abs_kdp'
-    // ctype is 'double'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = DOUBLE_TYPE;
-    tt->param_name = tdrpStrDup("KDP_min_valid_abs_kdp");
-    tt->descr = tdrpStrDup("Sets the min valid KDP value.");
-    tt->help = tdrpStrDup("Values less than this are set to 0.");
-    tt->val_offset = (char *) &KDP_min_valid_abs_kdp - &_start_;
-    tt->single_val.d = 0.025;
-    tt++;
-    
-    // Parameter 'KDP_debug'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("KDP_debug");
-    tt->descr = tdrpStrDup("Option to print debug messages in KDP computation.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &KDP_debug - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
     // Parameter 'Comment 14'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 14");
+    tt->comment_hdr = tdrpStrDup("COMPUTING KDP");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'KDP_params_file_path'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("KDP_params_file_path");
+    tt->descr = tdrpStrDup("Path for parameters for KDP computations.");
+    tt->help = tdrpStrDup("If set to use-defaults, no parameter file will be read in, and the default parameters will be used.");
+    tt->val_offset = (char *) &KDP_params_file_path - &_start_;
+    tt->single_val.s = tdrpStrDup("use-defaults");
+    tt++;
+    
+    // Parameter 'Comment 15'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 15");
     tt->comment_hdr = tdrpStrDup("BEAM SAMPLING");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2411,11 +3381,11 @@
     tt->single_val.b = pFALSE;
     tt++;
     
-    // Parameter 'Comment 15'
+    // Parameter 'Comment 16'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 15");
+    tt->param_name = tdrpStrDup("Comment 16");
     tt->comment_hdr = tdrpStrDup("OVERRIDING RADAR PARAMETERS");
     tt->comment_text = tdrpStrDup("Some radar parameters may be included in the time series data. This section allows you to optionally override some of those values.");
     tt++;
@@ -2552,52 +3522,281 @@
     tt->single_val.d = 10;
     tt++;
     
-    // Parameter 'Comment 16'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 16");
-    tt->comment_hdr = tdrpStrDup("FFT WINDOWING");
-    tt->comment_text = tdrpStrDup("");
-    tt++;
-    
-    // Parameter 'window'
-    // ctype is '_window_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = ENUM_TYPE;
-    tt->param_name = tdrpStrDup("window");
-    tt->descr = tdrpStrDup("Window to be applied to time series before computing spectra.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &window - &_start_;
-    tt->enum_def.name = tdrpStrDup("window_t");
-    tt->enum_def.nfields = 8;
-    tt->enum_def.fields = (enum_field_t *)
-        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
-      tt->enum_def.fields[0].name = tdrpStrDup("WINDOW_RECT");
-      tt->enum_def.fields[0].val = WINDOW_RECT;
-      tt->enum_def.fields[1].name = tdrpStrDup("WINDOW_VONHANN");
-      tt->enum_def.fields[1].val = WINDOW_VONHANN;
-      tt->enum_def.fields[2].name = tdrpStrDup("WINDOW_BLACKMAN");
-      tt->enum_def.fields[2].val = WINDOW_BLACKMAN;
-      tt->enum_def.fields[3].name = tdrpStrDup("WINDOW_BLACKMAN_NUTTALL");
-      tt->enum_def.fields[3].val = WINDOW_BLACKMAN_NUTTALL;
-      tt->enum_def.fields[4].name = tdrpStrDup("WINDOW_TUKEY_10");
-      tt->enum_def.fields[4].val = WINDOW_TUKEY_10;
-      tt->enum_def.fields[5].name = tdrpStrDup("WINDOW_TUKEY_20");
-      tt->enum_def.fields[5].val = WINDOW_TUKEY_20;
-      tt->enum_def.fields[6].name = tdrpStrDup("WINDOW_TUKEY_30");
-      tt->enum_def.fields[6].val = WINDOW_TUKEY_30;
-      tt->enum_def.fields[7].name = tdrpStrDup("WINDOW_TUKEY_50");
-      tt->enum_def.fields[7].val = WINDOW_TUKEY_50;
-    tt->single_val.e = WINDOW_VONHANN;
-    tt++;
-    
     // Parameter 'Comment 17'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 17");
+    tt->comment_hdr = tdrpStrDup("FFT WINDOWING");
+    tt->comment_text = tdrpStrDup("Applies to the general case.");
+    tt++;
+    
+    // Parameter 'fft_window'
+    // ctype is '_fft_window_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = ENUM_TYPE;
+    tt->param_name = tdrpStrDup("fft_window");
+    tt->descr = tdrpStrDup("Window to be applied to time series before computing spectra.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &fft_window - &_start_;
+    tt->enum_def.name = tdrpStrDup("fft_window_t");
+    tt->enum_def.nfields = 8;
+    tt->enum_def.fields = (enum_field_t *)
+        tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
+      tt->enum_def.fields[0].name = tdrpStrDup("FFT_WINDOW_RECT");
+      tt->enum_def.fields[0].val = FFT_WINDOW_RECT;
+      tt->enum_def.fields[1].name = tdrpStrDup("FFT_WINDOW_VONHANN");
+      tt->enum_def.fields[1].val = FFT_WINDOW_VONHANN;
+      tt->enum_def.fields[2].name = tdrpStrDup("FFT_WINDOW_BLACKMAN");
+      tt->enum_def.fields[2].val = FFT_WINDOW_BLACKMAN;
+      tt->enum_def.fields[3].name = tdrpStrDup("FFT_WINDOW_BLACKMAN_NUTTALL");
+      tt->enum_def.fields[3].val = FFT_WINDOW_BLACKMAN_NUTTALL;
+      tt->enum_def.fields[4].name = tdrpStrDup("FFT_WINDOW_TUKEY_10");
+      tt->enum_def.fields[4].val = FFT_WINDOW_TUKEY_10;
+      tt->enum_def.fields[5].name = tdrpStrDup("FFT_WINDOW_TUKEY_20");
+      tt->enum_def.fields[5].val = FFT_WINDOW_TUKEY_20;
+      tt->enum_def.fields[6].name = tdrpStrDup("FFT_WINDOW_TUKEY_30");
+      tt->enum_def.fields[6].val = FFT_WINDOW_TUKEY_30;
+      tt->enum_def.fields[7].name = tdrpStrDup("FFT_WINDOW_TUKEY_50");
+      tt->enum_def.fields[7].val = FFT_WINDOW_TUKEY_50;
+    tt->single_val.e = FFT_WINDOW_VONHANN;
+    tt++;
+    
+    // Parameter 'Comment 18'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 18");
+    tt->comment_hdr = tdrpStrDup("SPECTRAL CMD INTEREST MAPS and WEIGHTS");
+    tt->comment_text = tdrpStrDup("Each map should hold at least 2 points. The points should be increasing in value, i.e. the value should increase for each subsequent point. The various interest values are combined using the specified weights in a weighted mean to produce the final CMD value.");
+    tt++;
+    
+    // Parameter 'snr_interest_map'
+    // ctype is '_interest_map_point_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("snr_interest_map");
+    tt->descr = tdrpStrDup("Interest mapping for SNR.");
+    tt->help = tdrpStrDup("");
+    tt->array_offset = (char *) &_snr_interest_map - &_start_;
+    tt->array_n_offset = (char *) &snr_interest_map_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(interest_map_point_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("interest_map_point_t");
+    tt->struct_def.nfields = 2;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[0].fname = tdrpStrDup("value");
+      tt->struct_def.fields[0].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_snr_interest_map->value - (char *) _snr_interest_map;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[1].fname = tdrpStrDup("interest");
+      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_snr_interest_map->interest - (char *) _snr_interest_map;
+    tt->n_struct_vals = 4;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].d = 0;
+      tt->struct_vals[1].d = 0.0001;
+      tt->struct_vals[2].d = 20;
+      tt->struct_vals[3].d = 1;
+    tt++;
+    
+    // Parameter 'snr_interest_weight'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("snr_interest_weight");
+    tt->descr = tdrpStrDup("Weight for SNR interest.");
+    tt->help = tdrpStrDup("This weight is used for combining snr interest into the final CMD interest.");
+    tt->val_offset = (char *) &snr_interest_weight - &_start_;
+    tt->single_val.d = 1.5;
+    tt++;
+    
+    // Parameter 'tdbz_interest_map'
+    // ctype is '_interest_map_point_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("tdbz_interest_map");
+    tt->descr = tdrpStrDup("Interest mapping for TDBZ.");
+    tt->help = tdrpStrDup("");
+    tt->array_offset = (char *) &_tdbz_interest_map - &_start_;
+    tt->array_n_offset = (char *) &tdbz_interest_map_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(interest_map_point_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("interest_map_point_t");
+    tt->struct_def.nfields = 2;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[0].fname = tdrpStrDup("value");
+      tt->struct_def.fields[0].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_tdbz_interest_map->value - (char *) _tdbz_interest_map;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[1].fname = tdrpStrDup("interest");
+      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_tdbz_interest_map->interest - (char *) _tdbz_interest_map;
+    tt->n_struct_vals = 4;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].d = 30;
+      tt->struct_vals[1].d = 0.0001;
+      tt->struct_vals[2].d = 40;
+      tt->struct_vals[3].d = 1;
+    tt++;
+    
+    // Parameter 'tdbz_interest_weight'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("tdbz_interest_weight");
+    tt->descr = tdrpStrDup("Weight for TDBZ interest.");
+    tt->help = tdrpStrDup("This weight is used for combining tdbz interest into the final CMD interest.");
+    tt->val_offset = (char *) &tdbz_interest_weight - &_start_;
+    tt->single_val.d = 1;
+    tt++;
+    
+    // Parameter 'zdr_sdev_interest_map'
+    // ctype is '_interest_map_point_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("zdr_sdev_interest_map");
+    tt->descr = tdrpStrDup("Interest mapping for zdr.");
+    tt->help = tdrpStrDup("");
+    tt->array_offset = (char *) &_zdr_sdev_interest_map - &_start_;
+    tt->array_n_offset = (char *) &zdr_sdev_interest_map_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(interest_map_point_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("interest_map_point_t");
+    tt->struct_def.nfields = 2;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[0].fname = tdrpStrDup("value");
+      tt->struct_def.fields[0].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_zdr_sdev_interest_map->value - (char *) _zdr_sdev_interest_map;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[1].fname = tdrpStrDup("interest");
+      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_zdr_sdev_interest_map->interest - (char *) _zdr_sdev_interest_map;
+    tt->n_struct_vals = 4;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].d = 3;
+      tt->struct_vals[1].d = 0.0001;
+      tt->struct_vals[2].d = 4;
+      tt->struct_vals[3].d = 1;
+    tt++;
+    
+    // Parameter 'zdr_sdev_interest_weight'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("zdr_sdev_interest_weight");
+    tt->descr = tdrpStrDup("Weight for standard deviation of zdr.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &zdr_sdev_interest_weight - &_start_;
+    tt->single_val.d = 1;
+    tt++;
+    
+    // Parameter 'phidp_sdev_interest_map'
+    // ctype is '_interest_map_point_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("phidp_sdev_interest_map");
+    tt->descr = tdrpStrDup("Interest mapping for standard deviation of phidp.");
+    tt->help = tdrpStrDup("");
+    tt->array_offset = (char *) &_phidp_sdev_interest_map - &_start_;
+    tt->array_n_offset = (char *) &phidp_sdev_interest_map_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(interest_map_point_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("interest_map_point_t");
+    tt->struct_def.nfields = 2;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[0].fname = tdrpStrDup("value");
+      tt->struct_def.fields[0].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_phidp_sdev_interest_map->value - (char *) _phidp_sdev_interest_map;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[1].fname = tdrpStrDup("interest");
+      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_phidp_sdev_interest_map->interest - (char *) _phidp_sdev_interest_map;
+    tt->n_struct_vals = 4;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].d = 28;
+      tt->struct_vals[1].d = 0.0001;
+      tt->struct_vals[2].d = 32;
+      tt->struct_vals[3].d = 1;
+    tt++;
+    
+    // Parameter 'phidp_sdev_interest_weight'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("phidp_sdev_interest_weight");
+    tt->descr = tdrpStrDup("Weight for standard deviation of phidp.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &phidp_sdev_interest_weight - &_start_;
+    tt->single_val.d = 1;
+    tt++;
+    
+    // Parameter 'cmd_threshold_for_detection'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("cmd_threshold_for_detection");
+    tt->descr = tdrpStrDup("Threshold CMD value for detecting clutter.");
+    tt->help = tdrpStrDup("If the mean CMD value exceeds this threshold, clutter is assumed to exist at that point.");
+    tt->val_offset = (char *) &cmd_threshold_for_detection - &_start_;
+    tt->single_val.d = 0.9;
+    tt++;
+    
+    // Parameter 'cmd_threshold_for_moments'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("cmd_threshold_for_moments");
+    tt->descr = tdrpStrDup("Threshold CMD value for computing moments.");
+    tt->help = tdrpStrDup("If CMD at a spectral point exceeds this threshold, it is set to 0 so it is not used in the computation of the moments.");
+    tt->val_offset = (char *) &cmd_threshold_for_moments - &_start_;
+    tt->single_val.d = 0.7;
+    tt++;
+    
+    // Parameter 'Comment 19'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 19");
     tt->comment_hdr = tdrpStrDup("RADAR CALIBRATION");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -2624,6 +3823,51 @@
     tt->help = tdrpStrDup("If false, the cal information in the time series data will be used. If true, the cal info in the param file will be used.");
     tt->val_offset = (char *) &use_cal_from_time_series - &_start_;
     tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'Comment 20'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 20");
+    tt->comment_hdr = tdrpStrDup("CLICK POINT DATA MESSAGING from display (HawkEye or CIDD)");
+    tt->comment_text = tdrpStrDup("Reading and writing the click point location to an FMQ in XML format.");
+    tt++;
+    
+    // Parameter 'click_point_fmq_url'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("click_point_fmq_url");
+    tt->descr = tdrpStrDup("URL for click point URL.");
+    tt->help = tdrpStrDup("If the user clicks on a point in HawkEye, the details of the latest click point are read from the FMQ. The format is XML. You can view the FMQ using FmqMon -mode ASCII_PRINT. Also, if the user changes the time or range in Sprite, this change will be written to the FMQ.");
+    tt->val_offset = (char *) &click_point_fmq_url - &_start_;
+    tt->single_val.s = tdrpStrDup("/tmp/fmq/click_point");
+    tt++;
+    
+    // Parameter 'click_point_search_angle_error'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("click_point_search_angle_error");
+    tt->descr = tdrpStrDup("Max angular error when searching for dwell close to the click point (deg).");
+    tt->help = tdrpStrDup("When the user clicks in HawkEye, the (x,y) location is saved. From this, the elevation, azimuth and range of the click point can be determined. This parameter gives the max angular error allowable in this search.");
+    tt->val_offset = (char *) &click_point_search_angle_error - &_start_;
+    tt->single_val.d = 10;
+    tt++;
+    
+    // Parameter 'click_point_delta_azimuth_deg'
+    // ctype is 'double'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = DOUBLE_TYPE;
+    tt->param_name = tdrpStrDup("click_point_delta_azimuth_deg");
+    tt->descr = tdrpStrDup("Change in azimuth when clicking left or right keys in follow mode (deg).");
+    tt->help = tdrpStrDup("In display follow mode, you can navigate left and right in azimuth using the arrow keys. This is the requested change in azimuth when navigating.");
+    tt->val_offset = (char *) &click_point_delta_azimuth_deg - &_start_;
+    tt->single_val.d = 1;
     tt++;
     
     // trailing entry has param_name set to NULL

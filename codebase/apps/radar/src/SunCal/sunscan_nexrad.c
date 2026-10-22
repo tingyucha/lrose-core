@@ -852,6 +852,7 @@ static int _addBeamToRawArray(solar_beam_t *beam)
     int newSize = _elevAllocRaw[azIndex] + gridNEl;
     _rawBeamArray[azIndex] =
       realloc(_rawBeamArray[azIndex], newSize * sizeof(solar_beam_t));
+    _elevAllocRaw[azIndex] = newSize;
   }
 
   /* copy beam to the array */
@@ -1867,7 +1868,8 @@ static int _makedir_recurse(const char *path)
    * If no delim, try to make the directory non-recursively.
    */
   
-  strncpy(up_dir, path, MAX_PATH_LEN);
+  strncpy(up_dir, path, MAX_PATH_LEN - 1);
+  up_dir[MAX_PATH_LEN - 1] = '\0';
   last_delim = strrchr(up_dir, delim);
   if (last_delim == NULL) {
     return (_makedir(up_dir));
@@ -2117,4 +2119,3 @@ int nexradSolarWriteGriddedTextFiles(const char *output_dir)
   return 0;
 
 }
-

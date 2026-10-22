@@ -38,9 +38,13 @@
 #include "Args.hh"
 #include "Params.hh"
 #include <string>
+#include <set>
+#include <Radx/Radx.hh>
+#include <Radx/Fm301RadxFileParams.hh>
 class RadxVol;
 class RadxFile;
 class RadxRay;
+class RadxField;
 class VarTransform;
 using namespace std;
 
@@ -71,19 +75,22 @@ private:
   char *_paramsPath;
   Args _args;
   Params _params;
-  vector<string> _readPaths;
+  Fm301RadxFileParams _fm301Params;
+  set<string> _readPaths;
 
   vector<VarTransform *> _varTrans;
 
   int _volNum;
   int _nWarnCensorPrint;
 
+  void _printParamsFm301();
   int _runFilelist();
   int _runArchive();
   int _runRealtimeWithLdata();
   int _runRealtimeNoLdata();
   int _readFile(const string &filePath,
                 RadxVol &vol);
+  int _readGeorefCorrections(RadxVol &vol);
   void _finalizeVol(RadxVol &vol);
   void _setupRead(RadxFile &file);
   void _applyLinearTransform(RadxVol &vol);
@@ -95,6 +102,15 @@ private:
   int _writeVol(RadxVol &vol);
   void _censorFields(RadxVol &vol);
   void _censorRay(RadxRay *ray);
+  bool _checkFieldForCensoring(const RadxField *field);
+  int _addSnrField(RadxVol &vol);
+  int _addSnrField(RadxRay *ray);
+  void _computeSnrFromDbz(size_t nGates,
+                          const Radx::fl32 *dbz,
+                          Radx::fl32 *snr,
+                          Radx::fl32 missingVal,
+                          double startRangeKm,
+                          double gateSpacingKm);
 
 
 };

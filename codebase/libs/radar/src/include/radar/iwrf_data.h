@@ -69,7 +69,6 @@ extern "C" {
  */
 
 #include <dataport/port_types.h>
-#include <math.h>
 
 #define IWRF_MAX_CHAN 4  /**< Max number of channels<br>Normal dual-pol operation uses 2 channels */
 #define IWRF_MAX_RADAR_NAME 32  /**< Max length of radar name */
@@ -142,6 +141,8 @@ typedef si32 iwrf_event_flags_t;
 #define IWRF_END_OF_VOLUME (1 << 1)
 #define IWRF_START_OF_SWEEP (1 << 2)
 #define IWRF_START_OF_VOLUME (1 << 3)
+#define IWRF_START_OF_BLOCK (1 << 4)
+#define IWRF_END_OF_BLOCK (1 << 5)
 
 /* txrx state flags
  *
@@ -154,6 +155,32 @@ typedef si32 iwrf_txrx_state_t;
 #define IWRF_TXRX_LONG_PRT (1 << 0)
 #define IWRF_TXRX_SHORT_PRT (1 << 1)
 #define IWRF_TXRX_HPOL_BYPASS (1 << 2)
+
+/********************************************************
+ * RVP8-specific enums
+ * These are for decoding the TsArchive header
+ */
+
+#define RVP8_PRF_MODE_FIXED          0
+#define RVP8_PRF_MODE_STAGGERED_2_3  1
+#define RVP8_PRF_MODE_STAGGERED_3_4  2
+#define RVP8_PRF_MODE_STAGGERED_4_5  3
+
+#define RVP8_SINGLE_POL_H    0
+#define RVP8_SINGLE_POL_V    1
+#define RVP8_HV_ALTERNATING  2
+#define RVP8_HV_SIMULTANEOUS 3
+
+#define RVP8_PHASE_MODE_FIXED   0
+#define RVP8_PHASE_MODE_RANDOM  1
+#define RVP8_PHASE_MODE_CUSTOM  2
+
+#define RVP8_WINDOW_RECT       0
+#define RVP8_WINDOW_HAMMING    1
+#define RVP8_WINDOW_BLACKMAN   2
+#define RVP8_WINDOW_BLKMANEX   3
+#define RVP8_WINDOW_VONHANN    4
+#define RVP8_WINDOW_ADAPTIVE   5
 
 /************************************************************************/
 /************************************************************************/
@@ -1383,7 +1410,11 @@ typedef struct iwrf_pulse_header {
   si32 txrx_state;  /**< flags for tx/rx status, short/long PRT etc.
                      * see iwrf_txrx_state_flags_t */
 
-  si32 unused[6];
+  fl32 tx_phase_deg; /** phase on transmit - for phase-coded ops */
+
+  si32 block_id; /** pulse block ID */ 
+
+  si32 unused[4];
 
 } iwrf_pulse_header_t;
 

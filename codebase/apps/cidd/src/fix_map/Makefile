@@ -31,27 +31,28 @@
 
 include $(LROSE_CORE_DIR)/build/make_include/lrose_make_macros
 
-MODULE_TYPE=program
-
 TARGET_FILE = fix_map
 
 LOC_INCLUDES =
 #LOC_CFLAGS =  -g -DDBG
 LOC_LDFLAGS =
 LOC_LIBS = \
-	-ltoolsa -lbz2 -lz
+	-ltoolsa -ldataport -lbz2 -lz \
+	-lpthread
 
 HDRS =  
-SRCS =  fix_map.c 
+CPPC_SRCS =  fix_map.cc
 
 #
 # standard targets
 #
 
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_targets
-
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
 
 depend: depend_generic
 
+clean_tdrp:
+
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

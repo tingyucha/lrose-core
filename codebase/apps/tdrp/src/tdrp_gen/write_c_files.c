@@ -68,7 +68,8 @@ int write_h_file(const char *module,
                  const TDRPtable *t_entries,
 		 int n_defs,
                  const char *prog_name,
-                 const char *lib_name)
+                 const char *lib_name,
+                 const char *output_dir)
 
 {
 
@@ -82,8 +83,12 @@ int write_h_file(const char *module,
   /*
    * open file
    */
-  
-  sprintf(hname,"%s_tdrp.h", module);
+
+  if (strcmp(output_dir, ".")) {
+    sprintf(hname,"%s/%s_tdrp.h", output_dir, module);
+  } else {
+    sprintf(hname,"%s_tdrp.h", module);
+  }
   if ((hfile = fopen(hname, "w")) == NULL) {
     fprintf(stderr, "ERROR: tdrp_gen:write_h_file, opening file\n");
     perror(hname);
@@ -95,7 +100,7 @@ int write_h_file(const char *module,
    */
 
   fprintf(hfile, "/*******************************************\n");
-  fprintf(hfile, " * %s\n", hname);
+  fprintf(hfile, " * %s_tdrp.h\n", module);
   fprintf(hfile, " *\n");
   if (strlen(module) > 0) {
     fprintf(hfile, " * TDRP header file for '%s' module.\n", module);
@@ -384,7 +389,8 @@ int write_c_file(const char *module,
                  const TDRPtable *t_entries,
 		 int n_defs,
                  const char *prog_name,
-                 const char *lib_name)
+                 const char *lib_name,
+                 const char *output_dir)
   
 {
 
@@ -400,7 +406,11 @@ int write_c_file(const char *module,
    * open file
    */
 
-  sprintf(cname,"%s_tdrp.c", module);
+  if (strcmp(output_dir, ".")) {
+    sprintf(cname,"%s/%s_tdrp.c", output_dir, module);
+  } else {
+    sprintf(cname,"%s_tdrp.c", module);
+  }
 
   if ((cfile = fopen(cname, "w")) == NULL) {
     fprintf(stderr, "ERROR: tdrp_gen:write_c_file, opening file\n");
@@ -414,8 +424,8 @@ int write_c_file(const char *module,
 
   fprintf(cfile,
 	  "/*******************************************\n"
-	  " * %s\n"
-	  " *\n", cname);
+	  " * %s_tdrp.c\n"
+	  " *\n", module);
 
   if (strlen(module) > 0) {
     fprintf(cfile, " * TDRP C code file '%s' module.\n", module);

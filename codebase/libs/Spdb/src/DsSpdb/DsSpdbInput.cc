@@ -52,6 +52,7 @@
 #include <toolsa/pmu.h>
 #include <toolsa/DateTime.hh>
 #include <toolsa/uusleep.h>
+#include <toolsa/safe_snprintf.hh>
 #include <ctime>
 using namespace std;
 
@@ -481,7 +482,7 @@ void DsSpdbInput::_addIntErr(const char *err_str, const int iarg)
 {
   _errStr += err_str;
   char str[32];
-  sprintf(str, "%d\n", iarg);
+  safe_snprintf(str, "%d\n", iarg);
   _errStr += str;
 }
 
@@ -494,4 +495,3 @@ void DsSpdbInput::_addStrErr(const char *err_str, const string &sarg)
   _errStr += sarg;
   _errStr += "\n";
 }
-

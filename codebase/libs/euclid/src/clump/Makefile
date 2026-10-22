@@ -69,6 +69,11 @@ SRCS = \
 	union_intervals.c \
 	zero_clump.c
 
+CPPC_SRCS = \
+	ClumpingDualThresh.cc \
+	ClumpingMgr.cc \
+	ClumpProps.cc
+
 #
 # general targets
 #

@@ -38,6 +38,7 @@
 ///////////////////////////////////////////////////////////////////////
 
 #include <dataport/bigend.h>
+#include <toolsa/safe_snprintf.hh>
 #include <toolsa/mem.h>
 #include <toolsa/TaStr.hh>
 #include <toolsa/TaArray.hh>
@@ -75,6 +76,7 @@ Ncf2MdvTrans::Ncf2MdvTrans()
   _debug = false;
   _ncFile = NULL;
   _ncErr = NULL;
+  _readData = true;
   _forecast_reference_time_found = false;
   _timesInspected = false;
   _expectedNumTimes = -1;
@@ -895,6 +897,7 @@ int Ncf2MdvTrans::_matchTimeInfoToData()
 int Ncf2MdvTrans::_addDataFields()
 
 {
+
   time_t t0 = time(0);
 
   _validTimes.clear();
@@ -903,15 +906,24 @@ int Ncf2MdvTrans::_addDataFields()
 
   int fieldNum = 0;
   for (int ivar = 0; ivar < _ncFile->num_vars(); ivar++) {
-    
-    if (_addOneField(_ncFile->get_var(ivar), fieldNum))
-    {
+    if (_addOneField(_ncFile->get_var(ivar), fieldNum)) {
       return -1;
     }
   }
   if (_mdv->getNFields() < 1) {
     TaStr::AddStr(_errStr, "ERROR - Ncf2MdvTrans::_addDataFields");
-    TaStr::AddStr(_errStr, "  No fields found");
+    TaStr::AddStr(_errStr, "  No matching fields found");
+    TaStr::AddStr(_errStr, "  Trying to read fields:");
+    for (int kk = 0; kk < (int) _mdv->_readFieldNames.size(); kk++) {
+      TaStr::AddStr(_errStr, "    -->> ", _mdv->_readFieldNames[kk]);
+    } // kk
+    TaStr::AddStr(_errStr, "  Available fields are:");
+    for (int ivar = 0; ivar < _ncFile->num_vars(); ivar++) {
+      int numDims = _ncFile->get_var(ivar)->num_dims();
+      if (numDims >= 2 && numDims <= 4) {
+        TaStr::AddStr(_errStr, "    -->> ", _ncFile->get_var(ivar)->name());
+      }
+    }
     return -1;
   }
 
@@ -919,8 +931,10 @@ int Ncf2MdvTrans::_addDataFields()
   // (a) convert to vert section as needed
   // (b) compress appropriately
   
-  if (_finalizeFields()) {
-    return -1;
+  if (_readData) {
+    if (_finalizeFields()) {
+      return -1;
+    }
   }
 
   time_t t1 = time(0);
@@ -945,7 +959,6 @@ int Ncf2MdvTrans::_addOneField(Nc3Var *dataVar, int &fieldNum)
 
   TimeDim *tdim = _findTimeDim(dataVar);
 
-
   // go for it.
 
   if (_debug) {
@@ -959,33 +972,25 @@ int Ncf2MdvTrans::_addOneField(Nc3Var *dataVar, int &fieldNum)
   int numTimes = (int) tdim->times.size();
 	
   if (_timesInspected && _timeIndex >= 0) {
-
     // do just the current index
-
     if (numTimes == _expectedNumTimes) {
-
       if (_addOneTimeDataField(_timeIndex, tdim, dataVar, arrayDim)) {
 	return -1;
       }
       // a bit of a hack to adjust forecast delta here, but needed.
       if (_validTimes.size() == 1) {
 	_mhdr.forecast_delta = *_validTimes.begin() - _mhdr.time_gen;
-      }
-      else {
+      } else {
 	cerr << "ERROR expected 1 valid time got " << _validTimes.size() <<endl;
 	return -1;
       }
-    }	 
-    else {
+    } else {
       cerr << "ERROR mismatch in number of times for " << dataVar->name() <<
 	" dataNtimes" << numTimes << " expected " << 
 	_expectedNumTimes << endl;
       return -1;
     }
-  }
-  else
-  {
-
+  } else {
     // Create data for for each and every time.
     for (int itime = 0 ; itime < numTimes; itime++) {
       if (_addOneTimeDataField(itime, tdim, dataVar, arrayDim)) {
@@ -993,7 +998,9 @@ int Ncf2MdvTrans::_addOneField(Nc3Var *dataVar, int &fieldNum)
       }
     }
   }
+
   return 0;
+
 }
 
 
@@ -1092,7 +1099,7 @@ void Ncf2MdvTrans::_inspectDim(Nc3Dim *dim, int jdim, ArrayDim &arrayDim)
     }
     return;
   }
-      
+
   Nc3Var *coordVar = _ncFile->get_var(dim->name());
   if (coordVar == NULL) {
     if (_debug) {
@@ -1125,7 +1132,7 @@ void Ncf2MdvTrans::_inspectDim(Nc3Dim *dim, int jdim, ArrayDim &arrayDim)
     arrayDim.xVar = coordVar;
     arrayDim.xDim = dim;
     if (_debug) {
-      cerr << "SUCCESS - FIELD has X coordinate" << endl;
+      cerr << "SUCCESS - var has X coordinate, dim: " << dim->name() << endl;
     }
     return;
   }
@@ -1136,7 +1143,7 @@ void Ncf2MdvTrans::_inspectDim(Nc3Dim *dim, int jdim, ArrayDim &arrayDim)
     arrayDim.yVar = coordVar;
     arrayDim.yDim = dim;
     if (_debug) {
-      cerr << "SUCCESS - FIELD has Y coordinate" << endl;
+      cerr << "SUCCESS - var has Y coordinate, dim: " << dim->name() << endl;
     }
     return;
   }
@@ -1146,7 +1153,7 @@ void Ncf2MdvTrans::_inspectDim(Nc3Dim *dim, int jdim, ArrayDim &arrayDim)
     arrayDim.zDim = dim;
     delete positiveAtt;
     if (_debug) {
-      cerr << "NOTE - FIELD has Z coordinate" << endl;
+      cerr << "NOTE - var has Z coordinate, dim: " << dim->name() << endl;
     }
     return;
   }
@@ -1317,7 +1324,7 @@ int Ncf2MdvTrans::_addOneTimeDataField(int itime, TimeDim *tdim,
     forecastDelta = 0;
     forecastTime = 0;
   }
-        
+
   Ncf2MdvField *field = new Ncf2MdvField(_debug,
 					 validTime,
 					 itime,
@@ -1328,7 +1335,8 @@ int Ncf2MdvTrans::_addOneTimeDataField(int itime, TimeDim *tdim,
 					 tdim->dim, tdim->var,
 					 arrayDim.zDim, arrayDim.zVar,
 					 arrayDim.yDim, arrayDim.yVar,
-					 arrayDim.xDim, arrayDim.xVar);
+					 arrayDim.xDim, arrayDim.xVar,
+                                         _readData);
         
   MdvxField *mdvxField = field->createMdvxField();
 
@@ -1402,7 +1410,7 @@ int Ncf2MdvTrans::_finalizeFields()
       // apply read constraints, do not compress etc
       
       fld->_apply_read_constraints(*_mdv, false, false, false,
-				   remapLut, true, minLon, maxLon);
+				   remapLut, false, false, minLon, maxLon);
       
       // convert to vert section
       
@@ -1419,8 +1427,8 @@ int Ncf2MdvTrans::_finalizeFields()
       fld->requestCompression(Mdvx::COMPRESSION_GZIP);
 
     } // ifield
-      
-      // add vsect-specific members
+    
+    // add vsect-specific members
     
     _mdv->_vsectWayPts = vsectLut.getWayPts();
     _mdv->_vsectSamplePts = vsectLut.getSamplePts();
@@ -1434,13 +1442,13 @@ int Ncf2MdvTrans::_finalizeFields()
   }
 
   // not a vsection, just apply read contraints, compression etc
-  
+
   MdvxRemapLut remapLut;
   for (int ifield = 0; ifield < (int) _mdv->getNFields(); ifield++) {
     MdvxField *fld = _mdv->getField(ifield);
     fld->_apply_read_constraints(*_mdv, _mdv->_readFillMissing,
 				 _mdv->_readDecimate, true,
-				 remapLut, false, -360.0, 360.0);
+				 remapLut, false, false, -360.0, 360.0);
     fld->requestCompression(Mdvx::COMPRESSION_GZIP);
   }
 
@@ -1469,18 +1477,20 @@ int Ncf2MdvTrans::_finalizeFieldsRhi(bool respectUserDistance /* = false*/)
       return -1;
     }
   }
-
+  
   // finalize
 
   MdvxRemapLut remapLut;
   for (int ifield = 0; ifield < (int) _mdv->getNFields(); ifield++) {
     MdvxField *fld = _mdv->getField(ifield);
+
     fld->_apply_read_constraints(*_mdv, _mdv->_readFillMissing,
 				 _mdv->_readDecimate, true,
-				 remapLut, false, -360.0, 360.0);
+				 remapLut, false, true, -360.0, 360.0);
     fld->requestCompression(Mdvx::COMPRESSION_GZIP);
-  }
 
+  }
+  
   _mdv->updateMasterHeader();
   return 0;
 
@@ -1501,7 +1511,7 @@ int Ncf2MdvTrans::_addChunks()
     // dimension
 
     char dimName[128];
-    sprintf(dimName, "%s_%.4d", NcfMdv::nbytes_mdv_chunk, ii);
+    safe_snprintf(dimName, "%s_%.4d", NcfMdv::nbytes_mdv_chunk, ii);
     Nc3Dim *dim = _ncFile->get_dim(dimName);
     if (dim == NULL) {
       return 0;
@@ -1510,7 +1520,7 @@ int Ncf2MdvTrans::_addChunks()
     // variable
     
     char varName[128];
-    sprintf(varName, "%s_%.4d", NcfMdv::mdv_chunk, ii);
+    safe_snprintf(varName, "%s_%.4d", NcfMdv::mdv_chunk, ii);
     Nc3Var *var = _ncFile->get_var(varName);
     if (var == NULL) {
       return 0;
@@ -2098,7 +2108,7 @@ void Ncf2MdvTrans::_addFieldCfRadial(const RadxVol &vol,
 
   delete[] mdvData;
 
-  // convert mdv field based on byte width, compress
+  // convert mdv field based on byte width, request compression
 
   if (origByteWidth == 1) {
     mdvxField->convertType(Mdvx::ENCODING_INT8, Mdvx::COMPRESSION_GZIP);
@@ -2724,4 +2734,3 @@ int Ncf2MdvTrans::_getDsPrfMode(Radx::PrtMode_t mode)
       return DS_RADAR_PRF_MODE_FIXED;
   }
 }
-

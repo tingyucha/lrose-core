@@ -22,27 +22,9 @@
 // ** WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.    
 // *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* 
 #include <toolsa/copyright.h>
+#include <toolsa/TaArray.hh>
 #include <cstdlib>
 #include <cstring>
-
-/*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*/
-/*
- * RCS info
- *  $Author: dixon $
- *  $Locker:  $
- *  $Date: 2016/03/04 02:22:12 $
- *  $Id: Algs.cc,v 1.5 2016/03/04 02:22:12 dixon Exp $
- *  $Revision: 1.5 $
- *  $State: Exp $
- *
- */
-
-# ifndef    lint
-static char RCSid[] = "$Id: ";
-# endif     /* not lint */
-
-/**-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-**/
-
 
 /************************************************************************
 
@@ -61,7 +43,7 @@ Description:   The actual filtering algorithm code for all filters
 /* System include files / Local include files */
 #include <cstdio>
 #include <cmath>
-#include <Algs.hh>
+#include "Algs.hh"
 using namespace std;
 
 /* Constant definitions / Macro definitions / Type definitions */
@@ -70,14 +52,6 @@ using namespace std;
 
 /* External functions / Internal global functions / Internal static functions */
 
-/*----------------------------------------------------------------*/
-# ifndef    lint
-void Algs_rcsprint(void)
-{
-    printf("rcsid=%s\n", RCSid);
-}
-# endif     /* not lint */
-  
 /*----------------------------------------------------------------*/
 //
 // Comparison routine for fl32 in ascending order.
@@ -388,7 +362,9 @@ fl32 Algs::_GetMedian(fl32 *Buffer, int num)
   // Pick off the non-missing data into another array.
   // Return missing as the median if no data found.
   //
-  fl32 GoodBuf[num];
+
+  TaArray<fl32> GoodBuf_;
+  fl32 *GoodBuf = GoodBuf_.alloc(num);
 
   int nGood = 0;
   for(int l=0; l < num; l++)

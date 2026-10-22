@@ -34,6 +34,7 @@
 ///////////////////////////////////////////////////////////////
 
 #include <Radx/Cf2RadxFile.hh>
+#include <Radx/RadxFm301Str.hh>
 #include <Radx/RadxTime.hh>
 #include <Radx/RadxVol.hh>
 #include <Radx/RadxField.hh>
@@ -44,6 +45,7 @@
 #include <Radx/RadxPath.hh>
 #include <Radx/RadxArray.hh>
 #include <Radx/RadxStr.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <unistd.h>
 #include <cstring>
 #include <cstdio>
@@ -119,13 +121,13 @@ int Cf2RadxFile::writeToDir(const RadxVol &vol,
   string outDir(dir);
   if (addYearSubDir) {
     char yearStr[BUFSIZ];
-    sprintf(yearStr, "%s%.4d", PATH_SEPARATOR, fileTime.getYear());
+    safe_snprintf(yearStr, "%s%.4d", PATH_SEPARATOR, fileTime.getYear());
     outDir += yearStr;
   }
   if (addDaySubDir) {
     char dayStr[BUFSIZ];
-    sprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
-            fileTime.getYear(), fileTime.getMonth(), fileTime.getDay());
+    safe_snprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
+                  fileTime.getYear(), fileTime.getMonth(), fileTime.getDay());
     outDir += dayStr;
   }
 
@@ -248,13 +250,13 @@ int Cf2RadxFile::_writeSweepToDir(const RadxVol &vol,
   string outDir(dir);
   if (addYearSubDir) {
     char yearStr[BUFSIZ];
-    sprintf(yearStr, "%s%.4d", PATH_SEPARATOR, fileTime.getYear());
+    safe_snprintf(yearStr, "%s%.4d", PATH_SEPARATOR, fileTime.getYear());
     outDir += yearStr;
   }
   if (addDaySubDir) {
     char dayStr[BUFSIZ];
-    sprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
-            fileTime.getYear(), fileTime.getMonth(), fileTime.getDay());
+    safe_snprintf(dayStr, "%s%.4d%.2d%.2d", PATH_SEPARATOR,
+                  fileTime.getYear(), fileTime.getMonth(), fileTime.getDay());
     outDir += dayStr;
   }
 
@@ -281,36 +283,36 @@ int Cf2RadxFile::_writeSweepToDir(const RadxVol &vol,
 
   char fileName[BUFSIZ];
   if (_writeFileNameMode == FILENAME_WITH_START_AND_END_TIMES) {
-    sprintf(fileName,
-            "cfrad2.%.4d%.2d%.2d_%.2d%.2d%.2d.%.3d"
-            "_to_%.4d%.2d%.2d_%.2d%.2d%.2d.%.3d"
-            "_%s_v%d_s%.2d_%s%.2f_%s.nc",
-            startTime.getYear(), startTime.getMonth(), startTime.getDay(),
-            startTime.getHour(), startTime.getMin(), startTime.getSec(),
-            startMillisecs,
-            endTime.getYear(), endTime.getMonth(), endTime.getDay(),
-            endTime.getHour(), endTime.getMin(), endTime.getSec(),
-            endMillisecs,
-            instName.c_str(),
-            volNum, sweepNum,
-            fixedAngleLabel.c_str(), fixedAngle,
-            scanType.c_str());
+    safe_snprintf(fileName,
+                  "cfrad2.%.4d%.2d%.2d_%.2d%.2d%.2d.%.3d"
+                  "_to_%.4d%.2d%.2d_%.2d%.2d%.2d.%.3d"
+                  "_%s_v%d_s%.2d_%s%.2f_%s.nc",
+                  startTime.getYear(), startTime.getMonth(), startTime.getDay(),
+                  startTime.getHour(), startTime.getMin(), startTime.getSec(),
+                  startMillisecs,
+                  endTime.getYear(), endTime.getMonth(), endTime.getDay(),
+                  endTime.getHour(), endTime.getMin(), endTime.getSec(),
+                  endMillisecs,
+                  instName.c_str(),
+                  volNum, sweepNum,
+                  fixedAngleLabel.c_str(), fixedAngle,
+                  scanType.c_str());
   } else {
-    sprintf(fileName,
-            "cfrad2.%.4d%.2d%.2d_%.2d%.2d%.2d.%.3d"
-            "_%s_v%d_s%.2d_%s%.2f_%s.nc",
-            fileTime.getYear(), fileTime.getMonth(), fileTime.getDay(),
-            fileTime.getHour(), fileTime.getMin(), fileTime.getSec(),
-            fileMillisecs,
-            instName.c_str(),
-            volNum, sweepNum,
-            fixedAngleLabel.c_str(), fixedAngle,
-            scanType.c_str());
+    safe_snprintf(fileName,
+                  "cfrad2.%.4d%.2d%.2d_%.2d%.2d%.2d.%.3d"
+                  "_%s_v%d_s%.2d_%s%.2f_%s.nc",
+                  fileTime.getYear(), fileTime.getMonth(), fileTime.getDay(),
+                  fileTime.getHour(), fileTime.getMin(), fileTime.getSec(),
+                  fileMillisecs,
+                  instName.c_str(),
+                  volNum, sweepNum,
+                  fixedAngleLabel.c_str(), fixedAngle,
+                  scanType.c_str());
   }
   
   char outPath[BUFSIZ];
-  sprintf(outPath, "%s%s%s",
-          outDir.c_str(), PATH_SEPARATOR,  fileName);
+  safe_snprintf(outPath, "%s%s%s",
+                outDir.c_str(), PATH_SEPARATOR,  fileName);
   
   int iret = writeToPath(*_writeVol, outPath);
 
@@ -392,21 +394,21 @@ int Cf2RadxFile::writeToPath(const RadxVol &vol,
   
   try {
     _addGlobalAttributes();
-  } catch (NcxxException e) {
+  } catch (NcxxException &e) {
     cerr << _errStr << endl;
     return _closeOnError("_addGlobalAttributes");
   }
 
   try {
     _addRootDimensions();
-  } catch (NcxxException e) {
+  } catch (NcxxException &e) {
     cerr << _errStr << endl;
     return _closeOnError("_addRootDimensions");
   }
 
   try {
     _addRootScalarVariables();
-  } catch (NcxxException e) {
+  } catch (NcxxException &e) {
     cerr << _errStr << endl;
     return _closeOnError("_addRootScalarVariables");
   }
@@ -414,14 +416,14 @@ int Cf2RadxFile::writeToPath(const RadxVol &vol,
   if (_writeVol->getInstrumentType() == Radx::INSTRUMENT_TYPE_RADAR) {
     try {
       _addRadarParameters();
-    } catch (NcxxException e) {
+    } catch (NcxxException &e) {
       cerr << _errStr << endl;
       return _closeOnError("_addRadarParameters");
     }
   } else {
     try {
       _addLidarParameters();
-    } catch (NcxxException e) {
+    } catch (NcxxException &e) {
       cerr << _errStr << endl;
       return _closeOnError("_addLidarParameters");
     }
@@ -429,7 +431,7 @@ int Cf2RadxFile::writeToPath(const RadxVol &vol,
 
   try {
     _addRadarCalibration();
-  } catch (NcxxException e) {
+  } catch (NcxxException &e) {
     cerr << _errStr << endl;
     return _closeOnError("_addRadarCalibration");
   }
@@ -437,7 +439,7 @@ int Cf2RadxFile::writeToPath(const RadxVol &vol,
   if (_correctionsActive) {
     try {
       _addGeorefCorrections();
-    } catch (NcxxException e) {
+    } catch (NcxxException &e) {
       cerr << _errStr << endl;
       return _closeOnError("_addGeorefCorrections");
     }
@@ -445,14 +447,14 @@ int Cf2RadxFile::writeToPath(const RadxVol &vol,
 
   try {
     _addLocation();
-  } catch (NcxxException e) {
+  } catch (NcxxException &e) {
     cerr << _errStr << endl;
     return _closeOnError("_addLocation");
   }
 
   try {
     _addProjection();
-  } catch (NcxxException e) {
+  } catch (NcxxException &e) {
     cerr << _errStr << endl;
     return _closeOnError("_addProjection");
   }
@@ -461,7 +463,7 @@ int Cf2RadxFile::writeToPath(const RadxVol &vol,
 
   try {
     _addSweeps();
-  } catch (NcxxException e) {
+  } catch (NcxxException &e) {
     cerr << _errStr << endl;
     return _closeOnError("_addSweeps");
   }
@@ -595,39 +597,41 @@ void Cf2RadxFile::_addGlobalAttributes()
 
   // Add required CF global attributes
   
-  _conventions = CfConvention;
-  _subconventions = BaseConvention;
-  // _subconventions += " ";
-  // _subconventions += INSTRUMENT_PARAMETERS;
-  // if (_writeVol->getInstrumentType() == Radx::INSTRUMENT_TYPE_RADAR) {
-  //   _subconventions += " ";
-  //   _subconventions += RADAR_PARAMETERS;
-  //   if (_writeVol->getRcalibs().size() > 0) {
-  //     _subconventions += " ";
-  //     _subconventions += RADAR_CALIBRATION;
-  //   }
-  // } else {
-  //   _subconventions += " ";
-  //   _subconventions += LIDAR_PARAMETERS;
-  // }
-  // if (_writeVol->getPlatformType() != Radx::PLATFORM_TYPE_FIXED) {
-  //   _subconventions += " ";
-  //   _subconventions += PLATFORM_VELOCITY;
-  // }
-  // if (_writeVol->getCfactors() != NULL) {
-  //   _subconventions += " ";
-  //   _subconventions += GEOMETRY_CORRECTION;
-  // }
-
-  _file.addGlobAttr(CONVENTIONS, _conventions);
-  _file.addGlobAttr(SUB_CONVENTIONS, _subconventions);
+  _convention = CfRadial2Conventions;
+  _file.addGlobAttr(CONVENTIONS, _convention);
+  
+  // Add WMO global attributes if set
+  
+  if (_writeVol->getWmoWsi().size() > 0) {
+    _file.addGlobAttr(RadxFm301Str::WMO__WSI, _writeVol->getWmoWsi());
+  }
+  if (_writeVol->getWmoId().size() > 0) {
+    _file.addGlobAttr(RadxFm301Str::WMO__ID, _writeVol->getWmoId());
+  }
+  if (_writeVol->getWmoCfProfile().size() > 0) {
+    _file.addGlobAttr(RadxFm301Str::WMO__CF_PROFILE,
+                      _writeVol->getWmoCfProfile());
+  }
+  if (_writeVol->getWmoDataCategory().size() > 0) {
+    _file.addGlobAttr(RadxFm301Str::WMO__DATA_CATEGORY,
+                      _writeVol->getWmoDataCategory());
+  }
+  if (_writeVol->getWmoDataPolicy().size() > 0) {
+    _file.addGlobAttr(RadxFm301Str::WMO__DATA_POLICY,
+                      _writeVol->getWmoDataPolicy());
+  }
+  if (_writeVol->getWmoOriginatingCentre().size() > 0) {
+    _file.addGlobAttr(RadxFm301Str::WMO__ORIGINATING_CENTRE,
+                      _writeVol->getWmoOriginatingCentre());
+  }
+  if (_writeVol->getWmoOriginatingSubCentre().size() > 0) {
+    _file.addGlobAttr(RadxFm301Str::WMO__ORIGINATING_SUB_CENTRE,
+                      _writeVol->getWmoOriginatingSubCentre());
+  }
   
   // Version
 
-  _version = CurrentVersion2;
-  // if (_writeVol->getVersion().size() > 0) {
-  //   _version = _writeVol->getVersion();
-  // }
+  _version = CfRadial2Version;
   _file.addGlobAttr(VERSION, _version);
   
   // info strings
@@ -1397,17 +1401,24 @@ void Cf2RadxFile::_addSweeps()
     RadxSweep *sweep = sweeps[isweep];
     RadxVol sweepVol(*_writeVol, sweep->getSweepNumber());
 
+    // make the geometry constant
+    // set the number of gates to be constant
+    
+    sweepVol.remapToPredomGeom();
+    sweepVol.setNGatesConstant();
+    
     // convert fields from rays to 2-D arrays
+
     sweepVol.loadFieldsFromRays(true);
     
     // create name
   
     char name[128];
-    sprintf(name, "sweep_%.4d", isweep + 1);
+    safe_snprintf(name, "sweep_%.4d", isweep + 1);
     _sweepGroupNames.push_back(name);
 
     if (_debug) {
-      cerr << "adding sweep: " << name << endl;
+      cerr << "adding sweep: " << name << " fields:";
     }
 
     // add group
@@ -1600,11 +1611,8 @@ void Cf2RadxFile::_addSweepVariables(const RadxSweep *sweep,
   const vector<RadxRay *> &rays = sweepVol.getRays();
   size_t nRays = sweepVol.getNRays(); 
   
-  // make the geometry constant
-  // set the number of gates to be constant
+  // get geometry
 
-  sweepVol.remapToPredomGeom();
-  sweepVol.setNGatesConstant();
   double startRangeKm = sweepVol.getStartRangeKm();
   double gateSpacingKm = sweepVol.getGateSpacingKm();
   
@@ -1633,9 +1641,9 @@ void Cf2RadxFile::_addSweepVariables(const RadxSweep *sweep,
   
   char timeUnitsStr[256];
   RadxTime stime(_writeVol->getStartTimeSecs());
-  sprintf(timeUnitsStr, "seconds since %.4d-%.2d-%.2dT%.2d:%.2d:%.2dZ",
-          stime.getYear(), stime.getMonth(), stime.getDay(),
-          stime.getHour(), stime.getMin(), stime.getSec());
+  safe_snprintf(timeUnitsStr, "seconds since %.4d-%.2d-%.2dT%.2d:%.2d:%.2dZ",
+                stime.getYear(), stime.getMonth(), stime.getDay(),
+                stime.getHour(), stime.getMin(), stime.getSec());
   timeVar.putAtt(UNITS, timeUnitsStr);
   timeVar.putAtt(COMMENT, "times are relative to the volume start_time");
 
@@ -2557,36 +2565,42 @@ void Cf2RadxFile::_addSweepFields(const RadxSweep *sweep,
     cerr << "Cf2RadxFile::_addSweepFields()" << endl;
   }
 
-  // loop through the list of unique fields names in this volume
+  // loop through the fields in this sweep
+  
+  for (size_t ifield = 0; ifield < sweepVol.getFields().size(); ifield++) {
 
-  vector<string> uniqueFieldNames =
-    sweepVol.getUniqueFieldNameList(Radx::FIELD_RETRIEVAL_ALL);
-
-  for (size_t ifield = 0; ifield < uniqueFieldNames.size(); ifield++) {
-      
-    const string &name = uniqueFieldNames[ifield];
+    const RadxField *fld = sweepVol.getFields()[ifield];
+    const string &name = fld->getName();
+    
     if (name.size() == 0) {
       // invalid field name
       continue;
     }
 
+    if (_debug) {
+      if (ifield < sweepVol.getFields().size() - 1) {
+        cerr << " " << name << ",";
+      } else {
+        cerr << " " << name << endl;
+      }
+    }
+    
     // make copy of the field
 
-    RadxField *copy = sweepVol.copyField(name);
-    if (copy == NULL) {
-      if (_debug) {
-        cerr << "  ... cannot find field: " << name
-             << " .... skipping" << endl;
-      }
-      continue;
-    }
-
+    RadxField *copy = new RadxField(*fld);
+    
     // create the variable
     
     NcxxVar var;
     try {
       // add field variable
-      var = _createFieldVar(*copy, sweepGroup, timeDim, rangeDim);
+      if (copy->getIsRayQualifier()) {
+        // 1-D qualifier field
+        var = _createFieldVar(*copy, sweepGroup, timeDim);
+      } else {
+        // normal 2-D field
+        var = _createFieldVar(*copy, sweepGroup, timeDim, &rangeDim);
+      }
     } catch (NcxxException& e) {
       _addErrStr("ERROR - Cf2RadxFile::_addSweepFields");
       _addErrStr("  Cannot add field: ", name);
@@ -2622,7 +2636,7 @@ void Cf2RadxFile::_addSweepFields(const RadxSweep *sweep,
 NcxxVar Cf2RadxFile::_createFieldVar(const RadxField &field,
                                      NcxxGroup &sweepGroup,
                                      NcxxDim &timeDim,
-                                     NcxxDim &rangeDim)
+                                     NcxxDim *rangeDim /* = NULL */)
   
 {
   
@@ -2664,7 +2678,9 @@ NcxxVar Cf2RadxFile::_createFieldVar(const RadxField &field,
   try {
     vector<NcxxDim> dims;
     dims.push_back(timeDim);
-    dims.push_back(rangeDim);
+    if (rangeDim != NULL) {
+      dims.push_back(*rangeDim);
+    }
     var = sweepGroup.addVar(fieldName, ncType, dims);
   } catch (NcxxException& e) {
     _addErrStr("ERROR - Cf2RadxFile::_addFieldVar");
@@ -2674,8 +2690,10 @@ NcxxVar Cf2RadxFile::_createFieldVar(const RadxField &field,
     _addErrStr("  NcxxType: ", Ncxx::ncxxTypeToStr(ncType));
     _addErrStr("  Time dim name: ", timeDim.getName());
     _addErrInt("  Time dim size: ", timeDim.getSize());
-    _addErrStr("  Range dim name: ", rangeDim.getName());
-    _addErrInt("  Range dim size: ", rangeDim.getSize());
+    if (rangeDim != NULL) {
+      _addErrStr("  Range dim name: ", rangeDim->getName());
+      _addErrInt("  Range dim size: ", rangeDim->getSize());
+    }
     _addErrStr("  Exception: ", e.what());
     throw(NcxxException(getErrStr(), __FILE__, __LINE__));
   }
@@ -2691,6 +2709,12 @@ NcxxVar Cf2RadxFile::_createFieldVar(const RadxField &field,
       } else {
         var.putAtt(STANDARD_NAME, field.getStandardName());
       }
+    }
+    if (field.getWmoParameterName().size() > 0) {
+      var.putAtt(RadxFm301Str::WMO__PARAMETER_NAME, field.getWmoParameterName());
+    }
+    if (field.getWmoParameterUri().size() > 0) {
+      var.putAtt(RadxFm301Str::WMO__PARAMETER_URI, field.getWmoParameterUri());
     }
     var.putAtt(UNITS, field.getUnits());
     if (field.getLegendXml().size() > 0) {
@@ -2711,6 +2735,41 @@ NcxxVar Cf2RadxFile::_createFieldVar(const RadxField &field,
     }
     if (field.getIsDiscrete()) {
       var.putAtt(IS_DISCRETE, "true");
+    }
+    if (field.getFlagValues().size() > 0) {
+      const vector<int> &flagValues = field.getFlagValues();
+      switch (ncType.getId()) {
+        case NC_BYTE: {
+          vector<unsigned char> vals;
+          for (size_t ii = 0; ii < flagValues.size(); ii++) {
+            vals.push_back((unsigned char) flagValues[ii]);
+          }
+          var.putAtt(FLAG_VALUES, ncType, vals.size(), vals.data());
+          break;
+        }
+        case NC_SHORT: {
+          vector<short> vals;
+          for (size_t ii = 0; ii < flagValues.size(); ii++) {
+            vals.push_back((short) flagValues[ii]);
+          }
+          var.putAtt(FLAG_VALUES, ncType, vals.size(), vals.data());
+          break;
+        }
+        default: {
+          var.putAtt(FLAG_VALUES, NcxxType::nc_INT, flagValues.size(), flagValues.data());
+        }
+      }
+    } // if (field.getFlagValues().size() > 0) 
+    if (field.getFlagMeanings().size() > 0) {
+      const vector<string> &flagMeanings = field.getFlagMeanings();
+      string flagMeaningsStr;
+      for (size_t ii = 0; ii < flagMeanings.size(); ii++) {
+        flagMeaningsStr += flagMeanings[ii];
+        if (ii != flagMeanings.size() - 1) {
+          flagMeaningsStr += " ";
+        }
+      }
+      var.putAtt(FLAG_MEANINGS, flagMeaningsStr);
     }
     
     switch (ncType.getTypeClass()) {
@@ -2744,7 +2803,11 @@ NcxxVar Cf2RadxFile::_createFieldVar(const RadxField &field,
     } // switch
 
     var.putAtt(GRID_MAPPING, GRID_MAPPING);
-    var.putAtt(COORDINATES, "time range");
+    if (rangeDim != NULL) {
+      var.putAtt(COORDINATES, "time range");
+    } else {
+      var.putAtt(COORDINATES, "time");
+    }
     
     // set compression
     
@@ -3327,7 +3390,7 @@ string Cf2RadxFile::_computeWritePath(const RadxVol &vol,
   int volNum = vol.getVolumeNumber();
   char volNumStr[1024];
   if (_writeVolNumInFileName && volNum >= 0) {
-    sprintf(volNumStr, "_v%d", volNum);
+    safe_snprintf(volNumStr, "_v%d", volNum);
   } else {
     volNumStr[0] = '\0'; // NULL str
   }
@@ -3353,50 +3416,50 @@ string Cf2RadxFile::_computeWritePath(const RadxVol &vol,
     char startSubsecsStr[64];
     char endSubsecsStr[64];
     if (_writeSubsecsInFileName) {
-      sprintf(startSubsecsStr, ".%.3d", startMillisecs);
-      sprintf(endSubsecsStr, ".%.3d", endMillisecs);
+      safe_snprintf(startSubsecsStr, ".%.3d", startMillisecs);
+      safe_snprintf(endSubsecsStr, ".%.3d", endMillisecs);
     } else {
       startSubsecsStr[0] = '\0';
       endSubsecsStr[0] = '\0';
     }
 
-    sprintf(fileName,
-            "%s%.4d%.2d%.2d%c%.2d%.2d%.2d%s"
-            "_to_%.4d%.2d%.2d%c%.2d%.2d%.2d%s"
-            "%s%s%s"
-            "%s%s%s.nc",
-            prefix.c_str(),
-            startTime.getYear(), startTime.getMonth(), startTime.getDay(),
-            dateTimeConnector,
-            startTime.getHour(), startTime.getMin(), startTime.getSec(),
-            startSubsecsStr,
-            endTime.getYear(), endTime.getMonth(), endTime.getDay(),
-            dateTimeConnector,
-            endTime.getHour(), endTime.getMin(), endTime.getSec(),
-            endSubsecsStr,
-            instName.c_str(), siteName.c_str(), volNumStr,
-            scanName.c_str(), scanType.c_str(), suffix.c_str());
+    safe_snprintf(fileName,
+                  "%s%.4d%.2d%.2d%c%.2d%.2d%.2d%s"
+                  "_to_%.4d%.2d%.2d%c%.2d%.2d%.2d%s"
+                  "%s%s%s"
+                  "%s%s%s.nc",
+                  prefix.c_str(),
+                  startTime.getYear(), startTime.getMonth(), startTime.getDay(),
+                  dateTimeConnector,
+                  startTime.getHour(), startTime.getMin(), startTime.getSec(),
+                  startSubsecsStr,
+                  endTime.getYear(), endTime.getMonth(), endTime.getDay(),
+                  dateTimeConnector,
+                  endTime.getHour(), endTime.getMin(), endTime.getSec(),
+                  endSubsecsStr,
+                  instName.c_str(), siteName.c_str(), volNumStr,
+                  scanName.c_str(), scanType.c_str(), suffix.c_str());
 
   } else {
     
     char fileSubsecsStr[64];
     if (_writeSubsecsInFileName) {
-      sprintf(fileSubsecsStr, ".%.3d", fileMillisecs);
+      safe_snprintf(fileSubsecsStr, ".%.3d", fileMillisecs);
     } else {
       fileSubsecsStr[0] = '\0';
     }
 
-    sprintf(fileName,
-            "%s%.4d%.2d%.2d%c%.2d%.2d%.2d%s"
-            "%s%s%s"
-            "%s%s%s.nc",
-            prefix.c_str(),
-            fileTime.getYear(), fileTime.getMonth(), fileTime.getDay(),
-            dateTimeConnector,
-            fileTime.getHour(), fileTime.getMin(), fileTime.getSec(),
-            fileSubsecsStr,
-            instName.c_str(), siteName.c_str(), volNumStr,
-            scanName.c_str(), scanType.c_str(), suffix.c_str());
+    safe_snprintf(fileName,
+                  "%s%.4d%.2d%.2d%c%.2d%.2d%.2d%s"
+                  "%s%s%s"
+                  "%s%s%s.nc",
+                  prefix.c_str(),
+                  fileTime.getYear(), fileTime.getMonth(), fileTime.getDay(),
+                  dateTimeConnector,
+                  fileTime.getHour(), fileTime.getMin(), fileTime.getSec(),
+                  fileSubsecsStr,
+                  instName.c_str(), siteName.c_str(), volNumStr,
+                  scanName.c_str(), scanType.c_str(), suffix.c_str());
 
   }
 

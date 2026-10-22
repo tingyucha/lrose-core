@@ -31,7 +31,7 @@
 //
 ///////////////////////////////////////////////////////////////
 //
-// Data manager for time series data
+// Data manager for Dsr moments data
 //
 ///////////////////////////////////////////////////////////////
 
@@ -43,9 +43,7 @@
 #include <deque>
 #include <cstdio>
 
-#include "Params.hh"
 #include "StatsMgr.hh"
-#include <radar/IwrfTsReader.hh>
 #include <toolsa/TaArray.hh>
 #include <Fmq/DsRadarQueue.hh>
 
@@ -54,23 +52,23 @@ using namespace std;
 ////////////////////////
 // This class
 
-class DsrDataMgr {
+class DsrDataMgr : public StatsMgr {
   
 public:
 
   // constructor
 
   DsrDataMgr(const string &prog_name,
-	     const Params &params,
-	     StatsMgr &statsMgr);
+             const Args &args,
+	     const Params &params);
 
   // destructor
   
-  ~DsrDataMgr();
+  virtual ~DsrDataMgr();
 
   // run 
 
-  int run();
+  virtual int run();
 
 protected:
   
@@ -78,14 +76,6 @@ private:
 
   static const double _missingDouble;
   static const double _missingTest;
-
-  string _progName;
-  char *_paramsPath;
-
-  Params _params;
-  const vector<string> _inputFileList;
-  IwrfTsReader *_reader;
-  StatsMgr &_statsMgr;
 
   // FMQ input
   
@@ -129,7 +119,6 @@ private:
   moments_field_t _dbz;
   moments_field_t _vel;
   moments_field_t _width;
-  moments_field_t _zdrc;
   moments_field_t _zdrm;
   moments_field_t _ldrh;
   moments_field_t _ldrv;
@@ -166,24 +155,4 @@ private:
 };
 
 #endif
-
-//   SNR,
-//   SNRHC,
-//   SNRHX,
-//   SNRVC,
-//   SNRVX,
-//   DBM,
-//   DBMHC,
-//   DBMHX,
-//   DBMVC,
-//   DBMVX,
-//   DBZ,
-//   VEL,
-//   WIDTH,
-//   ZDRC,
-//   ZDRM,
-//   LDRH,
-//   LDRV,
-//   PHIDP,
-//     RHOHV,
 

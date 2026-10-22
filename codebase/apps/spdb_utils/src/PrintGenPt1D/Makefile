@@ -36,16 +36,17 @@ TARGET_FILE = PrintGenPt1D
 
 LOC_INCLUDES = $(NETCDF4_INCS)
 
-LOC_LIBS = -lSpdb -ldsserver -ldidss -lrapformats \
-	-ltoolsa -lpthread -ldataport $(NETCDF4_LIBS) -lbz2 \
-	-lz -lm
+LOC_LIBS = \
+	-lSpdb -lrapformats -ldsserver -ldidss \
+	-leuclid -lrapmath -ltoolsa -ldataport \
+	-ltdrp -lphysics -lpthread $(NETCDF4_LIBS) \
+	-lbz2 -lz -lm
 
 LOC_LDFLAGS = $(NETCDF4_LDFLAGS)
 
 LOC_CFLAGS =
 
 HDRS = \
-       
 
 CPPC_SRCS = \
 	Main.cc 
@@ -53,7 +54,7 @@ CPPC_SRCS = \
 #
 # tdrp macros
 #
- 
+
 ##include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_macros
 
 #
@@ -65,12 +66,14 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
 #
 # tdrp targets
 #
- 
+
 ##include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
+clean_tdrp:
 
 #
 # local targets
 #
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

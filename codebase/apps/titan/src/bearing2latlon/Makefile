@@ -33,60 +33,48 @@
 
 include $(LROSE_CORE_DIR)/build/make_include/lrose_make_macros
 
-MODULE_TYPE=program
 TARGET_FILE = bearing2latlon
 
 LOC_INCLUDES =
 LOC_CFLAGS =
 LOC_LDFLAGS =
+
 LOC_LIBS = \
-	-ltitan -ltoolsa -lpthread -ltdrp -lbz2 \
-	-lz -lm
+	-ltoolsa -ldataport -ltdrp -lpthread -lbz2 -lz -lm
 
-HDRS = bearing2latlon.h
+HDRS = Params.hh
 
-SRCS = \
-	$(TDRP_C) \
-	bearing2latlon.c \
-	filter.c \
-	parse_args.c \
-	tidy_and_exit.c
-
-#
-# TDRP - Run-Time Parameters files
-#
-
-TDRP_MODULE = $(TARGET_FILE)
-TDRP_C = $(TDRP_MODULE)_tdrp.c
-TDRP_H = $(TDRP_MODULE)_tdrp.h
-
-TDRP_HDRS = \
-	$(TDRP_H) \
-	$(TDRP_MODULE)_tdrp_defs.h \
-	$(TDRP_MODULE)_tdrp_int.h
-
-TDRP_DEFS = paramdef.$(TDRP_MODULE)
-TDRP_LIBS = -ltdrp
+CPPC_SRCS = \
+	Params.cc \
+	bearing2latlon.cc \
+	filter.cc \
+	parse_args.cc \
+	tidy_and_exit.cc
 
 #
-# standard targets
+# tdrp macros
 #
 
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c_targets
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_macros
+
+#
+# standard C++ targets
+#
+
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
+
+#
+# tdrp targets
+#
+
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
 
 #
 # local targets
 #
 
-depend: $(TDRP_C) depend_generic
-
-$(TDRP_H): $(TDRP_C)
-
-$(TDRP_C): $(TDRP_DEFS)
-	tdrp_gen $(TDRP_MODULE) -f $(TDRP_DEFS)
-
-clean_tdrp::
-	$(RM) $(TDRP_HDRS) $(TDRP_C)
-
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
+
+
 

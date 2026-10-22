@@ -49,12 +49,16 @@ InputMdv::InputMdv(const string &prog_name, const Params &params) :
 
 {
 
-  dbzField = NULL;
-  velField = NULL;
-  dbzVol = NULL;
-  velVol = NULL;
-  compDbz = NULL;
+  dbzField = nullptr;
+  dbzVol = nullptr;
+  compDbz = nullptr;
   dbzMiss = -9999;
+  
+  velField = nullptr;
+  velVol = nullptr;
+
+  convVol = nullptr;
+  convMiss = -9999;
 
 }
 
@@ -90,7 +94,7 @@ int InputMdv::read(time_t data_time)
 		    _params.input_url,
 		    0, data_time);
 
-  bool useFieldNames;
+  bool useFieldNames = false;
   if (strlen(_params.dbz_field.name) > 0) {
     useFieldNames = true;
     mdvx.addReadField(_params.dbz_field.name);
@@ -105,6 +109,16 @@ int InputMdv::read(time_t data_time)
     }
   }
 
+  if (!useFieldNames) {
+    cerr << "WARNING - InputMdv::read()" << endl;
+    cerr << "  Use of field numbers is deprecated." << endl;
+    cerr << "  Use field names instead" << endl;
+  }
+
+  if (_params.apply_convectivity_threshold) {
+    mdvx.addReadField(_params.convectivity_field_name);
+  }
+  
   mdvx.setReadEncodingType(Mdvx::ENCODING_FLOAT32);
   mdvx.setReadCompressionType(Mdvx::COMPRESSION_NONE);
 
@@ -125,9 +139,17 @@ int InputMdv::read(time_t data_time)
     return -1;
   }
 
+  if (_params.debug) {
+    cerr << "Read input file: " << mdvx.getPathInUse() << endl;
+  }
+
   // set headers, fields etc
   
   const Mdvx::master_header_t &mhdr = mdvx.getMasterHeader();
+
+  dbzField = nullptr;
+  velField = nullptr;
+  convField = nullptr;
 
   if (useFieldNames) {
     dbzField = mdvx.getField(_params.dbz_field.name);
@@ -135,56 +157,90 @@ int InputMdv::read(time_t data_time)
       velField = mdvx.getField(_params.vel_field.name);
     }
   } else {
-    dbzField = mdvx.getField(0);
+    dbzField = mdvx.getField(_params.dbz_field.num);
     if (_params.vel_available) {
-      velField = mdvx.getField(1);
+      velField = mdvx.getField(_params.vel_field.num);
     }
   }
+
+  // check for dbz field
+  
+  if (dbzField == nullptr) {
+    cerr << "ERROR - InputMdv::read()" << endl;
+    cerr << "  Cannot find dbz field: " << _params.dbz_field.name << endl;
+    return -1;
+  }
+  // set the dbz volume to the start of the first valid plane
+  // since this is where the clumping should start
+  dbzVol = (fl32 *) dbzField->getVol();
+  const Mdvx::field_header_t &dbzFhdr = dbzField->getFieldHeader();
+  dbzMiss = dbzFhdr.missing_data_value;
+
+  // check for vel field
+  
+  if (_params.vel_available) {
+    if (velField == nullptr) {
+      cerr << "ERROR - InputMdv::read()" << endl;
+      cerr << "  Cannot find vel field: " << _params.vel_field.name << endl;
+      return -1;
+    }
+    velVol = (fl32 *) velField->getVol();
+    const Mdvx::field_header_t &velFhdr = velField->getFieldHeader();
+    velMiss = velFhdr.missing_data_value;
+  }
+
+  // check for convectivity field
+
+  convField = mdvx.getField(_params.convectivity_field_name);
+  if (_params.apply_convectivity_threshold) {
+    if (convField == nullptr) {
+      cerr << "ERROR - InputMdv::read()" << endl;
+      cerr << "  Cannot find convectivity field: "
+           << _params.convectivity_field_name << endl;
+      return -1;
+    }
+    convVol = (fl32 *) convField->getVol();
+    const Mdvx::field_header_t &convFhdr = convField->getFieldHeader();
+    convMiss = convFhdr.missing_data_value;
+  }
+
+  // set the field pointers
+  
+  _setFieldPointers();
+
+  // negate reflectivity field if requested
+  // this applies to e.g. sat IR temps used as dbz
+  
   if (_params.negate_dbz_field) {
     dbzField->negate();
   }
 
-  // set missing value
+  // create composite grid for reflectivity
+
+  _computeDbzComposite();
+
+  // check that the vertical levels are evenly spaced, since TITAN
+  // requires that
+
+  if (!dbzField->isDzConstant()) {
+    _setDzConstant();
+  }
+
+  // reset the field pointers - they may have been updated by _setDzConstant()
   
-  const Mdvx::field_header_t &dbzFhdr = dbzField->getFieldHeader();
-  dbzMiss = dbzFhdr.missing_data_value;
-
-  // create composite grid
-
-  _computeComposite();
+  _setFieldPointers();
 
   // if required, find the convective regions
-  
-  if (_params.identify_convective_regions) {
+
+  if (_params.apply_convectivity_threshold) {
+    _applyConvectivityThreshold();
+  } else if (_params.identify_convective_regions) {
     if (_convFinder.run(mdvx, *dbzField)) {
       cerr << "WARNING - InputMdv" << endl;
       cerr << "  Cannot identify convective regions - this will be disabled" << endl;
     } else {
       _removeStratiform();
     }
-  }
-
-  // check that the vertical levels are evenly spaced, since TITAN
-  // requires that
-
-  if (_params.remap_z_to_constant_grid) {
-    for (size_t ii = 0; ii < mdvx.getNFields(); ii++) {
-      MdvxField *field = mdvx.getField(ii);
-      if (field) {
-        field->remapVlevels(_params.remap_z_grid.nz,
-                            _params.remap_z_grid.minz,
-                            _params.remap_z_grid.dz);
-      }
-    }
-  }
-
-
-  if (!dbzField->isDzConstant()) {
-    cerr << "WARNING - InputMdv::read()" << endl;
-    cerr << "  DBZ field does not have constant delta Z in height" << endl;
-    cerr << "  File: " << mdvx.getPathInUse() << endl;
-    cerr << "  Vertical levels will not be properly handled." << endl;
-    cerr << "  Please set the 'remap_z_to_constant_grid' parameter" << endl;
   }
 
   // set up the projection coordinate grid
@@ -262,16 +318,93 @@ int InputMdv::read(time_t data_time)
     specifiedPrecipLayer = coord.nz - 1;
   }
   
-  // set the dbz volume to the start of the first valid plane
-  // since this is where the clumping should start
+  // reset the field pointers
   
-  dbzVol = (fl32 *) dbzField->getVol();
-  if (velField) {
-    velVol = (fl32 *) velField->getVol();
-  }
-  
+  _setFieldPointers();
+
   return 0;
   
+}
+
+//////////////////////////////////////////////////////////////////////
+// reset the field pointers
+
+void InputMdv::_setFieldPointers()
+
+{
+
+  if (dbzField) {
+    dbzVol = (fl32 *) dbzField->getVol();
+    const Mdvx::field_header_t &dbzFhdr = dbzField->getFieldHeader();
+    dbzMiss = dbzFhdr.missing_data_value;
+  }
+
+  if (velField) {
+    velVol = (fl32 *) velField->getVol();
+    const Mdvx::field_header_t &velFhdr = velField->getFieldHeader();
+    velMiss = velFhdr.missing_data_value;
+  }
+
+  if (convField) {
+    convVol = (fl32 *) convField->getVol();
+    const Mdvx::field_header_t &convFhdr = convField->getFieldHeader();
+    convMiss = convFhdr.missing_data_value;
+  }
+
+}
+
+///////////////////////////////////////////////////////////
+// Ensure dz is constant between vert levels
+
+void InputMdv::_setDzConstant()
+
+{
+
+  if (_params.remap_z_to_constant_grid) {
+
+    // remap from parameters
+
+    if (_params.debug) {
+      cerr << "NOTE: InputMdv::_setDzConstant() - remapping to constant deltaZ" << endl;
+      cerr << "  Remapping to specified vert levels, nz, minz, dz: "
+           << _params.remap_z_grid.nz << ", "
+           << _params.remap_z_grid.minz << ", "
+           << _params.remap_z_grid.dz << endl;
+    }
+    
+    for (size_t ii = 0; ii < mdvx.getNFields(); ii++) {
+      MdvxField *field = mdvx.getField(ii);
+      field->remapVlevels(_params.remap_z_grid.nz,
+                          _params.remap_z_grid.minz,
+                          _params.remap_z_grid.dz);
+    } // ii
+
+  } else {
+    
+    // remap automatically
+    
+    dbzField->setDzConstant();
+    const Mdvx::field_header_t &dbzFhdr = dbzField->getFieldHeader();
+
+    if (_params.debug) {
+      cerr << "NOTE: InputMdv::_setDzConstant() - remapping to constant deltaZ" << endl;
+      cerr << "  Auto remapping to vert levels, nz, minz, dz: "
+           << dbzFhdr.nz << ", "
+           << dbzFhdr.grid_minz << ", "
+           << dbzFhdr.grid_dz << endl;
+    }
+
+    for (size_t ii = 0; ii < mdvx.getNFields(); ii++) {
+      MdvxField *field = mdvx.getField(ii);
+      if (field != dbzField) {
+        field->remapVlevels(dbzFhdr.nz,
+                            dbzFhdr.grid_minz,
+                            dbzFhdr.grid_dz);
+      }
+    } // ii
+    
+  } // if (_params.remap_z_to_constant_grid)
+
 }
 
 /////////////////////////////////
@@ -331,7 +464,7 @@ void InputMdv::_copyCoord2Grid(const Mdvx::coord_t &coord,
 /////////////////////////////////////////////
 // create composite grid
 
-void InputMdv::_computeComposite()
+void InputMdv::_computeDbzComposite()
 
 {
 
@@ -369,13 +502,15 @@ void InputMdv::_removeStratiform()
 {
 
   const Mdvx::field_header_t &fhdr = dbzField->getFieldHeader();
-
-  fl32 *dbz = (fl32 *) dbzField->getVol();
+  
+  fl32 *dbz = dbzVol;
+  const ui08 *partition = _convFinder.getConvStrat().getEchoType3D();
   for (int iz = 0; iz < fhdr.nz; iz++) {
-    const ui08 *partition = _convFinder.getConvStrat().getPartition();
     for (int iy = 0; iy < fhdr.ny; iy++) {
       for (int ix = 0; ix < fhdr.nx; ix++, dbz++, partition++) {
-        if (*partition != ConvStrat::CATEGORY_CONVECTIVE) {
+        int category = *partition;
+        if (category < ConvStratFinder::CATEGORY_CONVECTIVE_SHALLOW ||
+            category > ConvStratFinder::CATEGORY_CONVECTIVE_DEEP) {
           *dbz = dbzMiss;
         }
       } // ix
@@ -383,6 +518,51 @@ void InputMdv::_removeStratiform()
   } // iz
 
 
+}
+
+/////////////////////////////////////////////
+// apply convectivity threshold to dbz field
+
+void InputMdv::_applyConvectivityThreshold()
+
+{
+
+  if (convVol == nullptr) {
+    cerr << "WARNING - InputMdv::_applyConvectivityThreshold()" << endl;
+    cerr << "  Convectivity field is missing." << endl;
+    cerr << "  Thresholding on convectivity will not be performed" << endl;
+    return;
+  }
+  
+  const Mdvx::field_header_t &fhdr = dbzField->getFieldHeader();
+  fl32 *dbz = dbzVol;
+  fl32 *conv = convVol;
+
+  double minConv = _params.low_convectivity_threshold;
+  double maxConv = _params.high_convectivity_threshold;
+  
+  for (int iz = 0; iz < fhdr.nz; iz++) {
+    for (int iy = 0; iy < fhdr.ny; iy++) {
+      for (int ix = 0; ix < fhdr.nx; ix++, dbz++, conv++) {
+        fl32 convValue = *conv;
+        if (convValue == convMiss || convValue < minConv || convValue > maxConv) {
+          *dbz = dbzMiss;
+        }
+      } // ix
+    } // iy
+  } // iz
+
+}
+
+/////////////////////////////////////////////
+// clear the memory in the mdvx cbject
+
+void InputMdv::clear()
+
+{
+
+  mdvx.clear();
+  
 }
 
 

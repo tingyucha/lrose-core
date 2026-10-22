@@ -43,7 +43,6 @@
 #include <deque>
 #include <cstdio>
 
-#include "Params.hh"
 #include "StatsMgr.hh"
 #include <radar/IwrfTsReader.hh>
 #include <radar/RadarComplex.hh>
@@ -55,35 +54,29 @@ using namespace std;
 ////////////////////////
 // This class
 
-class TsDataMgr {
+class TsDataMgr : public StatsMgr {
   
 public:
 
   // constructor
 
   TsDataMgr(const string &prog_name,
-	    const Params &params,
-	    const vector<string> &input_file_list,
-	    StatsMgr &statsMgr);
+            const Args &args,
+	    const Params &params);
 
   // destructor
   
-  ~TsDataMgr();
+  virtual ~TsDataMgr();
 
   // run 
 
-  int run();
+  virtual int run();
 
 protected:
   
 private:
 
-  string _progName;
-  char *_paramsPath;
-  Params _params;
-  const vector<string> _inputFileList;
   IwrfTsReader *_reader;
-  StatsMgr &_statsMgr;
 
   // pulse queue
   

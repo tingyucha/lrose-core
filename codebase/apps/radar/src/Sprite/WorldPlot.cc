@@ -38,6 +38,7 @@
 #include <iostream>
 #include <cstdio>
 #include <QtCore/QLineF>
+#include <QtGui/QPainterPath>
 
 #include <toolsa/toolsa_macros.h>
 #include "WorldPlot.hh"
@@ -255,6 +256,40 @@ void WorldPlot::setWorldLimits(double xMinWorld,
 
 }
 
+void WorldPlot::setWorldLimitsX(double xMinWorld,
+                                double xMaxWorld)
+  
+{
+  
+  if (_xMinWorld < _xMaxWorld) {
+    _xMinWorld = MIN(xMinWorld, xMaxWorld);
+    _xMaxWorld = MAX(xMinWorld, xMaxWorld);
+  } else {
+    _xMinWorld = MAX(xMinWorld, xMaxWorld);
+    _xMaxWorld = MIN(xMinWorld, xMaxWorld);
+  }
+    
+  _computeTransform();
+
+}
+
+void WorldPlot::setWorldLimitsY(double yMinWorld,
+                                double yMaxWorld)
+  
+{
+  
+  if (_yMinWorld < _yMaxWorld) {
+    _yMinWorld = MIN(yMinWorld, yMaxWorld);
+    _yMaxWorld = MAX(yMinWorld, yMaxWorld);
+  } else {
+    _yMinWorld = MAX(yMinWorld, yMaxWorld);
+    _yMaxWorld = MIN(yMinWorld, yMaxWorld);
+  }
+
+  _computeTransform();
+
+}
+
 ///////////////////////////////////////////////////////
 // set zoom limits from pixel space
 
@@ -358,6 +393,81 @@ QRect WorldPlot::getWorldWindow() const
 }
   
 ///////////////////////////////
+// draw a point in pixel coords
+
+void WorldPlot::drawPixelPoint(QPainter &painter,
+                               double xx, double yy) 
+
+{
+	
+  painter.save();
+  QPointF qpt(xx, yy);
+  painter.drawPoint(qpt);
+  painter.restore();
+
+}
+
+///////////////////////////////
+// draw a point in world coords
+
+void WorldPlot::drawPoint(QPainter &painter,
+                          double xx, double yy) 
+
+{
+	
+  painter.save();
+  painter.setClipRect(_xMinPixel, _yMaxPixel, _plotWidth,  _plotHeight);
+
+  double xxx = getXPixel(xx);
+  double yyy = getYPixel(yy);
+
+  QPointF qpt(xxx, yyy);
+  painter.drawPoint(qpt);
+
+  painter.restore();
+
+}
+
+///////////////////////////////
+// draw points in world coords
+
+void WorldPlot::drawPoints(QPainter &painter,
+                           const QVector<QPointF> &points) 
+
+{
+  
+  painter.save();
+  painter.setClipRect(_xMinPixel, _yMaxPixel, _plotWidth,  _plotHeight);
+
+  QVector<QPointF> pts;
+  for (int ii = 0; ii < points.size(); ii++) {
+    double xxx = getXPixel(points[ii].x());
+    double yyy = getYPixel(points[ii].y());
+    QPointF pt(xxx, yyy);
+    pts.push_back(pt);
+  }
+
+  painter.drawPoints(pts.data(), pts.size());
+
+  painter.restore();
+
+}
+
+///////////////////////////////
+// draw points in pixel coords
+
+void WorldPlot::drawPixelPoints(QPainter &painter,
+                                const QVector<QPointF> &points) 
+
+{
+  
+  painter.save();
+  painter.drawPoints(points.data(), points.size());
+  painter.restore();
+
+}
+
+///////////////////////////////
 // draw a line in pixel coords
 
 void WorldPlot::drawPixelLine(QPainter &painter,
@@ -398,7 +508,7 @@ void WorldPlot::drawLine(QPainter &painter,
 ////////////////////////////////////////////////////////////////////////
 // draw lines between consecutive points, world coords
 
-void WorldPlot::drawLines(QPainter &painter, QVector<QPointF> &points) 
+void WorldPlot::drawLines(QPainter &painter, const QVector<QPointF> &points) 
 
 {
 
@@ -709,16 +819,26 @@ void WorldPlot::drawLegendsTopLeft(QPainter &painter,
 
 {
 
+  painter.save();
+
+  QRect tRect(painter.fontMetrics().tightBoundingRect("TITLE"));
+              
   qreal xx = (qreal) (_xMinPixel + _yAxisTickLen + _legendTextMargin);
-  qreal yy = _yMaxPixel + _xAxisTickLen;
+  qreal yy = _yMaxPixel + _xAxisTickLen + tRect.height() * 3;
+
+  QFont font(painter.font());
+  font.setPointSizeF(_legendFontSize);
+  painter.setFont(font);
   
   for (size_t i = 0; i < legends.size(); i++) {
     string legend(legends[i]);
-    QRect tRect(painter.fontMetrics().tightBoundingRect(legend.c_str()));
-    QRectF bRect(xx, yy, tRect.width() + 2, tRect.height() + 2);
+    QRect lRect(painter.fontMetrics().tightBoundingRect(legend.c_str()));
+    QRectF bRect(xx, yy, lRect.width() + 2, lRect.height() + 2);
     painter.drawText(bRect, Qt::AlignCenter, legend.c_str());
-    yy += (_legendTextMargin + tRect.height());
+    yy += (_legendTextMargin + lRect.height());
   }
+  
+  painter.restore();
 
 }
 
@@ -730,17 +850,27 @@ void WorldPlot::drawLegendsTopRight(QPainter &painter,
 
 {
 
-  qreal yy = _yMaxPixel + _yAxisTickLen;
+  painter.save();
+
+  QRect tRect(painter.fontMetrics().tightBoundingRect("TITLE"));
+
+  qreal yy = _yMaxPixel + _yAxisTickLen + tRect.height() * 3;
+  
+  QFont font(painter.font());
+  font.setPointSizeF(_legendFontSize);
+  painter.setFont(font);
   
   for (size_t i = 0; i < legends.size(); i++) {
     string legend(legends[i]);
-    QRect tRect(painter.fontMetrics().tightBoundingRect(legend.c_str()));
+    QRect lRect(painter.fontMetrics().tightBoundingRect(legend.c_str()));
     qreal xx = (qreal) (_xMaxPixel - _yAxisTickLen -
-                        _legendTextMargin - tRect.width());
-    QRectF bRect(xx, yy, tRect.width() + 2, tRect.height() + 2);
+                        _legendTextMargin - lRect.width());
+    QRectF bRect(xx, yy, lRect.width() + 2, lRect.height() + 2);
     painter.drawText(bRect, Qt::AlignCenter, legend.c_str());
-    yy += (_legendTextMargin + tRect.height());
+    yy += (_legendTextMargin + lRect.height());
   }
+
+  painter.restore();
 
 }
 
@@ -752,17 +882,25 @@ void WorldPlot::drawLegendsBottomLeft(QPainter &painter,
 
 {
 	
+  painter.save();
+
   qreal xx = (qreal) (_xMinPixel + _yAxisTickLen + _legendTextMargin);
   qreal yy = (qreal) (_yMinPixel - _xAxisTickLen);
 
+  QFont font(painter.font());
+  font.setPointSizeF(_legendFontSize);
+  painter.setFont(font);
+  
   for (size_t i = 0; i < legends.size(); i++) {
     string legend(legends[i]);
-    QRect tRect(painter.fontMetrics().tightBoundingRect(legend.c_str()));
-    yy -= tRect.height();
-    QRectF bRect(xx, yy, tRect.width() + 2, tRect.height() + 2);
+    QRect lRect(painter.fontMetrics().tightBoundingRect(legend.c_str()));
+    yy -= lRect.height();
+    QRectF bRect(xx, yy, lRect.width() + 2, lRect.height() + 2);
     painter.drawText(bRect, Qt::AlignCenter, legend.c_str());
     yy -= _legendTextMargin;
   }
+
+  painter.restore();
 
 }
 
@@ -774,18 +912,26 @@ void WorldPlot::drawLegendsBottomRight(QPainter &painter,
 
 {
 	
+  painter.save();
+
   qreal yy = (qreal) (_yMinPixel - _xAxisTickLen);
 
+  QFont font(painter.font());
+  font.setPointSizeF(_legendFontSize);
+  painter.setFont(font);
+  
   for (size_t i = 0; i < legends.size(); i++) {
     string legend(legends[i]);
-    QRect tRect(painter.fontMetrics().tightBoundingRect(legend.c_str()));
+    QRect lRect(painter.fontMetrics().tightBoundingRect(legend.c_str()));
     qreal xx = (qreal) (_xMaxPixel - _yAxisTickLen -
-                        _legendTextMargin - tRect.width());
-    yy -= tRect.height();
-    QRectF bRect(xx, yy, tRect.width() + 2, tRect.height() + 2);
+                        _legendTextMargin - lRect.width());
+    yy -= lRect.height();
+    QRectF bRect(xx, yy, lRect.width() + 2, lRect.height() + 2);
     painter.drawText(bRect, Qt::AlignCenter, legend.c_str());
     yy -= _legendTextMargin;
   }
+
+  painter.restore();
 
 }
 
@@ -1570,7 +1716,7 @@ void WorldPlot::drawDistanceTicks(QPainter &painter,
     const RadxTime &tickTime = tickTimes[i];
     double distVal = tickDists[i];
     
-    if (!isfinite(distVal)) {
+    if (!std::isfinite(distVal)) {
       continue;
     }
 
@@ -1770,7 +1916,8 @@ void WorldPlot::drawColorScale(const ColorMap &colorMap,
 
   int pltHt = _plotHeight;
   int width = _colorScaleWidth;
-  int xStart = _widthPixels - width;
+  int xStart = _xPixOffset + _widthPixels - width;
+  int yStart = _topMargin + _yMaxPixel + unitsFontSize;
   size_t nHts = cmap.size() + 1; // leave some space at top and bottom
   double patchHt = (double)(pltHt) / nHts;
   int iPatchHt = (int) patchHt;
@@ -1784,7 +1931,7 @@ void WorldPlot::drawColorScale(const ColorMap &colorMap,
     const ColorMap::CmapEntry &entry = cmap[ii];
     QColor color(entry.red, entry.green, entry.blue);
     painter.setBrush(color);
-    double topY = pltHt - (int) (ii + 2) * patchHt + (patchHt / 2) + _topMargin;
+    double topY = yStart + pltHt - (int) (ii + 2) * patchHt + (patchHt / 2);
     QRectF r(xStart, topY, width, patchHt);
     painter.fillRect(r, color);
     if (ii == 0) {
@@ -1823,15 +1970,9 @@ void WorldPlot::drawColorScale(const ColorMap &colorMap,
   // scale the font
   
   QFont defaultFont = painter.font();
-  if (defaultFont.pointSize() > patchHt / 3) {
-    int pointSize = patchHt / 3;
-    if (pointSize < 7) {
-      pointSize = 7;
-    }
-    QFont scaledFont(defaultFont);
-    scaledFont.setPointSizeF(pointSize);
-    painter.setFont(scaledFont);
-  }
+  QFont scaledFont(defaultFont);
+  scaledFont.setPointSizeF(unitsFontSize);
+  painter.setFont(scaledFont);
   
   // add labels
 
@@ -1848,7 +1989,7 @@ void WorldPlot::drawColorScale(const ColorMap &colorMap,
     double scaleHeight = scaleYBot - scaleYTop;
     for (size_t ii = 0; ii < labels.size(); ii++) {
       const ColorMap::CmapLabel &label = labels[ii];
-      double yy = scaleYBot - scaleHeight * label.position;
+      double yy = _yMaxPixel + scaleYBot - scaleHeight * label.position;
       painter.drawText(xStart, (int) yy - textHt / 2, 
                        width + 4, textHt + 4, 
                        Qt::AlignCenter | Qt::AlignHCenter, 
@@ -1860,7 +2001,7 @@ void WorldPlot::drawColorScale(const ColorMap &colorMap,
     // label the color transitions
     // we space the labels vertically by at least 2 * text height
     
-    double yy = pltHt - (patchHt * 1.0) + _topMargin;
+    double yy = yStart + pltHt - (patchHt * 1.0);
     double prevIyy = -1;
     for (size_t ii = 0; ii < cmap.size(); ii++) {
       const ColorMap::CmapEntry &entry = cmap[ii];
@@ -1905,8 +2046,8 @@ void WorldPlot::drawColorScale(const ColorMap &colorMap,
     painter.setFont(ufont);
 
     QRect tRect(painter.fontMetrics().tightBoundingRect(units.c_str()));
-    int iyy = _topMargin / 2;
-    int ixx = _widthPixels - width;
+    int iyy = yStart + _topMargin / 2;
+    int ixx = _xPixOffset + _widthPixels - width;
     QString qunits(units.c_str());
     painter.drawText(ixx, iyy, width, tRect.height() + 4, 
                      Qt::AlignTop | Qt::AlignHCenter, qunits);

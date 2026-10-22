@@ -41,8 +41,6 @@
 #include <toolsa/pmu.h>
 #include <toolsa/toolsa_macros.h>
 #include <toolsa/file_io.h>
-#include <toolsa/TaFile.hh>
-#include <toolsa/TaArray.hh>
 #include <dsserver/DsLdataInfo.hh>
 #include <Mdv/GenericRadxFile.hh>
 #include <Radx/RadxVol.hh>
@@ -91,13 +89,6 @@ RadxKdp::RadxKdp(int argc, char **argv)
     return;
   }
 
-  // print params for KDP then exit
-
-  if (_args.printParamsKdp) {
-    _printParamsKdp();
-    exit(0);
-  }
-
   // read params for KdpFilt
 
   if (strstr(_params.KDP_params_file_path, "use-defaults") == NULL) {
@@ -110,6 +101,13 @@ RadxKdp::RadxKdp(int argc, char **argv)
       OK = FALSE;
       return;
     }
+  }
+
+  // print params for KDP then exit
+
+  if (_args.printParamsKdp) {
+    _printParamsKdp();
+    exit(0);
   }
 
   // initialize compute object
@@ -468,6 +466,20 @@ void RadxKdp::_setupRead(RadxFile &file)
     for (int ii = 0; ii < _params.copy_fields_n; ii++) {
       file.addReadField(_params._copy_fields[ii].input_name);
     }
+  }
+
+  if (_params.set_fixed_angle_limits) {
+    file.setReadFixedAngleLimits(_params.lower_fixed_angle_limit,
+                                 _params.upper_fixed_angle_limit);
+    if (_params.lower_fixed_angle_limit == _params.upper_fixed_angle_limit) {
+      // relax strict angle checking since only a single angle is specified
+      // which means the user wants the closest angle
+      file.setReadStrictAngleLimits(false);
+    }
+  }
+    
+  if (_params.set_max_range) {
+    file.setReadMaxRangeKm(_params.max_range_km);
   }
 
   if (_params.debug >= Params::DEBUG_EXTRA) {

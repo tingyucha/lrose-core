@@ -63,6 +63,10 @@ public:
 
   void setFromParams(const PrecipRateParams &params);
 
+  // set the missing value
+  
+  void setMissingVal(double missingVal) { _missingVal = missingVal; }
+  
   // set the wavelength in cm
 
   void setWavelengthCm(double cm) { _wavelengthCm = cm; }
@@ -248,9 +252,9 @@ public:
   
   // get rate fields after calling computePrecipRates()
 
-  const double *getRateZ() const { return _rateZ; }
-  const double *getRateZSnow() const { return _rateZSnow; }
-  const double *getRateZMixed() const { return _rateZMixed; }
+  const double *getRateZ() const { return _rateZh; }
+  const double *getRateZSnow() const { return _rateZhSnow; }
+  const double *getRateZMixed() const { return _rateZhMixed; }
   const double *getRateKdp() const { return _rateKdp; }
   const double *getRateKdpZdr() const { return _rateKdpZdr; }
   const double *getRateZZdr() const { return _rateZZdr; }
@@ -271,6 +275,35 @@ public:
 
   void setMaxValidDbz(double val) { _max_valid_dbz = val; }
 
+  // compute base rain rate from moments for a given point
+  
+  void computeBaseRates(double dbz, 
+                        double zdr,
+                        double kdp,
+                        double &rateZh,
+                        double &rateZhSnow,
+                        double &rateZhMixed,
+                        double &rateKdp,
+                        double &rateKdpZdr,
+                        double &rateZZdr);
+  
+  // compute hybrid rates for a given point
+  // given the base rates previously computed
+  
+  void computeHybrid(double dbz, 
+                     double zdr,
+                     double kdp,
+                     double rateZh,
+                     double rateZhSnow,
+                     double rateZhMixed,
+                     double rateKdp,
+                     double rateKdpZdr,
+                     double rateZZdr,
+                     int pid,
+                     double &rateHybrid,
+                     double &rateHidro,
+                     double &rateBringi);
+  
 protected:
 private:
 
@@ -355,14 +388,14 @@ private:
   
   // store computed fields in local arrays
 
-  TaArray<double> _rateZ_;
-  double *_rateZ;
+  TaArray<double> _rateZh_;
+  double *_rateZh;
   
-  TaArray<double> _rateZSnow_;
-  double *_rateZSnow;
+  TaArray<double> _rateZhSnow_;
+  double *_rateZhSnow;
   
-  TaArray<double> _rateZMixed_;
-  double *_rateZMixed;
+  TaArray<double> _rateZhMixed_;
+  double *_rateZhMixed;
   
   TaArray<double> _rateKdp_;
   double *_rateKdp;
@@ -390,19 +423,15 @@ private:
   void _allocArrays();
   void _initArrays();
 
-  void _computeRates(double dbz, 
-                     double zdrdb,
-                     double kdp,
-                     NcarParticleId::category_t category,
-		     double &rateZh, 
-                     double &rateZhSnow,
-                     double &rateZhMixed,
-                     double &rateKdp,
-                     double &rateKdpZdr, 
-                     double &rateZZdr,
-		     double &rateHybrid,
-		     double &rateHidro,
-		     double &rateBringi);
+  void _computeBaseRates(double dbz, 
+                         double zdrdb,
+                         double kdp,
+                         double &rateZh, 
+                         double &rateZhSnow,
+                         double &rateZhMixed,
+                         double &rateKdp,
+                         double &rateKdpZdr, 
+                         double &rateZZdr);
   
   void _computePidFuzzyRate(const NcarParticleId *pid);
   void _computeHybridRates(const NcarParticleId *pid);

@@ -1,11 +1,28 @@
 
 #include "Solo/dd_math.h"
 #include "Solo/BoundaryPointManagement.hh"
+#include <cstdio>
 
 
 BoundaryPointManagement::BoundaryPointManagement() {
 
-  //  pisp = new PointInSpace();
+  pisp = NULL; // new PointInSpace();
+
+  last = NULL;
+  next = NULL;
+
+  last_intxn = NULL;
+  next_intxn = NULL;
+
+  x_parent = NULL;
+  x_left = NULL;
+  x_right = NULL;
+ 
+  y_parent = NULL;
+  y_left = NULL;
+  y_right = NULL;
+ 
+  
 
 }
 
@@ -23,7 +40,7 @@ void BoundaryPointManagement::print() {
 
   printf("\tBPM: \n");
   printf("\tx = %ld, y = %ld, z = %ld, r = %ld\n", x, y, z, r);
-  printf("\tx = %ld, y = %ld, z = %ld, shifted\n", _x, _y, _z);
+  printf("\t_x = %ld, _y = %ld, _z = %ld, shifted\n", _x, _y, _z);
 
   printf("\tnext_intxn ...\n");
   BoundaryPointManagement *bpm = next_intxn;

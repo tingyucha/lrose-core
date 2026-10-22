@@ -27,9 +27,11 @@ SUB_DIRS = \
 	D3R \
 	Dorade \
 	EEC \
+	Fm301 \
 	ForayNc \
 	Gamic \
 	Gematronik \
+	HaloPhotonics \
 	Hrd \
 	Leosphere \
 	Ncf \
@@ -40,10 +42,12 @@ SUB_DIRS = \
 	Odim \
 	Radx \
 	Rapic \
+	Raxpol \
 	Sigmet \
 	Tdwr \
 	Twolf \
-	Uf
+	Uf \
+	Zarr
 
 include $(LROSE_CORE_DIR)/build/make_include/lrose_make_recursive_dir_targets
 

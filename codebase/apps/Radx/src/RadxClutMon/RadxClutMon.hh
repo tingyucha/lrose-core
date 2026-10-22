@@ -110,6 +110,11 @@ private:
   int _nGatesWeak, _nWxWeak;
   double _fractionWxWeak;
 
+  double _xmitPowerDbmH, _xmitPowerDbmV, _xmitPowerDbmBoth;
+  double _pulseWidthUsec;
+  double _receiverGainDbHc, _receiverGainDbVc;
+  double _receiverGainDbHx, _receiverGainDbVx;
+  
   int _runFilelist();
   int _runArchive();
   int _runRealtime();
@@ -118,6 +123,7 @@ private:
   int _readClutterMap();
 
   int _processVol();
+  bool _azWithinLimits(double az);
   
   int _processRay(const RadxRay &clutMapRay,
                   const RadxRay &momentsRay);

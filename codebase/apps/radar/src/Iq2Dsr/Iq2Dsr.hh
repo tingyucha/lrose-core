@@ -37,6 +37,7 @@
 #include <string>
 #include <vector>
 #include <rapformats/DsRadarSweep.hh>
+#include <radar/KdpFiltParams.hh>
 #include "Args.hh"
 #include "Params.hh"
 #include "MomentsMgr.hh"
@@ -72,7 +73,10 @@ public:
   // get parameters
 
   const Params &getParams() const { return _params; }
-  
+  double getWavelengthM() const {
+    return _beamReader->getOpsInfo().get_radar_wavelength_cm() / 100.0;
+  }
+
   // get output fmq
   
   OutputFmq *getOutputFmq() const { return _fmq; }
@@ -97,6 +101,7 @@ private:
   char *_paramsPath;
   Args _args;
   Params _params;
+  KdpFiltParams _kdpParams;
 
   // beam reader
 
@@ -194,6 +199,7 @@ private:
 
   // private functions
 
+  void _cleanUp();
   int _runSingleThreaded();
   int _runMultiThreaded();
   
@@ -209,10 +215,14 @@ private:
 
   int _writeParamsAndCalib(const Beam *beam);
 
-  // sweep and vol info
+  // write any remaining beams on exit
+  
+  int _writeRemainingBeamsOnExit();
+
+// sweep and vol info
 
   void _handleSweepAndVolChange(const Beam *beam);
-  void _putEndOfVol(time_t latestTime);
+  void _putEndOfVol(const Beam *beam);
   void _deduceEndOfVol(const Beam *beam);
   void _changeSweepOnDirectionChange(const Beam *beam);
 

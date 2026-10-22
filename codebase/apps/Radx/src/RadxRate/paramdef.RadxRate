@@ -141,8 +141,20 @@ paramdef string {
     
 commentdef {
   p_header = "COMPUTING KDP";
+  p_text = "KDP will be computed if KDP_available is FALSE.";
 }
 
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Is KDP data available?";
+  p_help = "If KDP is available, then it is not computed. Instead KDP_field_name will be read in.";
+} KDP_available;
+
+paramdef string {
+  p_default = "KDP";
+  p_descr = "Field name for KDP.";
+} KDP_field_name;
+    
 paramdef string {
   p_default = "use-defaults";
   p_descr = "Path for parameters for computing KDP.";
@@ -230,6 +242,7 @@ typedef struct {
   string standard_name; 
   string units;
   boolean do_write;
+  boolean censor_non_weather;
 } output_field_t;
 
 paramdef struct output_field_t {
@@ -240,7 +253,8 @@ paramdef struct output_field_t {
       long_name = "precip_rate_from_z",
       standard_name = "precip_rate_from_z",
       units = "mm/hr",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -249,7 +263,8 @@ paramdef struct output_field_t {
       long_name = "precip_rate_from_z_for_snow",
       standard_name = "precip_rate_from_z_for_snow",
       units = "mm/hr",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -258,7 +273,8 @@ paramdef struct output_field_t {
       long_name = "precip_rate_from_z_and_zdr",
       standard_name = "precip_rate_from_z_and_zdr",
       units = "mm/hr",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -267,7 +283,8 @@ paramdef struct output_field_t {
       long_name = "precip_rate_from_kdp",
       standard_name = "precip_rate_from_kdp",
       units = "mm/hr",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -276,7 +293,8 @@ paramdef struct output_field_t {
       long_name = "precip_rate_from_kdp_and_zdr",
       standard_name = "precip_rate_from_kdp_and_zdr",
       units = "mm/hr",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -285,7 +303,8 @@ paramdef struct output_field_t {
       long_name = "precip_rate_hybrid_of_zh_zzdr_kdp_and_kdpzdr",
       standard_name = "precip_rate_hybrid_of_zh_zzdr_kdp_and_kdpzdr",
       units = "mm/hr",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -294,7 +313,8 @@ paramdef struct output_field_t {
       long_name = "precip_rate_based_on_pid",
       standard_name = "precip_rate_based_on_pid",
       units = "mm/hr",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -303,7 +323,8 @@ paramdef struct output_field_t {
       long_name = "particle_id",
       standard_name = "hydrometeor_type",
       units = "",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -312,7 +333,8 @@ paramdef struct output_field_t {
       long_name = "final_interest_value_for_pid_decision",
       standard_name = "final_interest_value_for_pid_decision",
       units = "",
-      do_write = FALSE
+      do_write = FALSE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -321,7 +343,8 @@ paramdef struct output_field_t {
       long_name = "temperature_for_computing_pid",
       standard_name = "temperature",
       units = "C",
-      do_write = FALSE
+      do_write = FALSE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -330,7 +353,8 @@ paramdef struct output_field_t {
       long_name = "specific_differential_phase",
       standard_name = "specific_differential_phase_hv",
       units = "deg/km",
-      do_write = TRUE
+      do_write = TRUE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -339,7 +363,8 @@ paramdef struct output_field_t {
       long_name = "kdp_conditioned_using_ZZDR_self_consistency",
       standard_name = "specific_differential_phase_hv",
       units = "deg/km",
-      do_write = FALSE
+      do_write = FALSE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -348,7 +373,8 @@ paramdef struct output_field_t {
       long_name = "correction_to_zdr_for_attenuation",
       standard_name = "zdr_attenuation_correction",
       units = "dB",
-      do_write = FALSE
+      do_write = FALSE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -357,7 +383,8 @@ paramdef struct output_field_t {
       long_name = "dbz_corrected_for_attenuation",
       standard_name = "dbz_corrected_for_attenuation",
       units = "dBZ",
-      do_write = FALSE
+      do_write = FALSE,
+      censor_non_weather = FALSE
     }
     ,
     {
@@ -366,7 +393,8 @@ paramdef struct output_field_t {
       long_name = "zdr_corrected_for_attenuation",
       standard_name = "zdr_corrected_for_attenuation",
       units = "dB",
-      do_write = FALSE
+      do_write = FALSE,
+      censor_non_weather = FALSE
     }
   };
   p_descr = "Indicate which fields should be written to the output file.";
@@ -390,7 +418,9 @@ paramdef struct output_field_t {
     "\tDBZ_ATTEN_CORRECTION: DBZ attenuation correction (dB)\n"
     "\tZDR_ATTEN_CORRECTION: ZDR attenuation correction (dB)\n"
     "\tDBZ_ATTEN_CORRECTED: DBZ corrected for attenuation (dBZ)\n"
-    "\tZDR_ATTEN_CORRECTED: ZDR corrected for attenuation (dB)\n";
+    "\tZDR_ATTEN_CORRECTED: ZDR corrected for attenuation (dB)\n\n"
+    "do_write: allows you to turn off writing while leaving the field in the list\n\n"
+    "censor_non_weather: use PID field to censor non-weather PID types - see non_weather_pid_types[] below.\n";
 } output_fields[];
 
 typedef enum {
@@ -435,8 +465,51 @@ paramdef struct copy_field_t {
     }
   };
   p_descr = "These fields are copied through unchanged to the output file.";
-  p_help = "You can change the name of the field on output. Optionally you can censor the non-weather echoes, based on the PID.";
+  p_help =
+    "You can change the name of the field on output.\n\n"
+    "censor_non_weather: use PID field to censor non-weather PID types - see non_weather_pid_types[] below.\n";
 } copy_fields[];
+
+commentdef {
+  p_header = "SPECIFY NON-WEATHER TYPES FROM PID";
+  p_text = "This section allows you to specify the PID particle types to be used to censor non-weather echoes.";
+}
+
+typedef enum {
+  CLOUD = 1,
+  DRIZZLE = 2,
+  LIGHT_RAIN = 3,
+  MODERATE_RAIN = 4,
+  HEAVY_RAIN = 5,
+  HAIL = 6,
+  RAIN_HAIL_MIXTURE = 7,
+  GRAUPEL_SMALL_HAIL = 8,
+  GRAUPEL_RAIN = 9,
+  DRY_SNOW = 10,
+  WET_SNOW = 11,
+  ICE_CRYSTALS = 12,
+  IRREG_ICE_CRYSTALS = 13,
+  SUPERCOOLED_DROPS = 14,
+  FLYING_INSECTS = 15,
+  SECOND_TRIP = 16,
+  GROUND_CLUTTER = 17,
+  SATURATED_SNR = 18,
+  CHAFF = 19,
+  MISC = 20
+} pid_types_t;
+
+paramdef enum pid_types_t {
+  p_default = {
+    FLYING_INSECTS,
+    SECOND_TRIP,
+    GROUND_CLUTTER,
+    SATURATED_SNR,
+    CHAFF,
+    MISC
+  };
+  p_descr = "List of non-weather types to be censored.";
+  p_help = "This list applies to the fields for which censor_non_weather is set to true. You can consider adding CLOUD to the list if, for example, the CLOUD type finds Bragg echo instead of cloud.";
+} non_weather_pid_types[];
 
 commentdef {
   p_header = "WRITE DEBUG FIELDS";
@@ -476,6 +549,89 @@ paramdef enum filename_mode_t {
   p_help = "START_AND_END_TIMES: include both start and end times in file name. START_TIME_ONLY: include only start time in file name. END_TIME_ONLY: include only end time in file name.";
 } output_filename_mode;
 
+typedef enum {
+  OUTPUT_FORMAT_CFRADIAL,
+  OUTPUT_FORMAT_DORADE,
+  OUTPUT_FORMAT_UF
+} output_format_t;
+
+paramdef enum output_format_t {
+  p_default = OUTPUT_FORMAT_CFRADIAL;
+  p_descr = "Format for the output files.";
+} output_format;
+
+paramdef string {
+  p_default = "";
+  p_descr = "Optional prefix for output filename.";
+  p_help = "If empty, the standard prefix will be used. Only applies to CfRadial files. Standard prefix is 'cfrad.'";
+} output_filename_prefix;
+
+paramdef string {
+  p_default = "";
+  p_descr = "Optional suffix for output filename.";
+  p_help = "If not empty, the suffix will be inserted immediately prior to the extension.";
+} output_filename_suffix;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to include the instrument name in the file name.";
+  p_help = "Default is true. Only applies to CfRadial files. If true, the instrument name will be included just before the volume number in the output file name.";
+} include_instrument_name_in_file_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to include the site name in the file name.";
+  p_help = "Only applies to CfRadial files. If true, the site name will be included just before the volume number in the output file name.";
+} include_site_name_in_file_name;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to include sub-seconds in date-time part of file name.";
+  p_help = "Default is true. Only applies to CfRadial files. If true, the millisecs of the start and end time will be included in the file name.";
+} include_subsecs_in_file_name;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to include the scan type in the file name.";
+  p_help = "Default is true. Only applies to CfRadial files. If true, the scan type (SUR, SEC, RHI, VER etc) will be included in the file name.";
+} include_scan_type_in_file_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to include the scan name in the file name.";
+  p_help = "Default is false. Only applies to CfRadial files. If true, the scan name will be included in the file name.";
+} include_scan_name_in_file_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to include the scan Id in the file name.";
+  p_help = "Default is false. Only applies to CfRadial files. If true, the scan Id will be included in the file name.";
+} include_scan_id_in_file_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to include the range resolution in the file name.";
+  p_help = "Default is false. Only applies to CfRadial files. If true, the range resolution (50m) will be included in the file name.";
+} include_range_resolution_in_file_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to include the volume number in the file name.";
+  p_help = "Default is false. Only applies to CfRadial files. If true, the volume number is included in the file name, preceded by '_v'.";
+} include_vol_num_in_file_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to use a hyphen between date and time in filename.";
+  p_help = "Default is false. Only applies to CfRadial files. Normally an underscore is used.";
+} use_hyphen_in_file_name_datetime_part;
+
+paramdef string {
+  p_default = "cfradial.test.nc";
+  p_descr = "Name of output file.";
+  p_help = "Applies only if output_filename_mode is SPECIFY_FILE_NAME. File of this name will be written to output_dir.";
+} output_filename;
+
 paramdef boolean {
   p_default = true;
   p_descr = "Add the day directory to the output directory.";
@@ -488,16 +644,21 @@ paramdef boolean {
   p_help = "Path will be output_dir/yyyy/yyyymmdd/filename.";
 } append_year_dir_to_output_dir;
 
-typedef enum {
-  OUTPUT_FORMAT_CFRADIAL,
-  OUTPUT_FORMAT_DORADE,
-  OUTPUT_FORMAT_UF
-} output_format_t;
+commentdef {
+  p_header = "SET MAX RANGE - OPTIONAL";
+  p_text = "If set, all rays will be truncated at this range.";
+}
 
-paramdef enum output_format_t {
-  p_default = OUTPUT_FORMAT_CFRADIAL;
-  p_descr = "Format for the output files.";
-} output_format;
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to set the max range for any ray.";
+} set_max_range;
+
+paramdef double {
+  p_default = 9999;
+  p_descr = "Specified maximim range - km.";
+  p_help = "Gates beyond this range are removed.";
+} max_range_km;
 
 commentdef {
   p_header = "SETTING PSEUDO EARTH RADIUS RATIO FOR HEIGHT COMPUTATIONS";

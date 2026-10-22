@@ -39,25 +39,26 @@ LOC_INCLUDES =
 LOC_CFLAGS =
 LOC_LDFLAGS =
 LOC_LIBS = \
-	-ldidss -lrapformats -ltoolsa -lpthread -lrapmath \
-	-ldataport -lbz2 -lz -lm
+	-lrapformats -ldidss -leuclid -lrapmath \
+	-ltoolsa -ldataport -ltdrp -lphysics \
+	-lpthread -lbz2 -lz -lm
 
 MODULE_TYPE = program
 
 HDRS = didss_print.h
 
-SRCS = \
-	fmq_print.c \
-	parse_args.c \
-	print_all.c \
-	print_slots.c \
-	print_stats.c
+CPPC_SRCS = \
+	fmq_print.cc \
+	parse_args.cc \
+	print_all.cc \
+	print_slots.cc \
+	print_stats.cc
 
 #
 # standard targets
 #
 
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c_targets
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
 
 #
 # local targets
@@ -65,5 +66,8 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c_targets
 
 depend: depend_generic
 
+clean_tdrp:
+
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

@@ -133,6 +133,7 @@ int InputWatcher::Run ()
   input.setFileQuiescence(_params.file_quiescence);
   input.setSearchExt(_params.search_ext);
   input.setSubString(_params.search_substr);
+  input.setIgnoreString(_params.ignore_substr);
   input.setRecursion(_params.search_recursively);
   input.setMaxRecursionDepth(_params.max_recursion_depth);
   input.setMaxDirAge(_params.max_dir_age);
@@ -148,8 +149,15 @@ int InputWatcher::Run ()
   if (_params.debug) {
     cerr << "InputWatcher - watching dir: " << _params.input_dir << endl;
     cerr << "  FileQuiescence: " << _params.file_quiescence << endl;
-    cerr << "  SearchExt: " << _params.search_ext << endl;
-    cerr << "  SubString: " << _params.search_substr << endl;
+    if (strlen(_params.search_ext) > 0) {
+      cerr << "  SearchExt: " << _params.search_ext << endl;
+    }
+    if (strlen(_params.search_substr) > 0) {
+      cerr << "  SubString: " << _params.search_substr << endl;
+    }
+    if (strlen(_params.ignore_substr) > 0) {
+      cerr << "  IgnoreString: " << _params.ignore_substr << endl;
+    }
     cerr << "  Recursion: " << _params.search_recursively << endl;
     cerr << "  MaxRecursionDepth: " << _params.max_recursion_depth << endl;
     cerr << "  MaxDirAge: " << _params.max_dir_age << endl;
@@ -442,25 +450,25 @@ int InputWatcher::_copyFile(const char *inputPath, time_t modTime)
 
   // compression extensions
   
-  char uncompressedName[MAX_PATH_LEN];
   if (_params.copy_to_time_stamped_file) {
+    string uncompressedName(copyName);
     if (isGzipped) {
-      sprintf(uncompressedName, "%s", copyName);
-      sprintf(copyName, "%s.gz", uncompressedName);
+      snprintf(copyName, MAX_PATH_LEN,
+               "%s.gz", uncompressedName.c_str());
     } else if (isBzipped) {
-      sprintf(uncompressedName, "%s", copyName);
-      sprintf(copyName, "%s.bz2", uncompressedName);
+      snprintf(copyName, MAX_PATH_LEN,
+               "%s.bz2", uncompressedName.c_str());
     } else if (isCompressed) {
-      sprintf(uncompressedName, "%s", copyName);
-      sprintf(copyName, "%s.Z", uncompressedName);
+      snprintf(copyName, MAX_PATH_LEN,
+               "%s.Z", uncompressedName.c_str());
     }
   }
 
   // copy path
 
-  char copyPath[MAX_PATH_LEN];
-  sprintf(copyPath, "%s%s%s",
-	  copySubDir, PATH_DELIM, copyName);
+  char copyPath[MAX_PATH_LEN * 2];
+  snprintf(copyPath, MAX_PATH_LEN * 2, "%s%s%s",
+           copySubDir, PATH_DELIM, copyName);
   
   if (_params.debug) {
     cerr << "Copying file: " << inputPath << endl;

@@ -102,6 +102,12 @@ paramdef string {
   p_help = "If set, only files with this extension will be processed.";
 } search_ext;
 
+paramdef string {
+  p_default = "";
+  p_descr = "File name sub-string.";
+  p_help = "If set, only files with names containing this sub-string will be processed.";
+} search_substr;
+
 paramdef boolean {
   p_default = FALSE;
   p_descr = "Set to TRUE if we are watching for Gematronik XML volumes.";
@@ -240,6 +246,12 @@ paramdef boolean {
 } preserve_sweeps;
 
 paramdef boolean {
+  p_default = false;
+  p_descr = "Preserve rays just as they are in the file.";
+  p_help = "Applies generally to SIGMET data. If true, the ray details are preserved. If false, we order the rays increasing in time.";
+} preserve_rays;
+
+paramdef boolean {
   p_default = true;
   p_descr = "Option to remove long range rays.";
   p_help = "Applies to NEXRAD data. If true, data from the non-Doppler long-range sweeps will be removed.";
@@ -325,6 +337,18 @@ paramdef string {
   p_help = "See override_site_name.";
 } site_name;
 
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to override the scan name.";
+  p_help = "If true, the scan name provided will be used.";
+} override_scan_name;
+
+paramdef string {
+  p_default = "";
+  p_descr = "Scan name.";
+  p_help = "See override_scan_name.";
+} scan_name;
+
 commentdef {
   p_header = "OPTION TO OVERRIDE VOLUME NUMBER, OR AUTOINCREMENT";
 }
@@ -357,6 +381,12 @@ paramdef boolean {
   p_help = "If true, the location in this file will be used. If not, the location in the time series data will be used.";
 } override_radar_location;
 
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to override the radar altitude ONLY.";
+  p_help = "If true, the altitude in this file will be used. If not, the altitude in the time series data will be used.";
+} override_altitude_only;
+
 paramdef double {
   p_default = -999;
   p_descr = "Radar latitude (deg).";
@@ -369,6 +399,12 @@ paramdef double {
   p_help = "See override_radar_location.";
 } radar_longitude_deg;
 
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to negate the latitude.";
+  p_help = "Mainly useful for RAPIC files. In RAPIC, latitude is always positive, so mostly you need to set the latitiude to the negative value of itself.";
+} change_radar_latitude_sign;
+
 paramdef double {
   p_default = -999;
   p_descr = "Radar altitude (meters).";
@@ -377,15 +413,52 @@ paramdef double {
 
 paramdef boolean {
   p_default = false;
-  p_descr = "Option to negate the latitude.";
-  p_help = "Mainly useful for RAPIC files. In RAPIC, latitude is always positive, so mostly you need to set the latitiude to the negative value of itself.";
-} change_radar_latitude_sign;
+  p_descr = "Option to override the radar height above the ground (m).";
+  p_help = "If true, the height_agl will be set to radar_height_agl in meters.";
+} override_height_agl;
+
+paramdef double {
+  p_default = 0;
+  p_descr = "Radar height AGL (meters).";
+  p_help = "See override_height_agl.";
+} radar_height_agl_meters;
 
 paramdef boolean {
   p_default = false;
-  p_descr = "Option to apply the georeference info for moving platforms.";
-  p_help = "For moving platforms, measured georeference information is sometimes available. If this is set to true, the georeference data is applied and appropriate corrections made. If possible, Earth-centric azimuth and elevation angles will be computed.";
+  p_descr = "Option to apply the georeference information and corrections for moving platforms.";
+  p_help = "For moving platforms, measured georeference information (e.g. from a GPS/NS) is sometimes available in the file. If goereference data ia available, there is an optional corrections block that may also be stored in the file. If this parameter is true, the georeference data is applied and appropriate corrections made if corrections are available. If possible, Earth-centric azimuth and elevation angles will be computed.";
 } apply_georeference_corrections;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to read in corrections to the georeference data.";
+  p_help = "For moving platforms, measured georeference information (e.g. from a GPS/NS) is sometimes available in the file. If this parameter is true, we will read in an ASCII file of correction factors for the georef data, and store those corrections in the file. See also 'apply_georeference_corrections' above.";
+} read_georeference_corrections;
+
+paramdef string {
+  p_default = "/data/georeference_corrections/cfac.fore";
+  p_descr = "Path to georeference corrections file.";
+  p_help = "This is an ASCII file specifying corrections for the georeference data. See 'read_georeference_corrections' above. The ASCII file has the following format - this is an example:\n"
+  "======================================\n"
+  "\tazimuth_corr           =   0.000\n"
+  "\televation_corr         =   0.000\n"
+  "\trange_delay_corr       = -16.641\n"
+  "\tlongitude_corr         =   0.000\n"
+  "\tlatitude_corr          =   0.000\n"
+  "\tpressure_alt_corr      =   4.969\n"
+  "\tradar_alt_corr         =   0.000\n"
+  "\tew_gndspd_corr         =   0.000\n"
+  "\tns_gndspd_corr         =   0.000\n"
+  "\tvert_vel_corr          =   0.000\n"
+  "\theading_corr           =   0.000\n"
+  "\troll_corr              =   0.000\n"
+  "\tpitch_corr             =   0.009\n"
+  "\tdrift_corr             =   0.119\n"
+  "\trot_angle_corr         =  -0.016\n"
+  "\ttilt_corr              =   0.713\n"
+  "======================================\n"
+  "You can omit the fields that have values of zero.";
+} georeference_corrections_path;
 
 commentdef {
   p_header = "OPTION TO CORRECT TIME";
@@ -551,6 +624,30 @@ paramdef double {
 } antenna_gain_db_v;
 
 commentdef {
+  p_header = "OPTION TO SET NYQUIST VELOCITY FOR SPECIFIED FIELDS.";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to override the nyquist velocity for selected fields.";
+  p_help = "Each ray has a nyquist value that may be set. Plus the folding velocity can be set on each of multiple fields. If more than 1 nyquist is specified - i.e. on different fields - the nyquist from the first field will be applied to the ray as a whole. So make sure the first field is the primary velocity field.";
+} set_nyquist_velocity;
+
+typedef struct {
+  string field_name; 
+  double nyquist_mps;
+} nyquist_field_t;
+
+paramdef struct nyquist_field_t {
+  p_default = {
+    { "VEL", 25.0},
+    { "VEL_F", 25.0}
+  };
+  p_descr = "Fields on which nyquist should be set.";
+  p_help = "Set the folding velocity for the specified fields. If more than 1 field is specified, the first nyquist value in the list will be used for the ray as a whole.";
+} nyquist_fields[];
+
+commentdef {
   p_header = "OPTION TO FORCE RELOAD OF SWEEP AND/OR VOLUME INFO, or RECOMPUTE SWEEP FIXED ANGLE.";
 }
 
@@ -584,6 +681,42 @@ paramdef double {
   p_help = "If the difference between the fixed angle and measured angle exceeds this value, the transition flag will be set. If not, it will be cleared.";
 } optimized_transitions_max_elev_error;
 
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to keep the azimuth constant in RHI scans.";
+  p_help = "Default is false. If true, and the azimuth switches by 180 degree when the elevation passes 90 degrees, this option combines the ray azimuth into one consistent value. The ray elevation will also continue to increase from 90 degrees to 180 degrees. Only one RHI scan per file is allowed with this option. ";
+} combine_rhi;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to override the sweep modes in the data.";
+  p_help = "If TRUE, the mode for all sweeps is set to sweep_mode.";
+} override_sweep_mode;
+
+typedef enum {
+  SWEEP_MODE_SECTOR = 1,
+  SWEEP_MODE_RHI = 3,
+  SWEEP_MODE_VERTICAL_POINTING = 4,
+  SWEEP_MODE_AZIMUTH_SURVEILLANCE = 8,
+  SWEEP_MODE_ELEVATION_SURVEILLANCE = 9,
+  SWEEP_MODE_SUNSCAN = 11,
+  SWEEP_MODE_POINTING = 12,
+  SWEEP_MODE_SUNSCAN_RHI = 17,
+  SWEEP_MODE_ELECTRONIC_STEERING = 20
+} sweep_mode_t;
+
+paramdef enum sweep_mode_t {
+  p_default = SWEEP_MODE_AZIMUTH_SURVEILLANCE;
+  p_descr = "Sweep mode for all sweeps.";
+  p_help = "See override_sweep_mode.";
+} sweep_mode;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to set the sweep mode from the ray angles.";
+  p_help = "If TRUE, we look through the scan angles to deduce the sweep modes, and then set this mode for each sweep.";
+} set_sweep_mode_from_ray_angles;
+
 commentdef {
   p_header = "OPTION TO ADJUST SWEEP LIMITS USING FIXED AND MEASURED ANGLES";
 }
@@ -603,6 +736,18 @@ paramdef boolean {
   p_descr = "Sort the sweeps by fixed angle.";
   p_help = "For some volumes, the sweep fixed angles may not be in increasing order. This option allows you to reorder the sweeps, and rays, into the correct order.";
 } sort_sweeps_by_fixed_angle;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Combine sweeps with same fixed angle.";
+  p_help = "Combine sweeps with similar fixed angle into a single sweep.";
+} combine_sweeps_by_fixed_angle;
+
+paramdef double {
+  p_default = 0.05;
+  p_descr = "Max diff in fixed angle for combining sweeps (degrees).";
+  p_help = "We check the fixed angle difference between sweeps and combine them if the difference is less than this.";
+} combined_sweep_max_fixed_angle_diff;
 
 paramdef boolean {
   p_default = FALSE;
@@ -629,6 +774,18 @@ paramdef boolean {
 commentdef {
   p_header = "OPTION TO OVERRIDE SELECTED GLOBAL ATTRIBUTES";
 }
+
+paramdef string {
+  p_default = "";
+  p_descr = "Option to override the CfRadial convention in the file.";
+  p_help = "If empty, no effect. If not empty, this string is used to override the convention attribute.";
+} convention_override;
+
+paramdef string {
+  p_default = "";
+  p_descr = "Option to override the subconvention in the file.";
+  p_help = "If empty, no effect. If not empty, this string is used to override the subconvention attribute.";
+} subconvention_override;
 
 paramdef string {
   p_default = "";
@@ -861,6 +1018,95 @@ paramdef int {
   p_help = "Only active if set to 2 or greater. A check is made to remove short runs of noise. Looking along the radial, we compute the number of contiguous gates (a 'run') with uncensored data. For the gates in this run to be accepted the length of the run must exceed censoring_min_valid_run. If the number of gates in a run is less than this, then all gates in the run are censored.";
 } censoring_min_valid_run;
 
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to specify the fields to be censored.";
+  p_help = "If FALSE, all fields are specified based on the censoring rules.";
+} specify_fields_to_be_censored;
+
+paramdef string {
+  p_default = { "LDR" };
+  p_descr = "List of fields to be censored.";
+  p_help = "Applies if 'specify_fields_to_be_censored' is TRUE.";
+} fields_to_be_censored[];
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Limit censoring to a specified range of elevation angles.";
+  p_help = "If TRUE, censoring will only be applied for elevation angles between the specified limits.";
+} censoring_limit_elev_angles;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Minimum elevation angle for censoring (deg).";
+  p_help = "Only applies if 'censoring_limit_elev_angles' is true.";
+} censoring_min_elev_deg;
+
+paramdef double {
+  p_default = 90.0;
+  p_descr = "Maximum elevation angle for censoring (deg).";
+  p_help = "Only applies if 'censoring_limit_elev_angles' is true.";
+} censoring_max_elev_deg;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Censor non-missing data within the test pulse ring.";
+  p_help = "If TRUE, non-missing data within the ring will be censored, provided there is no adjacent data in the margins.";
+} censor_test_pulse_ring;
+
+paramdef double {
+  p_default = 238.0;
+  p_descr = "Minimum range of the test pulse to be censored (km).";
+  p_help = "Only non-missing data within the ring will be censored.";
+} test_pulse_min_range_km;
+
+paramdef double {
+  p_default = 239.5;
+  p_descr = "Minimum range of the test pulse to be censored (km).";
+  p_help = "Only non-missing data within the ring will be censored.";
+} test_pulse_max_range_km;
+
+paramdef double {
+  p_default = 2.5;
+  p_descr = "Range margin around test pulse (km).";
+  p_help = "The test pulse is only censored if the margins have only missing data values.";
+} test_pulse_margin_km;
+
+paramdef string {
+  p_default = { "DBZ" };
+  p_descr = "Field used to check for data in or around the test pulse.";
+  p_help = "We use this field to decide if there is non-missing data that needs censoring within the test pulse.";
+} test_pulse_field_name;
+
+commentdef {
+  p_header = "OPTION TO COMPUTE SNR FROM DBZ.";
+  p_text = "If SNR is not available, you may wish to add an estimated SNR field based on DBZ. This requires an estimate of the DBZ value of the noise at a range of 100 km. This can often be estimated by inspection of the DBZ field.";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to add an estimated SNR field based on DBZ.";
+  p_help = "If not, SNR will be computed from the DBZ field. See 'noise_dbz_at_100km'.";
+} add_SNR_field;
+
+paramdef string {
+  p_default = "DBZ";
+  p_descr = "Field name for DBZ.";
+  p_help = "Horizontally-polarized reflectivity factor.";
+} DBZ_field_name;
+
+paramdef string {
+  p_default = "SNR";
+  p_descr = "Field name for SNR.";
+  p_help = "Signal-to-noise ratio (dB).";
+} SNR_field_name;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "The noise value, represented as dBZ at a range of 100km.";
+  p_help = "This is used for computing the SNR from the DBZ field. The SNR will be computed by range-correcting this value and using it as the noise value.";
+} noise_dbz_at_100km;
+
 commentdef {
   p_header = "OPTION TO APPLY LINEAR TRANSFORM TO SPECIFIED FIELDS.";
   p_text = "These transforms are fixed. The same transform is applied to all files.";
@@ -876,12 +1122,14 @@ typedef struct {
   string input_field_name; 
   double transform_scale;
   double transform_offset;
+  boolean field_folds;
+  double folding_value;
 } transform_field_t;
 
 paramdef struct transform_field_t {
   p_default = {
-    { "DBZ", 1.0, 0.0},
-    { "VEL", 1.0, 0.0}
+    { "DBZ", 1.0, 0.0, false, 0.0},
+    { "VEL", 1.0, 0.0, true, 25.0}
   };
   p_descr = "transform field details.";
   p_help = "Set the field name, scale and offset to be applied to the selected fields. NOTE: the field name is the INPUT field name.";
@@ -943,7 +1191,7 @@ commentdef {
 typedef enum {
   OUTPUT_FORMAT_CFRADIAL,
   OUTPUT_FORMAT_CFRADIAL2,
-  OUTPUT_FORMAT_NCXX,
+  OUTPUT_FORMAT_FM301,
   OUTPUT_FORMAT_DORADE,
   OUTPUT_FORMAT_FORAY,
   OUTPUT_FORMAT_NEXRAD,
@@ -967,6 +1215,12 @@ paramdef enum netcdf_style_t {
   p_descr = "NetCDF style - if output_format is CFRADIAL";
   p_help = "netCDF classic format, netCDF 64-bit offset format, netCDF4 using HDF5 format, netCDF4 using HDF5 format but only netCDF3 calls";
 } netcdf_style;
+
+paramdef string {
+  p_default = "use-defaults";
+  p_descr = "Path for parameters for FM301 output.";
+  p_help = "If set to use-defaults, no parameter file will be read in, and the default parameters will be used.";
+} FM301_params_file_path;
 
 commentdef {
   p_header = "OUTPUT BYTE-SWAPPING and COMPRESSION";
@@ -1058,6 +1312,68 @@ paramdef boolean {
   p_descr = "Option to include the scan type in the file name.";
   p_help = "Default is true. Only applies to CfRadial files. If true, the scan type (SUR, SEC, RHI, VER etc) will be included in the file name.";
 } include_scan_type_in_file_name;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to override the labels of the sweep modes.";
+  p_help = "If TRUE, the specified sweep mode labels are used in the file names. See above: include_scan_type_in_file_name.";
+} override_sweep_mode_labels;
+
+typedef struct {
+  string sector_label;
+  string coplane_label;
+  string rhi_label;
+  string vert_label;
+  string idle_label;
+  string az_sur_label;
+  string el_sur_label;
+  string sunscan_label;
+  string sunscan_rhi_label;
+  string cal_label;
+  string man_label;
+  string dbs_label;
+  string traj_label;
+  string par_label;
+} sweep_mode_labels_t;
+
+paramdef struct sweep_mode_labels_t {
+  p_default = {
+    sector_label = "PPI",
+    coplane_label = "COP",
+    rhi_label = "RHI",
+    vert_label = "VER",
+    idle_label = "IDL",
+    az_sur_label = "SUR",
+    el_sur_label = "AIR",
+    sunscan_label = "SUN",
+    sunscan_rhi_label = "SRH",
+    cal_label = "CAL",
+    man_label = "MAN",
+    dbs_label = "DBS",
+    traj_label = "TRJ",
+    par_label = "PAR"
+  };
+  p_descr = "Sets the strings used for the labels for each sweep mode.";
+  p_help = "These are used in the output file name. See 'include_scan_type_in_file_name'.";
+} sweep_mode_labels;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to include the scan name in the file name.";
+  p_help = "Default is false. Only applies to CfRadial files. If true, the scan name will be included in the file name.";
+} include_scan_name_in_file_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to include the scan Id in the file name.";
+  p_help = "Default is false. Only applies to CfRadial files. If true, the scan Id will be included in the file name.";
+} include_scan_id_in_file_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to include the range resolution in the file name.";
+  p_help = "Default is false. Only applies to CfRadial files. If true, the range resolution (50m) will be included in the file name.";
+} include_range_resolution_in_file_name;
 
 paramdef boolean {
   p_default = false;

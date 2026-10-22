@@ -320,6 +320,11 @@ public:
     SWEEP_MODE_DOPPLER_BEAM_SWINGING = 18, ///< as in profiler or lidar
     SWEEP_MODE_COMPLEX_TRAJECTORY = 19,  ///< any sequential angle sequence
     SWEEP_MODE_ELECTRONIC_STEERING = 20,  ///< as in phased array
+    SWEEP_MODE_APAR_FORE_DOPPLER = 21,  ///< forward Doppler for APAR
+    SWEEP_MODE_APAR_AFT_DOPPLER = 22,  ///< aft Doppler for APAR
+    SWEEP_MODE_APAR_DUALPOL_RHI = 23,  ///< dual pol RHI for APAR
+    SWEEP_MODE_APAR_SECTOR_PPI = 24,  ///< surveillance sector PPI for APAR
+    SWEEP_MODE_FILL = 25, ///< interruption for timing purposes
     SWEEP_MODE_LAST
 
   } SweepMode_t;
@@ -449,6 +454,10 @@ public:
   const static char* AIRCRAFT_NOSE;
   const static char* AIRCRAFT_ROOF;
   const static char* AIRCRAFT_TAIL;
+  const static char* APAR_FORE_DOPPLER;
+  const static char* APAR_AFT_DOPPLER;
+  const static char* APAR_DUALPOL_RHI;
+  const static char* APAR_SECTOR_PPI;
   const static char* AXIS_X;
   const static char* AXIS_X_PRIME;
   const static char* AXIS_Y;
@@ -464,6 +473,7 @@ public:
   const static char* DUAL;
   const static char* ELECTRONIC_STEERING;
   const static char* ELEVATION_SURVEILLANCE;
+  const static char* FILL;
   const static char* FIXED;
   const static char* HORIZONTAL;
   const static char* HV_ALT;
@@ -574,6 +584,12 @@ public:
   
   static string makeString(const char *text, int len);
   
+  // Smart copy of string into specified location.
+  // Generally used to set headers with fixed-length strings.
+  // If strlen is equal to or exceeds destlen, omit trailing null.
+  
+  static void copyString(char *dest, const string &src, size_t destLen);
+
   /// Safely print char text.
   /// Ensure null termination.
   
@@ -587,6 +603,17 @@ public:
   /// compute sin and cos together
 
   static void sincos(double radians, double &sinVal, double &cosVal);
+
+  /// convert degrees to radians, and vice versa
+
+  static double toRadians(double deg) { return deg * 0.017453292519943295; }
+  static double toDegrees(double rad) { return rad * 57.29577951308232; }
+
+  /// condition angle to between limits
+
+  static double conditionAngle(double angle,
+                               double lowerLimit,
+                               double upperLimit);
 
   /// condition az angle, to between 0 and 360
 

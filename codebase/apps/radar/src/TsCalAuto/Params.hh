@@ -94,7 +94,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -390,6 +390,10 @@ public:
 
   int radar_id;
 
+  tdrp_bool_t specify_pulse_width;
+
+  double fixed_pulse_width_us;
+
   int siggen_tcp_port;
 
   char* siggen_ip_address;
@@ -402,8 +406,10 @@ public:
 
   tdrp_bool_t siggen_specify_power_sequence;
 
-  double *_siggen_power_sequence;
-  int siggen_power_sequence_n;
+  double siggen_sequence_start_power;
+
+  double *_siggen_delta_power_sequence;
+  int siggen_delta_power_sequence_n;
 
   tdrp_bool_t set_sig_freq;
 
@@ -412,6 +418,10 @@ public:
   int siggen_cmd_delay;
 
   tdrp_bool_t use_manual_siggen_control;
+
+  tdrp_bool_t prompt_user_with_attenuation;
+
+  double variable_attenuation_start_value;
 
   tdrp_bool_t suspend_test_pulse;
 
@@ -488,7 +498,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[65];
+  mutable TDRPtable _table[70];
 
   const char *_className;
 

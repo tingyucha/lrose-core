@@ -15,20 +15,29 @@ SUB_DIRS = \
 	Aws2Spdb \
 	BomAws2Spdb \
 	BomSounding2Spdb \
+	classIngest \
 	CreateStationList \
 	CsuSounding2Spdb \
+	CwbAws2Spdb \
+	CwbObs2Spdb \
+	CwbSfc2Mdv \
 	EolMobileKml2Spdb \
+	EraGrib2Mdv \
+	Era5Nc2Mdv \
 	GemVolXml2Dsr \
 	Gini2Mdv \
 	GoesRGLM2Spdb \
 	GoesRnetCDF2Mdv \
+	GpmHdf5ToMdv \
 	Grib2Mdv \
 	Grib2toMdv \
 	GtsSockIngest \
 	LdmDynamic2Static \
 	LdmMetars2File \
 	Ltg2Spdb \
+	Mesonet2Spdb \
 	Metar2Spdb \
+	MetarCsv2Spdb \
 	Mrms2Mdv \
 	MrmsGribIngest \
 	NWSsoundingIngest \
@@ -49,6 +58,7 @@ SUB_DIRS = \
 	ShipObsIngest \
 	SigAirMet2Spdb \
 	SynopObsIngest \
+	UAEMesonet2Spdb \
 	Uf2Dsr \
 	Usgs2Spdb \
 	WafsTiled2Mdv \

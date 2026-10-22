@@ -111,7 +111,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -429,6 +429,12 @@ public:
 
   tdrp_bool_t apply_strict_angle_limits;
 
+  tdrp_bool_t set_azimuth_limits;
+
+  double lower_azimuth_limit;
+
+  double upper_azimuth_limit;
+
   tdrp_bool_t remove_rays_with_antenna_transitions;
 
   tdrp_bool_t trim_surveillance_sweeps_to_360deg;
@@ -467,6 +473,14 @@ public:
 
   double clutter_min_cpa;
 
+  tdrp_bool_t monitor_transmit_power;
+
+  char* xmit_power_key_both;
+
+  char* xmit_power_key_h;
+
+  char* xmit_power_key_v;
+
   tdrp_bool_t write_results_to_spdb;
 
   char* spdb_output_url;
@@ -478,7 +492,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[53];
+  mutable TDRPtable _table[62];
 
   const char *_className;
 

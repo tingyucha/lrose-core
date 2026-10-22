@@ -1,0 +1,405 @@
+/* *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* */
+/* ** Copyright UCAR (c) 1990 - 2016                                         */
+/* ** University Corporation for Atmospheric Research (UCAR)                 */
+/* ** National Center for Atmospheric Research (NCAR)                        */
+/* ** Boulder, Colorado, USA                                                 */
+/* ** BSD licence applies - redistribution and use in source and binary      */
+/* ** forms, with or without modification, are permitted provided that       */
+/* ** the following conditions are met:                                      */
+/* ** 1) If the software is modified to produce derivative works,            */
+/* ** such modified software should be clearly marked, so as not             */
+/* ** to confuse it with the version available from UCAR.                    */
+/* ** 2) Redistributions of source code must retain the above copyright      */
+/* ** notice, this list of conditions and the following disclaimer.          */
+/* ** 3) Redistributions in binary form must reproduce the above copyright   */
+/* ** notice, this list of conditions and the following disclaimer in the    */
+/* ** documentation and/or other materials provided with the distribution.   */
+/* ** 4) Neither the name of UCAR nor the names of its contributors,         */
+/* ** if any, may be used to endorse or promote products derived from        */
+/* ** this software without specific prior written permission.               */
+/* ** DISCLAIMER: THIS SOFTWARE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS  */
+/* ** OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED      */
+/* ** WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.    */
+/* *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* */
+/**********************************************************
+ * paramdef.RefractCompute
+ */
+
+commentdef
+{
+  p_header = "RefractCompute";
+  p_text = "RefractCompute computes the refractivity value at each radar gate, given the AIQ/NIQ data, plus the calibration results from previously running RefractCalib.";
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "DEBUGGING AND PROCESS CONTROL";
+}
+
+typedef enum {
+  DEBUG_OFF, DEBUG_NORM, DEBUG_VERBOSE, DEBUG_EXTRA
+} debug_t;
+
+paramdef enum debug_t
+{
+  p_default = DEBUG_OFF;
+  p_descr = "Debug option";
+  p_help = "If set, debug messages will be printed appropriately";
+} debug;
+
+//////////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "REALTIME PROCESS CONTROL";
+}
+
+paramdef string {
+  p_default = "test";
+  p_descr = "Program instance for process registration.";
+  p_help = "REALTIME mode only. This application registers with procmap. This is the instance used for registration.";
+} instance;
+
+paramdef int {
+  p_default = 60;
+  p_descr = "Interval for registering with procmap (secs).";
+  p_help = "REALTIME mode only. The app will register with procmap at this interval, to update its status. If it does not register within twice this interval, the auto_restart script will restart the app.";
+} procmap_register_interval;
+
+///////////////////////////////////////////////////////////////////////////////
+
+commentdef
+{
+  p_header = "DATA INPUT";
+};
+
+paramdef string
+{
+  p_default = "/tmp/mdv/refractivity";
+  p_descr = "Input directory";
+  p_help = "Directory for input refractivity files.";
+} input_dir;
+
+paramdef string
+{
+  p_descr = "Name of field with calculated N values";
+  p_default = "N";
+} n_field_name;
+
+typedef enum {
+  FILELIST, ARCHIVE, REALTIME
+} mode_t;
+
+paramdef enum mode_t {
+  p_default = FILELIST;
+  p_descr = "Operating mode";
+  p_help = "In FILELIST mode, we move through the list of file names specified on the command line.\n\nIn REALTIME mode, the program waits for a new input file to arrive in 'input_dir'.\n\nIn ARCHIVE mode, we move through the files in input_dir between the start and end times set on the command line.\n\nIn ARCHIVE mode, input_dir must be one above the day-directory.";
+} mode;
+
+paramdef int {
+  p_default = 300;
+  p_descr = "Maximum age of realtime data (secs)";
+  p_help =  "REALTIME mode only. Only data files less old than this will be processed.";
+} max_realtime_data_age_secs;
+
+paramdef string {
+  p_default = "2015 06 26 00 00 00";
+  p_descr = "Set the start time for ARCHIVE mode analysis.";
+  p_help = "Format is 'yyyy mm dd hh mm ss'.";
+} start_time;
+
+paramdef string {
+  p_default = "2015 06 26 12 00 00";
+  p_descr = "Set the end time for ARCHIVE mode analysis.";
+  p_help = "Format is 'yyyy mm dd hh mm ss'.";
+} end_time;
+
+paramdef string
+{
+  p_descr = "Calibration reference file path for daytime.";
+  p_help = "Full path, file containing calibration information. Daytime";
+  p_default = "refr_calib.day.mdv";
+} calib_file_path_day;
+
+paramdef string
+{
+  p_descr = "Calibration reference file path for nighttime.";
+  p_help = "Full path, file containing calibration information. Nighttime";
+  p_default = "refr_calib.night.mdv";
+} calib_file_path_night;
+
+typedef struct
+{
+  double min_angle;
+  double max_angle;
+} elevation_angle_t;
+
+paramdef struct elevation_angle_t
+{
+  p_descr = "The angle limits for the desired elevation angle. "
+            "Only sweeps with elevation angles between these limits will "
+            "be used in the calibration.";
+  p_help = "Used only if specify_elevation_by_index is set to false.";
+  p_default = { 0.3, 0.5 };
+} elevation_angle;
+
+paramdef long
+{
+  p_descr = "Number of azimuths used in data processing";
+  p_min = 1;
+  p_default = 360;
+} num_azim;
+
+paramdef long
+{
+  p_descr = "Number of range bins used in data processing";
+  p_min = 1;
+  p_default = 450;
+} num_range_bins;
+
+///////////////////////////////////////////////////////////////////////////////
+
+commentdef
+{
+  p_header = "DATA FIELD DETAILS";
+  p_text = "Details of the fields to be retrieved from the data files.";
+};
+
+paramdef boolean
+{
+  p_descr = "Flag indicating whether the raw I and Q values are included in "
+            "the input stream.";
+  p_help = "If true, the raw fields will be read from the input stream. "
+           "If false, the raw fields will be calculated from the NIQ/AIQ "
+           "values which must be inluded in the input stream instead.";
+  p_default = true;
+} raw_iq_in_input;
+
+paramdef string
+{
+  p_descr = "Raw I field name in the input stream.";
+  p_help = "Used only if raw_iq_in_input is set to TRUE.";
+  p_default = "MeanI";
+} raw_i_field_name;
+
+paramdef string
+{
+  p_descr = "Raw Q field name in the input stream.";
+  p_help = "Used only if raw_iq_in_input is set to TRUE.";
+  p_default = "MeanQ";
+} raw_q_field_name;
+
+paramdef string
+{
+  p_descr = "NIQ field name in the input stream.";
+  p_help = "Used only if raw_iq_in_input is set to FALSE.";
+  p_default = "NIQ";
+} niq_field_name;
+
+paramdef double
+{
+  p_descr = "Input NIQ scale value";
+  p_help = "The NIQ value from the input source is multiplied by this "
+           "value before the data is used. "
+           "For most radars this value should be 0.1. "
+           "For SPOL this value should be 0.025.";
+  p_default = 0.1;
+} input_niq_scale;
+
+paramdef boolean
+{
+  p_descr = "Flag indicating whether to invert the sign of the target angles.";
+  p_help = "This fix should be done upstream, but is added here "
+           "just in case.\n"
+           "Used only if raw_iq_in_input is set to FALSE.";
+  p_default = false;
+} invert_target_angle_sign;
+
+paramdef string
+{
+  p_descr = "AIQ field name in the input stream.";
+  p_help = "Used only if raw_iq_in_input is set to FALSE.";
+  p_default = "AIQ";
+} aiq_field_name;
+
+paramdef boolean {
+  p_default = TRUE;
+  p_descr = "Is SNR data available?";
+  p_help = "If not, SNR will be computed from the DBZ field. See 'noise_dbz_at_100km'.";
+} snr_available;
+
+paramdef string {
+  p_default = "SNR";
+  p_descr = "Field name for SNR.";
+  p_help = "Signal-to-noise ratio (dB).";
+} snr_field_name;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "The noise value, represented as dBZ at a range of 100km.";
+  p_help = "This is used for computing the SNR from the DBZ field. It is only used if SNR_available is FALSE. The SNR will be computed by range-correcting this value and using it as the noise value.";
+} noise_dbz_at_100km;
+
+paramdef string {
+  p_default = "DBZ";
+  p_descr = "Field name for DBZ.";
+  p_help = "Horizontally-polarized reflectivity factor.";
+} dbz_field_name;
+
+//////////////////////////////////////////////////////////////////
+
+commentdef
+{
+  p_header = "DATA OUTPUT";
+};
+
+paramdef string
+{
+  p_descr = "Directory for moisture files in MDV format";
+  p_default = "/tmp/mdv/moisture";
+} output_dir;
+
+///////////////////////////////////////////////////////////////////////////////
+
+commentdef
+{
+  p_header = "ALGORITHM PARAMETERS";
+};
+
+typedef enum
+{
+  QUALITY_FROM_WIDTH,
+  QUALITY_FROM_CPA
+} quality_source_t;
+
+paramdef enum quality_source_t
+{
+  p_descr = "Which field to use when calculating the quality value.";
+  p_help = "\tQUALITY_FROM_WIDTH - The quality field is calculated using "
+           "a spectrum width field.\n"
+           "\tQUALITY_FROM_CPA - The quality field is calculated using "
+           "a CPA field.\n";
+  p_default = QUALITY_FROM_WIDTH;
+} quality_source;
+
+paramdef string
+{
+  p_descr = "Name of field to use in the quality calculations.";
+  p_help = "If quality_source is set to QUALITY_FROM_WIDTH then this should be "
+           "a spectrum width field.\n"
+           "If quality_source is set to QUALITY_FROM_CPA then this shoudl be a "
+           "probability of clutter field. "
+           "The probability of clutter field should range from 0.0 to 1.0 with "
+           "0.0 indicating the gate definitely doesn't contain clutter and 1.0 "
+           "indicating that the gate definitely is clutter.\n";
+  p_default = "SPW";
+} quality_field_name;
+
+paramdef int
+{
+  p_descr = "Hour min second for start of night";
+  p_default = {2, 40, 0};
+} hms_night[3];
+
+paramdef int
+{
+  p_descr = "Hour min second for start of day";
+  p_default = {10, 15, 0};
+} hms_day[3];
+
+paramdef int
+{
+  p_descr = "Transition from day to night or night to day, with interpolation";
+  p_help = "up to this number of minutes, the day/night interface is interpolated, for example if t = hms_night - x, then percent given to day is (x+delta)/(2*delta) and percent given to night is (delta-x)/(2*delta)   up to where x exceeds delta.";
+  p_default = 0;
+} day_night_transition_delta_minutes;
+
+paramdef double
+{
+  p_descr = "Frequency in Hz";
+  p_default = 2.809e9;
+} frequency;
+
+paramdef long
+{
+  p_descr = "Min range gate of ground echo";
+  p_min = 1;
+  p_default = 4;
+} r_min;
+
+paramdef double
+{
+  p_descr = "N smoothing side length";
+  p_help = "Smooth N phases with square of 4-km side lengths";
+  p_default = 4000.0;
+} n_smoothing_side_len;
+
+paramdef double
+{
+  p_descr = "DN smoothing side length";
+  p_help = "Smooth DN dif. phases with square of 4-km side length";
+  p_default = 4000.0;
+} dn_smoothing_side_len;
+
+paramdef double
+{
+  p_descr = "Minimum consistency";
+  p_help = "Minimum consistency of phase to accept N (DN) measurement. "
+           "HIgher means smaller coverage of (hopefully) better data.";
+  p_min = 0.0;
+  p_max = 1.0;
+  p_default = 0.015;
+} min_consistency;
+
+paramdef boolean
+{
+  p_descr = "Flag indicating whether to do the relaxation stage";
+  p_default = false;
+} do_relax;
+
+paramdef double
+{
+  p_descr = "Quality threshold";
+  p_default = 0.9;
+} quality_threshold;
+
+
+paramdef boolean
+{
+  p_descr = "Threshold on SigmaN for N and DN";
+  p_help = "Set to TRUE if you want to threshold N and DN using SigmaN values";
+  p_default = FALSE;
+} threshold_using_sigma_n;
+
+paramdef double
+{
+  p_descr = "maximum sigmaN value when threshold_using_sigma_n = TRUE";
+  p_help = "if threshold_using_sigma_n = TRUE and sigmaN > max_sigma_n, N and DN are set to missing.  If threshold_using_sigma_n = FALSE, this value is ignored";
+  p_default = 30;
+} max_sigma_n;
+
+commentdef {
+  p_header = "DEBUGGING READING INPUT FILES";
+}
+
+paramdef double
+{
+  p_descr = "debug latitude";
+  p_help = "Extreme debugging at a point, set to -9999 to disable";
+  p_default = -9999.0;
+} debug_lat;
+
+paramdef double
+{
+  p_descr = "debug longitude";
+  p_help = "Extreme debugging at a point, set to -9999 to disable";
+  p_default = -9999;
+} debug_lon;
+
+paramdef int
+{
+  p_descr = "debug npt";
+  p_help = "Extreme debugging radius around the debug point to keep showing debugging, number of gridpoints";
+  p_default = 1;
+} debug_npt;
+

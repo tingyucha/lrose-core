@@ -34,6 +34,7 @@
 ///////////////////////////////////////////////////////////////
 
 #include <Radx/Radx.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <iostream>
 #include <cstring>
 #include <cstdio>
@@ -85,6 +86,10 @@ const char* Radx::AIRCRAFT_FORE = "aircraft_fore";
 const char* Radx::AIRCRAFT_NOSE = "aircraft_nose";
 const char* Radx::AIRCRAFT_ROOF = "aircraft_roof";
 const char* Radx::AIRCRAFT_TAIL = "aircraft_tail";
+const char* Radx::APAR_FORE_DOPPLER = "apar_fore_doppler";
+const char* Radx::APAR_AFT_DOPPLER = "apar_aft_doppler";
+const char* Radx::APAR_DUALPOL_RHI = "apar_dualpol_rhi";
+const char* Radx::APAR_SECTOR_PPI = "apar_sector_ppi";
 const char* Radx::AXIS_X = "axis_x";
 const char* Radx::AXIS_X_PRIME = "axis_x_prime";
 const char* Radx::AXIS_Y = "axis_y";
@@ -100,6 +105,7 @@ const char* Radx::DOPPLER_BEAM_SWINGING = "doppler_beam_swinging";
 const char* Radx::DUAL = "dual";
 const char* Radx::ELECTRONIC_STEERING = "electronic_steering";
 const char* Radx::ELEVATION_SURVEILLANCE = "elevation_surveillance";
+const char* Radx::FILL = "fill";
 const char* Radx::FIXED = "fixed";
 const char* Radx::HORIZONTAL = "horizontal";
 const char* Radx::HV_ALT = "hv_alt";
@@ -473,6 +479,21 @@ string Radx::sweepModeToStr(SweepMode_t mode)
     case SWEEP_MODE_ELECTRONIC_STEERING: {
       return Radx::ELECTRONIC_STEERING;
     }
+    case SWEEP_MODE_APAR_FORE_DOPPLER: {
+      return Radx::APAR_FORE_DOPPLER;
+    }
+    case SWEEP_MODE_APAR_AFT_DOPPLER: {
+      return Radx::APAR_AFT_DOPPLER;
+    }
+    case SWEEP_MODE_APAR_DUALPOL_RHI: {
+      return Radx::APAR_DUALPOL_RHI;
+    }
+    case SWEEP_MODE_APAR_SECTOR_PPI: {
+      return Radx::APAR_SECTOR_PPI;
+    }
+    case SWEEP_MODE_FILL: {
+      return Radx::FILL;
+    }
     default: {
       return Radx::UNKNOWN;
     }
@@ -530,6 +551,18 @@ string Radx::sweepModeToShortStr(SweepMode_t mode)
     case SWEEP_MODE_ELECTRONIC_STEERING: {
       return "PAR";
     }
+    case SWEEP_MODE_APAR_FORE_DOPPLER: {
+      return "RHI";
+    }
+    case SWEEP_MODE_APAR_AFT_DOPPLER: {
+      return "RHI";
+    }
+    case SWEEP_MODE_APAR_DUALPOL_RHI: {
+      return "RHI";
+    }
+    case SWEEP_MODE_APAR_SECTOR_PPI: {
+      return "PPI";
+    }
     default: {
       return "SUR";
     }
@@ -567,36 +600,14 @@ Radx::DataType_t Radx::dataTypeFromStr(const string &str)
 
 Radx::SweepMode_t Radx::sweepModeFromStr(const string &str)
 {
-
-  if (str.find(Radx::SECTOR) != string::npos) {
-    return SWEEP_MODE_SECTOR;
-  }
-  if (str.find(Radx::COPLANE) != string::npos) {
-    return SWEEP_MODE_COPLANE;
-  }
-  if (str.find(Radx::RHI) != string::npos) {
-    return SWEEP_MODE_RHI;
-  }
   if (str.find(Radx::VERTICAL_POINTING) != string::npos) {
     return SWEEP_MODE_VERTICAL_POINTING;
-  }
-  if (str.find(Radx::IDLE) != string::npos) {
-    return SWEEP_MODE_IDLE;
   }
   if (str.find(Radx::AZIMUTH_SURVEILLANCE) != string::npos) {
     return SWEEP_MODE_AZIMUTH_SURVEILLANCE;
   }
   if (str.find(Radx::ELEVATION_SURVEILLANCE) != string::npos) {
     return SWEEP_MODE_ELEVATION_SURVEILLANCE;
-  }
-  if (str.find(Radx::SUNSCAN) != string::npos) {
-    return SWEEP_MODE_SUNSCAN;
-  }
-  if (str.find(Radx::POINTING) != string::npos) {
-    return SWEEP_MODE_POINTING;
-  }
-  if (str.find(Radx::CALIBRATION) != string::npos) {
-    return SWEEP_MODE_CALIBRATION;
   }
   if (str.find(Radx::MANUAL_PPI) != string::npos) {
     return SWEEP_MODE_MANUAL_PPI;
@@ -615,6 +626,44 @@ Radx::SweepMode_t Radx::sweepModeFromStr(const string &str)
   }
   if (str.find(Radx::ELECTRONIC_STEERING) != string::npos) {
     return SWEEP_MODE_ELECTRONIC_STEERING;
+  }
+  if (str.find(Radx::APAR_FORE_DOPPLER) != string::npos) {
+    return SWEEP_MODE_APAR_FORE_DOPPLER;
+  }
+  if (str.find(Radx::APAR_AFT_DOPPLER) != string::npos) {
+    return SWEEP_MODE_APAR_AFT_DOPPLER;
+  }
+  if (str.find(Radx::APAR_DUALPOL_RHI) != string::npos) {
+    return SWEEP_MODE_APAR_DUALPOL_RHI;
+  }
+  if (str.find(Radx::APAR_SECTOR_PPI) != string::npos) {
+    return SWEEP_MODE_APAR_SECTOR_PPI;
+  }
+
+  // Generic names last to avoid inadvertently finding a substring
+  if (str.find(Radx::SECTOR) != string::npos) {
+    return SWEEP_MODE_SECTOR;
+  }
+  if (str.find(Radx::COPLANE) != string::npos) {
+    return SWEEP_MODE_COPLANE;
+  }
+  if (str.find(Radx::RHI) != string::npos) {
+    return SWEEP_MODE_RHI;
+  }
+  if (str.find(Radx::IDLE) != string::npos) {
+    return SWEEP_MODE_IDLE;
+  }
+  if (str.find(Radx::SUNSCAN) != string::npos) {
+    return SWEEP_MODE_SUNSCAN;
+  }
+  if (str.find(Radx::POINTING) != string::npos) {
+    return SWEEP_MODE_POINTING;
+  }
+  if (str.find(Radx::CALIBRATION) != string::npos) {
+    return SWEEP_MODE_CALIBRATION;
+  }
+  if (str.find(Radx::FILL) != string::npos) {
+    return SWEEP_MODE_FILL;
   }
   return SWEEP_MODE_NOT_SET;
 }
@@ -950,7 +999,7 @@ void Radx::addErrInt(string &errStr, string label,
 {
   errStr += label;
   char str[32];
-  sprintf(str, "%d", iarg);
+  safe_snprintf(str, "%d", iarg);
   errStr += str;
   if (cr) {
     errStr += "\n";
@@ -969,7 +1018,7 @@ void Radx::addErrDbl(string &errStr,
 {
   errStr += label;
   char str[128];
-  sprintf(str, format.c_str(), darg);
+  safe_snprintf(str, format.c_str(), darg);
   errStr += str;
   if (cr) {
     errStr += "\n";
@@ -1017,6 +1066,21 @@ string Radx::makeString(const char *text, int len)
   delete[] copy;
   return str;
 
+}
+
+///////////////////////////////////////////////////////////////////
+// Smart copy of string into specified location.
+// Generally used to set headers with fixed-length strings.
+// If strlen is equal to or exceeds destlen, omit trailing null.
+
+void Radx::copyString(char *dest, const string &src, size_t destLen)
+  
+{
+  if (src.size() >= destLen) {
+    memcpy(dest, src.c_str(), destLen);
+  } else {
+    strncpy(dest, src.c_str(), destLen);
+  }
 }
 
 //////////////////////////////////////////////
@@ -1075,17 +1139,65 @@ void Radx::sincos(double radians, double &sinVal, double &cosVal)
 }
 
 /////////////////////////////////////
+/// condition angle to between limits
+
+double Radx::conditionAngle(double angle,
+                            double lowerLimit,
+                            double upperLimit)
+
+{
+
+  // count is used to break out
+  // in case angle value is large pos or neg
+  
+  int count = 0;
+
+  while (angle < lowerLimit) {
+    angle += 360.0;
+    if (count > 1000) {
+      break;
+    }
+    count++;
+  }
+  count = 0;
+  while (angle > upperLimit) {
+    angle -= 360.0;
+    if (count > 1000) {
+      break;
+    }
+    count++;
+  }
+
+  return angle;
+
+}
+
+/////////////////////////////////////
 /// condition az to between 0 and 360
 
 double Radx::conditionAz(double az)
 
 {
+  
+  // count is used to break out
+  // in case angle value is large pos or neg
+  
+  int count = 0;
 
   while (az < 0.0) {
     az += 360.0;
+    if (count > 1000) {
+      break;
+    }
+    count++;
   }
+  count = 0;
   while (az > 360.0) {
     az -= 360.0;
+    if (count > 1000) {
+      break;
+    }
+    count++;
   }
 
   return az;
@@ -1099,11 +1211,25 @@ double Radx::conditionEl(double el)
 
 {
 
+  // count is used to break out
+  // in case angle value is large pos or neg
+  
+  int count = 0;
+
   while (el < -180.0) {
     el += 360.0;
+    if (count > 1000) {
+      break;
+    }
+    count++;
   }
+  count = 0;
   while (el > 180.0) {
     el -= 360.0;
+    if (count > 1000) {
+      break;
+    }
+    count++;
   }
 
   return el;

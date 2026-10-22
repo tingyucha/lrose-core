@@ -618,6 +618,7 @@ public:
    */
 
   int debug;                           /* debug on - true or false */
+  int verbose;                         /* verbose on - true or false */
   int localtime;                       /* use local time - true or false */
   int timeOffsetSecs;                  /* time offset from UTC */
 
@@ -705,6 +706,9 @@ public:
   int save_gif_on_auto_advance;        /* save gif before advancing */
   int save_if_no_data;                 /* make copy or gif even if there
 					* is no image or track data */
+
+  double node_icon_diam_km;            /* diameter of node icon when plotting vectors only
+                                        * i.e. not ellipses or polygons */
 
   double double_click_delay;           /* max double click delay
 					* in millisecs */

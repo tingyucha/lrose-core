@@ -38,6 +38,7 @@
 
 #include <Mdv/NcfGridInfo.hh>
 #include <Mdv/NcfMdv.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <toolsa/TaStr.hh>
 #include <toolsa/TaPjg.hh>
 
@@ -50,7 +51,7 @@ NcfGridInfo::NcfGridInfo ( Mdvx::field_header_t fHdr) :
   _proj.init(fHdr);
   _coord = _proj.getCoord();
   _isXSect = false;
-  _outputLatlonArrays = true;
+  _outputLatlonArrays = false;
 
   // Initialize netCDF object pointers
 
@@ -162,27 +163,15 @@ int NcfGridInfo::computeCoordinateVars()
   for (int j = 0; j < _coord.ny; j++) {
     _yData[j] = miny + j * dy;
   }
-   
+  
+  // Compute the auxiliary arrays
 
-  // Compute the auxiliary arrays if necessary
-
-  if (_proj.getProjType() != Mdvx::PROJ_LATLON ) {
-    for (int j = 0; j < _coord.ny; j++)  {
-      for (int i = 0; i < _coord.nx; i++) {
-        double lat, lon;
-        _proj.xy2latlon( _xData[i],  _yData[j], lat, lon);
-        _latData[ j * nx + i ] = lat;
-        _lonData[ j * nx + i] = lon;
-      }
-    }
-  } else {
-    if (_latData != NULL) {
-      delete[] _latData;
-      _latData = NULL;
-    }
-    if (_lonData != NULL) {
-      delete[] _lonData;
-      _lonData = NULL;
+  for (int j = 0; j < _coord.ny; j++)  {
+    for (int i = 0; i < _coord.nx; i++) {
+      double lat, lon;
+      _proj.xy2latlon( _xData[i],  _yData[j], lat, lon);
+      _latData[ j * nx + i ] = lat;
+      _lonData[ j * nx + i] = lon;
     }
   }
 
@@ -239,8 +228,8 @@ int NcfGridInfo::addXyDim(int gridNum, Nc3File *ncFile, string &errStr)
 
   char xDimName[4],  yDimName[4];
   
-  sprintf(xDimName, "x%d", gridNum);
-  sprintf(yDimName, "y%d", gridNum);
+  safe_snprintf(xDimName, "x%d", gridNum);
+  safe_snprintf(yDimName, "y%d", gridNum);
   
   if (!(_xDim = ncFile->add_dim(xDimName, _coord.nx))) {
     return -1;
@@ -265,7 +254,7 @@ int NcfGridInfo::addProjVar(int gridNum, Nc3File *ncFile, string &errStr)
   // Add variable to NcFile
 
   char projVarName[16];
-  sprintf(projVarName, "%s_%d", NcfMdv::grid_mapping, gridNum);
+  safe_snprintf(projVarName, "%s_%d", NcfMdv::grid_mapping, gridNum);
     
   _projVar = ncFile->add_var(projVarName, nc3Int);
   if (_projVar == NULL) {
@@ -461,7 +450,7 @@ int NcfGridInfo::addProjVar(int gridNum, Nc3File *ncFile, string &errStr)
 // add nc coordinate variables for this grid
 
 int NcfGridInfo::addCoordVars(int gridNum, bool outputLatlonArrays,
-                           Nc3File *ncFile, string &errStr)
+                              Nc3File *ncFile, string &errStr)
 
 {
   
@@ -472,8 +461,8 @@ int NcfGridInfo::addCoordVars(int gridNum, bool outputLatlonArrays,
   
   char xVarName[32],  yVarName[32];
   
-  sprintf(xVarName, "x%d", gridNum);
-  sprintf(yVarName, "y%d", gridNum);
+  safe_snprintf(xVarName, "x%d", gridNum);
+  safe_snprintf(yVarName, "y%d", gridNum);
   
   if ((_xVar = ncFile->add_var(xVarName, nc3Float, _xDim)) == NULL) {
     TaStr::AddStr(errStr, "Mdv2NcfTrans::NcfGridInfo::addCoordVars");
@@ -511,9 +500,8 @@ int NcfGridInfo::addCoordVars(int gridNum, bool outputLatlonArrays,
     if (_outputLatlonArrays) {
       
       char latVarName[32],  lonVarName[32];
-      
-      sprintf(latVarName, "lat%d", gridNum);
-      sprintf(lonVarName, "lon%d", gridNum);
+      safe_snprintf(latVarName, "lat%d", gridNum);
+      safe_snprintf(lonVarName, "lon%d", gridNum);
       
       if ((_latVar = ncFile->add_var(latVarName, nc3Float,
                                      _yDim, _xDim)) == NULL) {
@@ -549,15 +537,15 @@ int NcfGridInfo::addCoordVars(int gridNum, bool outputLatlonArrays,
 // add nc vert section coordinate variables for this grid
 
 int NcfGridInfo::addVsectCoordVars(int gridNum,
-                                Nc3File *ncFile, string &errStr)
+                                   Nc3File *ncFile, string &errStr)
 
 {
   
   int iret = 0;
   
   char xVarName[32],  yVarName[32];
-  sprintf(xVarName, "x%d", gridNum);
-  sprintf(yVarName, "y%d", gridNum);
+  safe_snprintf(xVarName, "x%d", gridNum);
+  safe_snprintf(yVarName, "y%d", gridNum);
   
   if ((_xVar = ncFile->add_var(xVarName, nc3Float, _xDim)) == NULL) {
     TaStr::AddStr(errStr, "Mdv2NcfTrans::NcfGridInfo::addVsectCoordVars");
@@ -587,9 +575,9 @@ int NcfGridInfo::addVsectCoordVars(int gridNum,
   
   char latVarName[8],  lonVarName[8], altVarName[8];
   
-  sprintf(latVarName, "lat%d", gridNum);
-  sprintf(lonVarName, "lon%d", gridNum);
-  sprintf(altVarName, "alt%d", gridNum);
+  safe_snprintf(latVarName, "lat%d", gridNum);
+  safe_snprintf(lonVarName, "lon%d", gridNum);
+  safe_snprintf(altVarName, "alt%d", gridNum);
   
   if ((_latVar = ncFile->add_var(latVarName, nc3Float, _xDim)) == NULL) {
     TaStr::AddStr(errStr, "Mdv2NcfTrans::NcfGridInfo::addVsectCoordVars");
@@ -700,4 +688,3 @@ int NcfGridInfo::writeCoordDataToFile(Nc3File *ncFile, string &errStr)
   return 0;
 
 }  
-

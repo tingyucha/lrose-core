@@ -40,7 +40,7 @@
 #include "PolarManager.hh"
 #include "BscanManager.hh"
 #include "DisplayField.hh"
-#include "ColorMap.hh"
+#include <qtplot/ColorMap.hh>
 #include "Params.hh"
 #include "Reader.hh"
 #include "AllocCheck.hh"
@@ -122,7 +122,9 @@ HawkEye::HawkEye(int argc, char **argv) :
 
   AllocCheck::inst().setParams(&_params);
 
-  if (_params.debug) {
+  if (_params.debug >= Params::DEBUG_VERBOSE) {
+    LOG_STREAM_INIT(true, true, true, true);
+  } else if (_params.debug) {
     LOG_STREAM_INIT(true, false, true, true);
   } else {
     LOG_STREAM_INIT(false, false, false, false);
@@ -272,6 +274,8 @@ int HawkEye::_setupReader()
       }
       simReader->setFields(simFields);
 
+      _params.begin_in_archive_mode = pFALSE;
+
     }
 
   } // switch
@@ -359,7 +363,7 @@ int HawkEye::_setupDisplayFields()
           // if (_params.debug) colorMap.print(cout); // LOG(DEBUG_VERBOSE)); // cout);
           map = colorMap;
           // HERE: What is missing from the ColorMap object??? 
-        } catch (std::out_of_range ex) {
+        } catch (std::out_of_range &ex) {
           cerr << "WARNING - did not find default color map for field; using rainbow colors" << endl;
 	  // Just set the colormap to a generic color map
 	  // use range to indicate it needs update; update when we have access to the actual data values

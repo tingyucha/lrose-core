@@ -34,6 +34,7 @@
 #ifndef IwrfTsPulse_hh
 #define IwrfTsPulse_hh
 
+#include <atomic>
 #include <string>
 #include <vector>
 #include <deque>
@@ -76,9 +77,11 @@ public:
 
   // set the ops info
 
-  void setOpsInfo(IwrfTsInfo &info) {
-    if (&_info != &info) _info = info;
-  }
+  void setOpsInfo(IwrfTsInfo &info);
+  
+  // set the ops info except for the metadata queue
+
+  void setOpsInfoExceptMetadataQueue(IwrfTsInfo &info);
   
   // debugging
 
@@ -328,8 +331,12 @@ public:
 
   inline int getVolNum() const { return _hdr.volume_num; }
   inline int getSweepNum() const { return _hdr.sweep_num; }
+  inline int getBlockId() const { return _hdr.block_id; }
   inline double getPhaseDiff0() const { return _phaseDiff[0]; }
   inline double getPhaseDiff1() const { return _phaseDiff[1]; }
+
+  inline double getTxPhaseDeg() const { return _hdr.tx_phase_deg; }
+
   bool isHoriz() const; // is horizontally polarized
   inline bool antennaTransition() const { return (bool) _hdr.antenna_transition; }
 
@@ -395,6 +402,7 @@ public:
   inline void set_scan_mode(si32 x) { _hdr.scan_mode = x; }
   inline void set_follow_mode(si32 x) { _hdr.follow_mode = x; }
   inline void set_sweep_num(si32 x) { _hdr.sweep_num = x; }
+  inline void set_block_id(si32 x) { _hdr.block_id = x; }
   inline void set_volume_num(si32 x) { _hdr.volume_num = x; }
   inline void set_fixed_el(fl32 x) { _hdr.fixed_el = x; }
   inline void set_fixed_az(fl32 x) { _hdr.fixed_az = x; }
@@ -433,6 +441,12 @@ public:
   inline void set_end_of_volume() {
     _hdr.event_flags |= IWRF_END_OF_VOLUME;
   }
+  inline void set_start_of_block() {
+    _hdr.event_flags |= IWRF_START_OF_BLOCK;
+  }
+  inline void set_end_of_block() {
+    _hdr.event_flags |= IWRF_END_OF_BLOCK;
+  }
 
   inline void set_rvp8_i_version(si32 x) { _rvp8_hdr.i_version = x; }
   inline void set_rvp8_i_flags(ui08 x) { _rvp8_hdr.i_flags = x; }
@@ -464,6 +478,7 @@ public:
   inline si32 get_follow_mode() const { return _hdr.follow_mode; }
   inline si32 get_sweep_num() const { return _hdr.sweep_num; }
   inline si32 get_volume_num() const { return _hdr.volume_num; }
+  inline si32 get_block_id() const { return _hdr.block_id; }
   inline fl32 get_fixed_el() const { return _hdr.fixed_el; }
   inline fl32 get_fixed_az() const { return _hdr.fixed_az; }
   inline fl32 get_elevation() const { return _hdr.elevation; }
@@ -508,6 +523,12 @@ public:
   }
   inline bool get_end_of_volume() {
     return (_hdr.event_flags & IWRF_END_OF_VOLUME);
+  }
+  inline bool get_start_of_block() {
+    return (_hdr.event_flags & IWRF_START_OF_BLOCK);
+  }
+  inline bool get_end_of_block() {
+    return (_hdr.event_flags & IWRF_END_OF_BLOCK);
   }
 
   inline si32 get_rvp8_i_version() const { return _rvp8_hdr.i_version; }
@@ -555,6 +576,12 @@ public:
   static void vecPackIQFromFloatIQ
     (volatile ui16 iCodes_a[], volatile const fl32 fIQVals_a[],
      si32 iCount_a);
+
+  // dBm / phase unpack routine
+
+  static std::pair<fl32,fl32> _unpackDbmPhaseSi16
+    (si16 mag, si16 phase,
+     double magScale, double packedScale);
 
 protected:
 
@@ -621,8 +648,7 @@ private:
   
   // memory handling
 
-  mutable int _nClients;
-  mutable pthread_mutex_t _nClientsMutex;
+  mutable std::atomic<int> _nClients;
 
   // lookup table for converting packed 16-bit floats to 32-bit floats
 
@@ -631,6 +657,14 @@ private:
   static bool _sigmetLegacyUnpacking;
   static bool _sigmetLegacyUnpackingActive;
   static pthread_mutex_t _sigmetLutMutex;
+
+  // lookup table for converting packed mag/phase to floats
+  static bool _magPhaseLutReady;
+  static double _magPhaseLutScale;
+  static fl32 _magPhaseLutSin[65536];
+  static fl32 _magPhaseLutCos[65536];
+  static fl32 _magPhaseLutMag[65536];
+  static pthread_mutex_t _magPhaseLutMutex;
 
   // functions
   
@@ -643,6 +677,7 @@ private:
   void _setDataPointers();
   void _fixZeroPower();
   void _computeSigmetFloatLut() const;
+  static void _computeMagPhaseLut(double packedScale);
 
   void _clearIq();
   void _clearPacked();

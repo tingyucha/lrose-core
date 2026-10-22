@@ -1,0 +1,288 @@
+//////////////////////////////////////////////////////////////////////////////////
+//
+// paramdef.RadxPersistentClutter
+//
+// This file contains the TDRP parameter definitions for setting the clutter
+// pixels by processing a sufficient quantity of input data using a statistical
+// approach
+//
+//////////////////////////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "RadxPersistentClutter app";
+  p_text = "RadxPersistentClutter identifies persistent clutter in polar radar data, flags it, and writes out the statistics to a CfRadial file.";
+};
+
+commentdef {
+  p_header = "RadxApp";
+  p_text = "Parameters for general algorithm data filtering for Radx format input data";
+};
+
+commentdef {
+  p_header = "Debugging and process control";
+};
+
+paramdef string {
+  p_default = "test";
+  p_descr = "Program instance for process registration.";
+  p_help = "This application registers with procmap. This is the instance used for registration.";
+} instance;
+
+typedef enum
+  {
+   NONE, DEBUG, DEBUG_VERBOSE, DEBUG_EXTRA
+  } debug_e;
+
+paramdef enum debug_e
+{
+  p_descr = "debugging mode";
+  p_help = "NONE=as quiet as possible, DEBUG = minimal debug output, DEBUG_VERBOSE=more";
+  p_default = DEBUG;
+} debug_mode;
+
+commentdef {
+  p_header = "Data input";
+  p_text = " Parameters that control the reading of input data ";
+};
+
+paramdef boolean
+{
+  p_descr = "triggering debug";
+  p_help = "set to TRUE to debug triggering";
+  p_default = FALSE;
+} debug_triggering;
+
+typedef enum {
+  REALTIME, ARCHIVE, FILELIST
+} mode_t;
+
+paramdef enum mode_t
+{
+  p_default = FILELIST;
+  p_descr = "Operating mode";
+  p_help = "In REALTIME mode, the program waits for a new input file.  "
+           "In ARCHIVE mode, it moves through the data between the start "
+           "and end times set on the command line. "
+           "In FILELIST mode, it moves through the list of file names "
+           "specified on the command line. "
+           "Paths (in ARCHIVE mode, at least) MUST contain a "
+           "day-directory above the data file -- ./data_file.ext will not "
+           "work as a file path, but ./yyyymmdd/data_file.ext will.";
+} mode;
+
+paramdef string
+{
+  p_descr = "input directory name";
+  p_help = "Location of input data in CfRadial format";
+  p_default = "unknown";
+} input_dir;
+
+paramdef int
+{
+  p_descr = "max_realtime_data_age_secs";
+  p_help = "maximum allowed difference (seconds) between read request time and data time";
+  p_default = 120;
+} max_realtime_data_age_secs;
+
+//////////////////////////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header =
+    "Threading";
+  p_text =
+    "Optional threading of beams, depends on app whether params are used or not";
+}
+
+paramdef int
+{
+  p_descr = "Number of threads";
+  p_help = "set to 1 or 0 for no threading";
+  p_default = 0;
+} num_threads;
+
+paramdef boolean
+{
+  p_descr = "Thread debugging";
+  p_help = "TRUE to see thread related debugging";
+  p_default = FALSE;
+} thread_debug;
+
+commentdef
+{
+  p_header = "Scan details";
+  p_text = "We specify the scan angles for which the clutter will be analyzed. This is the 'ideal'. The actual measurements are mapped onto this ideal scan.";
+};
+
+typedef enum
+  {
+   PPI, RHI
+  } scan_mode_t;
+
+paramdef enum scan_mode_t
+{
+  p_descr = "Scan mode";
+  p_help = "PPI - horizontal scanning, e.g. surveillance. RHI - vertical scanning";
+  p_default = PPI;
+} scan_mode;
+
+paramdef double
+{
+  p_descr = "List of fixed angles for desired sweeps (deg)";
+  p_help = "PPI mode: elevations. RHIs: azimuths.";
+  p_default = { 0.5 };
+} sweep_fixed_angles[];
+
+paramdef double
+{
+  p_descr = "Starting scan angle for rays (deg).";
+  p_help = "In PPI mode, this is the first azimuth in a clockwise sweep. In RHI mode, this is the lowest elevation in a sweep.";
+  p_default = 0.0;
+} first_ray_angle;
+
+paramdef double
+{
+  p_descr = "Ending scan angle for rays (deg).";
+  p_help = "In PPI mode, this is the last azimuth in a clockwise sweep. In RHI mode, this is the highest elevation in a sweep.";
+  p_default = 359.99;
+} last_ray_angle;
+
+paramdef double
+{
+  p_descr = "Delta scan angle between consecutive rays (deg).";
+  p_help = "In PPI mode, this is the azimuth difference between rays. In PPI mode the delta should be positive, i.e. for a clockwise sweep. In RHI mode, this is the elevation difference between rays.";
+  p_default = 1.0;
+} delta_ray_angle;
+
+paramdef double
+{
+  p_descr = "Azimumth tolerance";
+  p_help = "Allowed degrees difference between azimuth values for rays from measured volumes to be mapped onto the clutter grids";
+  p_default = 0.1;
+} az_tolerance_degrees;
+
+paramdef double
+{
+  p_descr = "Elevation tolerance";
+  p_help = "Allowed degrees difference between elevation values for rays from measured volumes to be mapped onto the clutter grids";
+  p_default = 0.1;
+} elev_tolerance_degrees;
+
+paramdef double {
+  p_default = 100.0;
+  p_descr = "Specified maximim range - km.";
+  p_help = "Gates beyond this range are removed.";
+} max_range_km;
+
+//////////////////////////////////////////////////////////////////////////////////
+
+commentdef
+{
+  p_header = "RadxPersistentClutter";
+  p_text = "Parameters for setting clutter locations of one input field.";
+};
+
+paramdef string
+{
+  p_descr = "input field name";
+  p_help = "name of field to find clutter in";
+  p_default = "unknown";
+} input_field_name;
+
+paramdef string
+{
+  p_descr = "output field name";
+  p_help = "name to give final output clutter field";
+  p_default = "clutter";
+} output_field_name;
+
+paramdef double
+{
+  p_descr = "threshold";
+  p_help = "If data is always above this value it is a clutter location";
+  p_default = 0.0;
+} threshold;
+
+paramdef double
+{
+  p_descr = "Clutter percentile";
+  p_help = "percentile to use in clutter value determination (see the paper, section III. Correction of Radar Reflectivity";
+  p_default = 0.5;
+} clutter_percentile;
+
+paramdef double
+{
+  p_descr = "missing clutter value";
+  p_help = "value to give clutter estimates when the wanted percentile is the missing data value";
+  p_default = -25.0;
+} missing_clutter_value;
+
+paramdef double
+{
+  p_descr = "variation in threshold for convergence";
+  p_help = "The threshold as percent of total volumes to identify a point as clutter should converge to a stable value.  This value is the allowed tolerance (change) to be considered stable";
+  p_default = 0.025;
+} threshold_tolerance;
+
+paramdef double
+{
+  p_descr = "Maximum percent of pixels that can change for convergence";
+  p_help = "The percentage of pixels that change from clutter to nonclutter or back should decrease to a minimum for convergence";
+  p_default = 0.001;
+} maximum_percent_change;
+
+paramdef double
+{
+  p_descr = "Number of volumes that show stablity prior to considering the situation stable";
+  p_help = "The threshold converges, and needs to stay converged for this many volumes before giving the thumbs up";
+  p_default = 10;
+} minimum_stable_volumes;
+
+paramdef double
+{
+  p_descr = "histogram resolution";
+  p_help = "Histograms are used to set clutter value. This is the resolution";
+  p_default = 0.2;
+} histogram_resolution;
+
+paramdef double
+{
+  p_descr = "histogram max";
+  p_help = "Histograms are used to set clutter value. This is the maximum bin";
+  p_default = 50.0;
+} histogram_max;
+
+//////////////////////////////////////////////////////////////////////////////////
+
+commentdef
+{
+  p_header = "Data output";
+  p_text = "Parameters for writing results";
+};
+
+paramdef string
+{
+  p_descr = "Location for final clutter statistics.";
+  p_help = "Final output is only written at the end of a processing phase, with the output time equal to the time of the first volume processed.";
+  p_default = "unknown";
+} clutter_stats_output_dir;
+
+paramdef boolean
+{
+  p_descr = "Write out diagnostic output";
+  p_default = FALSE;
+} write_diagnostic_output;
+
+paramdef string
+{
+  p_descr = "Dir for diagnostic output";
+  p_help = "If true, output from each volume is written, to show the build up of skill through time.";
+  p_default = "unknown";
+} diagnostic_volume_dir;
+
+paramdef string
+{
+  p_descr = "Output ascii dir to which to write plottables";
+  p_help = "";
+  p_default = "unknown";
+} diagnostic_ascii_dir;
+

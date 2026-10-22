@@ -49,105 +49,56 @@
 #define CalcMoisture_HH
 
 #include <string>
-
-#include <dsdata/DsTrigger.hh>
 #include <Mdv/MdvxField.hh>
 #include <toolsa/DateTime.hh>
 
 #include "Args.hh"
 #include "Params.hh"
+class DsInputPath;
 
 using namespace std;
-
 
 class CalcMoisture
 {
  public:
 
-  ////////////////////
-  // Public members //
-  ////////////////////
-
   // Flag indicating whether the program status is currently okay.
 
   bool okay;
 
-
-  ////////////////////
-  // Public methods //
-  ////////////////////
-
-  //////////////////////////////
-  // Constructors/Destructors //
-  //////////////////////////////
-
-  /*********************************************************************
-   * Destructor
-   */
-
-  ~CalcMoisture(void);
+  // Constructors/Destructor
   
+  CalcMoisture(int argc, char **argv);
+  virtual ~CalcMoisture();
 
-  /*********************************************************************
-   * Inst() - Retrieve the singleton instance of this class.
-   */
-
-  static CalcMoisture *Inst(int argc, char **argv);
-  static CalcMoisture *Inst();
+  // Run the app
   
-
-  /*********************************************************************
-   * init() - Initialize the local data.
-   *
-   * Returns true if the initialization was successful, false otherwise.
-   */
-
-  bool init();
+  int run();
   
+private:
 
-  /////////////////////
-  // Running methods //
-  /////////////////////
-
-  /*********************************************************************
-   * run() - run the program.
-   */
-
-  void run();
+  string _progName;
+  Args _args;
+  Params _params;
+  char *_paramsPath;
   
+  // data trigger
 
- private:
-
-  /////////////////////
-  // Private members //
-  /////////////////////
-
-  // Singleton instance pointer
-
-  static CalcMoisture *_instance;
-  
-  // Program parameters.
-
-  char *_progName;
-  Args *_args;
-  Params *_params;
-  
-  // Triggering object
-
-  DsTrigger *_dataTrigger;
-  
+  DsInputPath *_input;
 
   /////////////////////
   // Private methods //
   /////////////////////
 
   /*********************************************************************
-   * Constructor -- private because this is a singleton object
+   * _processData() - Process data for the given trigger time.
+   *
+   * Returns 0 on success, -1 on failure.
    */
-
-  CalcMoisture(int argc, char **argv);
   
-
+  int _processData(const string filePath,
+                   const DateTime &fileTime);
+  
   /*********************************************************************
    * _calcDewPointField() - Calculate the dew point field from the given
    *                        data.
@@ -155,8 +106,7 @@ class CalcMoisture
    * Returns a pointer to the dew point field on success, 0 on failure.
    */
 
-  MdvxField *_calcDewPointField(const MdvxField &e_field) const;
-  
+  MdvxField *_calcDewPointField(const MdvxField &e_field);
 
   /*********************************************************************
    * _calcDewPointField() - Calculate the relative humidity field from
@@ -166,7 +116,7 @@ class CalcMoisture
    */
 
   MdvxField *_calcRelativeHumidityField(const MdvxField &dp_field,
-                                        const double temp_k) const;
+                                        const double temp_k);
 
   /*********************************************************************
    * _calcWaterVaporField() - Calculate the water vapor field from the
@@ -177,37 +127,18 @@ class CalcMoisture
 
   MdvxField *_calcWaterVaporField(const MdvxField &n_field,
 				  const double temp_k,
-				  const double press_mb) const;
-  
+				  const double press_mb);
 
   /*********************************************************************
    * _getTempPress() - Get the mean temperature (in K) and pressure (in mb)
    *                   values using the stations specifiec in the parameter
    *                   file.
    *
-   * Returns true on success, false on failure.
+   * Returns 0 on success, -1 on failure.
    */
 
-  bool _getTempPress(const DateTime &data_time,
-		     double &temp_k, double &press_mb);
-  
-
-  /*********************************************************************
-   * _initTrigger() - Initialize the data trigger.
-   *
-   * Returns true on success, false on failure.
-   */
-
-  bool _initTrigger(void);
-  
-
-  /*********************************************************************
-   * _processData() - Process data for the given trigger time.
-   *
-   * Returns true on success, false on failure.
-   */
-
-  bool _processData(const DateTime &trigger_time);
+  int _getTempPress(const DateTime &data_time,
+                    double &temp_k, double &press_mb);
   
 
 };

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===========================================================================
 #
@@ -50,7 +50,7 @@ def main():
 
     usage = "usage: %prog [options]"
     releaseDirDefault = os.path.join(homeDir, 'releases')
-    logDirDefault = '/tmp/create_src_release/logs'
+    logDirDefault = '/tmp/logs/create_src_release'
     parser = OptionParser(usage)
     parser.add_option('--debug',
                       dest='debug', default=True,
@@ -67,16 +67,16 @@ def main():
     parser.add_option('--package',
                       dest='package', default='lrose-core',
                       help='Package name. Options are: ' + \
-                      'lrose-core (default), lrose-blaze, lrose-cyclone, lrose-cidd')
+                      'lrose-core (default), lrose-radx, lrose-cidd')
     parser.add_option('--releaseDir',
                       dest='releaseTopDir', default=releaseDirDefault,
-                      help='Top-level release dir')
+                      help='Top-level release dir, default: ' + releaseDirDefault)
     parser.add_option('--tag',
                       dest='tag', default="master",
-                      help='Tag for checking out from git')
+                      help='Tag for cloning from git, default master')
     parser.add_option('--logDir',
                       dest='logDir', default=logDirDefault,
-                      help='Logging dir')
+                      help='Log dir, default: ' + logDirDefault)
     parser.add_option('--force',
                       dest='force', default=False,
                       action="store_true",
@@ -96,9 +96,10 @@ def main():
     if (options.package != "lrose-core" and
         options.package != "lrose-blaze" and
         options.package != "lrose-cyclone" and
+        options.package != "lrose-radx" and
         options.package != "lrose-cidd") :
         print("ERROR: invalid package name: %s:" % options.package, file=sys.stderr)
-        print("  options: lrose-core, lrose-blaze, lrose-cyclone, lrose-cidd",
+        print("  options: lrose-core, lrose-blaze, lrose-cyclone, lrose-radx, lrose-cidd",
               file=sys.stderr)
         sys.exit(1)
 
@@ -189,10 +190,15 @@ def main():
     trimToMakefiles("libs")
     trimToMakefiles("apps")
 
-    # set up autoconf
+    # set up autoconf - no longer tested and supported
 
-    logPath = prepareLogFile("setup-autoconf");
-    setupAutoconf()
+    # logPath = prepareLogFile("setup-autoconf");
+    # setupAutoconf()
+
+    # create CMakeFiles.txt files for cmake
+    
+    logPath = prepareLogFile("create-cmakefiles");
+    createCMakeFiles()
 
     # create the release information file
     
@@ -201,8 +207,14 @@ def main():
     # run qmake for QT apps to create moc_ files
 
     logPath = prepareLogFile("create-qt-moc-files");
-    hawkEyeDir = os.path.join(codebaseDir, "apps/radar/src/HawkEye")
-    createQtMocFiles(hawkEyeDir)
+    mocDirs = ["apps/radar/src/HawkEye",
+               "apps/radar/src/HawkEdit",
+               "apps/radar/src/IpsEye",
+               "apps/radar/src/Sprite"]
+
+    for dir in mocDirs:
+        mocPath = os.path.join(codebaseDir, dir)
+        createQtMocFiles(mocPath)
 
     # prune any empty directories
 
@@ -216,9 +228,9 @@ def main():
 
     # create the brew formula for OSX builds
 
-    if (options.osx):
-        logPath = prepareLogFile("create-brew-formula");
-        createBrewFormula()
+    #if (options.osx):
+    logPath = prepareLogFile("create-brew-formula");
+    createBrewFormula()
 
     # move the tar file up into release dir
 
@@ -310,10 +322,11 @@ def gitCheckout():
              " https://github.com/NCAR/lrose-core")
     shellCmd("git clone https://github.com/NCAR/lrose-netcdf")
     shellCmd("git clone https://github.com/NCAR/lrose-displays")
-    os.chdir(os.path.join(tmpDir, "lrose-core"))
-    shellCmd("git clone https://github.com/mmbell/fractl")
-    shellCmd("git clone https://github.com/mmbell/vortrac")
-    shellCmd("git clone https://github.com/mmbell/samurai")
+
+    # os.chdir(os.path.join(tmpDir, "lrose-core"))
+    # shellCmd("git clone https://github.com/mmbell/fractl")
+    # shellCmd("git clone https://github.com/mmbell/vortrac")
+    # shellCmd("git clone https://github.com/mmbell/samurai")
 
 ########################################################################
 # set up autoconf for configure etc
@@ -353,6 +366,20 @@ def setupAutoconf():
         shellCmd("../build/autoconf/createConfigure.am.py --dir ." +
                  " --baseName configure.base.shared --shared" +
                  " --pkg " + options.package + argsStr)
+
+########################################################################
+# create CMakeFiles
+
+def createCMakeFiles():
+
+    os.chdir(coreDir)
+
+    if (options.package == "lrose-cidd"):
+        shellCmd("./build/cmake/createCMakeLists.py --coreDir . --static --m32")
+    elif (options.static):
+        shellCmd("./build/cmake/createCMakeLists.py --coreDir . --static")
+    else:
+        shellCmd("./build/cmake/createCMakeLists.py --coreDir .")
 
 ########################################################################
 # Run qmake for QT apps such as HawkEye to create _moc files
@@ -421,8 +448,8 @@ def createTarFile():
     for dirName in [ "build", "codebase", "docs", "release_notes" ]:
         os.rename(dirName, os.path.join(tarDir, dirName))
 
-    for dirName in [ "fractl", "vortrac", "samurai" ]:
-        os.rename(dirName, os.path.join(tarDir, dirName))
+    #for dirName in [ "fractl", "vortrac", "samurai" ]:
+    #    os.rename(dirName, os.path.join(tarDir, dirName))
 
     # move netcdf support into tar dir
 
@@ -465,6 +492,136 @@ def createTarFile():
     shellCmd("tar cvfzh " + tarName + " " + releaseName)
     
 ########################################################################
+# template for brew formula using autoconf
+
+formulaBodyAuto = """
+
+require 'formula'
+
+class LroseCore < Formula
+
+  homepage 'https://github.com/NCAR/lrose-core'
+
+  url '{0}'
+  version '{1}'
+  sha256 '{2}'
+
+  depends_on 'hdf5'
+  depends_on 'netcdf'
+  depends_on 'udunits'
+  depends_on 'fftw'
+  depends_on 'flex'
+  depends_on 'jpeg'
+  depends_on 'libpng'
+  depends_on 'libzip'
+  depends_on 'qt6'
+  depends_on 'pkg-config'
+  depends_on 'cmake'
+  depends_on 'rsync'
+  depends_on 'libx11'
+  depends_on 'libxext'
+
+  def install
+
+    ENV["PKG_CONFIG_PATH"] = "/usr/local/opt/qt@5/lib/pkgconfig"
+    ENV['LROSE_INSTALL_DIR'] = prefix
+    Dir.chdir("codebase")
+    system
+    system "./configure", "--disable-dependency-tracking", "--prefix=#{{prefix}}"
+    system "make install"
+    Dir.chdir("..")
+    system "rsync", "-av", "share", "#{{prefix}}"
+
+  end
+
+  def test
+    system "#{{bin}}/RadxPrint", "-h"
+  end
+
+end
+"""
+
+########################################################################
+# template for brew formula using cmake
+
+formulaBodyCmake = """
+
+require 'formula'
+
+class LroseCore < Formula
+
+  homepage 'https://github.com/NCAR/lrose-core'
+
+  url '{0}'
+  version '{1}'
+  sha256 '{2}'
+  license 'BSD'
+
+  depends_on 'hdf5'
+  depends_on 'netcdf'
+  depends_on 'udunits'
+  depends_on 'fftw'
+  depends_on 'flex'
+  depends_on 'jpeg'
+  depends_on 'libpng'
+  depends_on 'libzip'
+  depends_on 'qt6'
+  depends_on 'pkg-config'
+  depends_on 'cmake'
+  depends_on 'rsync'
+  depends_on 'libx11'
+  depends_on 'libxext'
+
+  def install
+
+    ENV["PKG_CONFIG_PATH"] = "/usr/local/opt/qt@5/lib/pkgconfig"
+    ENV['LROSE_INSTALL_DIR'] = prefix
+    Dir.mkdir("codebase/build")
+    Dir.chdir("codebase/build") do
+      # run cmake to create Makefiles
+      system "cmake", "-DCMAKE_INSTALL_PREFIX=#{{prefix}}", ".."
+      # build tdrp lib
+      Dir.chdir("libs/tdrp/src") do
+        system "make -j 8 install"
+      end
+      # build tdrp_gen app - this is a dependency
+      Dir.chdir("apps/tdrp/src/tdrp_gen") do
+        system "make -j 8 install"
+      end
+      # build everything else
+      system "make -j 8 install"
+    end
+    # install the color scales
+    system "rsync", "-av", "share", "#{{prefix}}"
+
+  end
+
+  def test
+    system "#{{bin}}/RadxPrint", "-h"
+  end
+
+end
+"""
+
+########################################################################
+# create the brew formula for OSX builds
+
+def buildLroseCoreFormula(tar_url, tar_name, formula_name):
+
+    # os.chdir(coreDir)
+
+    """ build a Homebrew forumula file for lrose-core """	
+    dash = tar_name.find('-')
+    period = tar_name.find('.', dash)
+    version = tar_name[dash+1:period]
+    result = subprocess.check_output(("sha256sum", tar_name))
+    checksum = result.split()[0].decode('ascii')
+    formula = formulaBodyCmake.format(tar_url, version, checksum)
+    outf = open(formula_name, 'w')
+    outf.write(formula)
+    outf.close()
+
+########################################################################
 # create the brew formula for OSX builds
 
 def createBrewFormula():
@@ -476,23 +633,9 @@ def createBrewFormula():
     tarUrl = "https://github.com/NCAR/lrose-core/releases/download/" + \
              options.package + "-" + versionStr + "/" + tarName
     formulaName = options.package + ".rb"
-    scriptName = "formulas/build_" + options.package + "_formula"
-    buildDirPath = os.path.join(tarDir, "build")
-    scriptPath = os.path.join(buildDirPath, scriptName)
 
-    # check if script exists
-
-    if (os.path.isfile(scriptPath) == False):
-        print("WARNING - ", thisScriptName, file=logFp)
-        print("  No script: ", scriptPath, file=logFp)
-        print("  Will not build brew formula for package", file=logFp)
-        return
-
-    # create the brew formula file
-
-    shellCmd(scriptPath + " " + tarUrl + " " +
-             tarName + " " + formulaName)
-
+    buildLroseCoreFormula(tarUrl, tarName, formulaName)
+    
     # move it up into the release dir
 
     os.rename(os.path.join(coreDir, formulaName),

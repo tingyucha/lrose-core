@@ -75,9 +75,10 @@ public:
   } debug_t;
 
   typedef enum {
-    DSR_MOMENTS_INPUT = 0,
-    TS_FILE_INPUT = 1,
-    TS_FMQ_INPUT = 2
+    RADX_MOMENTS_INPUT = 0,
+    DSR_MOMENTS_INPUT = 1,
+    TS_FILE_INPUT = 2,
+    TS_FMQ_INPUT = 3
   } input_mode_t;
 
   typedef enum {
@@ -113,7 +114,7 @@ public:
 
   typedef struct {
     moments_id_t id;
-    char* dsr_name;
+    char* moments_name;
   } input_field_t;
 
   ///////////////////////////
@@ -136,7 +137,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -422,6 +423,12 @@ public:
 
   tdrp_bool_t seek_to_start_of_input;
 
+  char* input_dir;
+
+  char* start_time;
+
+  char* end_time;
+
   int n_samples;
 
   tdrp_bool_t invert_hv_flag;
@@ -445,6 +452,14 @@ public:
 
   double start_height;
 
+  double cumulative_azimuth_moved_for_stats;
+
+  double cumulative_azimuth_moved_for_debug_print;
+
+  double max_time_gap_for_stats;
+
+  double min_valid_count_for_stats;
+
   double min_snr;
 
   double max_snr;
@@ -463,19 +478,19 @@ public:
 
   double max_ht_for_stats;
 
-  char* output_dir;
+  tdrp_bool_t write_stats_to_text_file;
 
-  tdrp_bool_t write_global_stats_to_text_file;
-
-  tdrp_bool_t write_360deg_stats_to_text_file;
+  char* text_output_dir;
 
   tdrp_bool_t write_zdr_point_values_to_text_file;
 
-  tdrp_bool_t write_results_to_spdb;
+  char* zdr_points_output_dir;
+
+  tdrp_bool_t write_stats_to_spdb;
 
   char* spdb_output_url;
 
-  char* radar_name;
+  char* radar_name_for_spdb;
 
   char _end_; // end of data region
               // needed for zeroing out data
@@ -484,7 +499,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[42];
+  mutable TDRPtable _table[51];
 
   const char *_className;
 

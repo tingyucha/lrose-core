@@ -33,16 +33,16 @@
 
 include $(LROSE_CORE_DIR)/build/make_include/lrose_make_macros
 
-MODULE_TYPE=progcpp
-
 TARGET_FILE = mdv_constant_data
 
 LOC_INCLUDES = $(NETCDF4_INCS)
 
-LOC_LIBS = -ldsdata -lMdv -lRadx -lNcxx -leuclid \
-	-lSpdb -ldsserver -ldidss -lrapformats \
-	-ltoolsa -lpthread -ldataport -ltdrp $(NETCDF4_LIBS) \
-	-lbz2 -lz
+LOC_LIBS = \
+	-ldsdata -lMdv -lSpdb -lFmq \
+	-lrapformats -ldsserver -ldidss -leuclid \
+	-lrapmath -ltoolsa -ldataport -ltdrp \
+	-lRadx -lNcxx -lphysics -lpthread \
+	$(NETCDF4_LIBS) -lbz2 -lz
 
 LOC_LDFLAGS = $(NETCDF4_LDFLAGS)
 
@@ -61,27 +61,23 @@ CPPC_SRCS = \
 	MdvConstantData.cc
 
 #
-# standard targets
+# tdrp macros
 #
 
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_targets
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_macros
 
 #
-# local targets
+# standard C++ targets
 #
 
-depend: depend_generic
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
 
 #
-# TDRP support
+# tdrp targets
 #
 
-Params.cc: paramdef.$(TARGET_FILE)
-	tdrp_gen -f paramdef.$(TARGET_FILE) -c++ \
-		-prog $(TARGET_FILE)
-
-clean_tdrp:
-	$(RM) Params.hh Params.cc
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

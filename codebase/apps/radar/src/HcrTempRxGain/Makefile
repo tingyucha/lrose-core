@@ -35,18 +35,16 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_macros
 
 TARGET_FILE = HcrTempRxGain
 
-LOC_INCLUDES =
+LOC_INCLUDES = $(NETCDF4_INCS)
+LOC_LDFLAGS = $(NETCDF4_LDFLAGS)
 
 LOC_LIBS = \
-          -ldsdata -lradar -lFmq -lSpdb -lMdv  -ldsserver -ldidss \
-          -lRadx -lNcxx -lrapformats -leuclid -lrapmath \
-          -lphysics -ltoolsa -ldataport -ltdrp \
-          $(NETCDF4_LIBS) \
-          -lfftw3 -lbz2 -lz -lpthread
-
-LOC_LDFLAGS =
-
-LOC_CFLAGS =
+	-ldsdata -lradar -lMdv -lSpdb \
+	-lFmq -lrapformats -ldsserver -ldidss \
+	-leuclid -lrapmath -ltoolsa -ldataport \
+	-ltdrp -lRadx -lNcxx -lphysics \
+	$(NETCDF4_LIBS) -lfftw3 -lbz2 -lz \
+	-lpthread
 
 HDRS = \
 	Params.hh \
@@ -86,4 +84,5 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
 depend: depend_generic
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

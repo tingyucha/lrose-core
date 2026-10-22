@@ -38,6 +38,7 @@
 #include <vector>
 #include <cstdio>
 
+#include "Args.hh"
 #include "Params.hh"
 #include "LayerStats.hh"
 
@@ -53,16 +54,21 @@ public:
   // constructor
 
   StatsMgr(const string &prog_name,
+           const Args &args,
 	   const Params &params);
 
   // destructor
   
-  ~StatsMgr();
+  virtual ~StatsMgr();
+
+  // run 
+
+  virtual int run() = 0;
 
   // set methods
 
-  void setStartTime(double start_time) { _startTime = start_time; }
-  void setEndTime(double end_time) { _endTime = end_time; }
+  void setStartTime(double start_time);
+  void setEndTime(double latest_time);
   void setPrt(double prt) { _prt = prt; }
   void setEl(double el);
   void setAz(double az);
@@ -78,27 +84,27 @@ public:
 
   // compute methods
   
-  void clearStats360();
-  void computeStats360();
-  void computeGlobalStats();
-  int writeResults360ToSpdb();
+  void clearStats();
+  int computeStats();
+  int computeGlobalStats();
   
-  // print methods
+  // write methods
   
-  int writeResults360();
-  void printResults360(FILE *out);
+  int writeStats();
+  void printStats(FILE *out);
 
-  int writeGlobalResults();
-  void printGlobalResults(FILE *out);
+  int writeGlobalStats();
+  void printGlobalStats(FILE *out);
 
   int writeZdrPoints();
 
+  int writeStatsToSpdb();
+
 protected:
   
-private:
-
   string _progName;
-  Params _params;
+  const Args &_args;
+  const Params &_params;
 
   // moments data
   
@@ -106,15 +112,18 @@ private:
 
   // analysis
 
-  double _startTime;
-  double _endTime;
-  double _startTime360;
+  double _startTimeGlobal;
+  double _endTimeGlobal;
+  double _startTimeStats;
+  double _endTimeStats;
+  double _prevTime;
   double _prt;
   double _el;
   double _az;
   double _prevAz;
-  double _azMoved;
-  int _nRotations;
+  double _azMovedGlobal;
+  double _azMovedStats;
+  double _azMovedPrint;
 
   // elevation
 
@@ -145,7 +154,8 @@ private:
   double _globalCountZdrm;
   double _globalMeanZdrm;
   double _globalSdevZdrm;
-  double _globalMeanOfSdevZdrm;
+
+private:
 
 };
 

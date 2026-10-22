@@ -1,0 +1,1027 @@
+/*********************************************************
+ * Parameter definitions for RadxCartDP
+ *
+ * Mike Dixon, EOL, NCAR, Boulder, CO, USA, 80307-3000
+ *
+ * Nov 2025
+ */
+
+//////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "RadxCartDP reads radar fields in polar coordinates, derives dual-polarization-based fields in 3D Cartesian coordinates, and writes out a 3D Cartesian file in MDV CF-NetCDF format.";
+  p_text = "RadxCartDP peforms the following:\n\n * Reads in dual-polarization data in polar coords.\n\n * Computes KDP and texture-based feature fields in polar coords.\n\n * Interpolates those fields onto a 3D Cartesian grid.\n\n * Reads model data and interpolates onto the 3D grid.\n\n * Computes PID and precip rate on the 3D grid.\n\n * Reads in terrain height (DEM) data and interpolates onto the 2D grid.\n\n * Estimates beam blockage fraction for each point in the 3D grid.\n\n * Computes QPE from the 3D precipitation rate, the terrain height and beam blockage.\n\n * Computes the 3D convective/stratiform partition.";
+}
+
+commentdef {
+  p_header = "DEBUGGING";
+}
+
+typedef enum {
+  DEBUG_OFF, DEBUG_NORM, DEBUG_VERBOSE, DEBUG_EXTRA
+} debug_t;
+
+paramdef enum debug_t {
+  p_default = DEBUG_OFF;
+  p_descr = "Debug option";
+  p_help = "If set, debug messages will be printed appropriately";
+} debug;
+
+commentdef {
+  p_header = "RADAR DATA INPUT";
+}
+
+paramdef string {
+  p_default = ".";
+  p_descr = "Input directory for searching for files.";
+  p_help = "Files will be searched for in this directory. This is ignored if the list of files is  specified on the command line using the -f option.";
+} radar_input_dir;
+
+typedef enum {
+  FILELIST, ARCHIVE, REALTIME
+} mode_t;
+
+paramdef enum mode_t {
+  p_default = FILELIST;
+  p_descr = "Operating mode";
+  p_help = "In FILELIST mode, we move through the list of file names specified on the command line.\n\nIn REALTIME mode, the program waits for a new input file to arrive in 'input_dir'. We assume that latest_data_info files are available.\n\nIn ARCHIVE mode, we move through the files in input_dir between the start and end times set on the command line.\n\nIn ARCHIVE mode, input_dir must be one above the day-directory.";
+} radar_input_mode;
+
+paramdef int {
+  p_default = 300;
+  p_descr = "Maximum age of realtime data (secs)";
+  p_help =  "REALTIME mode only. Only data files less old than this will be processed.";
+} radar_max_realtime_data_age_secs;
+
+paramdef string {
+  p_default = "";
+  p_descr = "File name extension.";
+  p_help = "If set, only files with this extension will be processed.";
+} radar_file_search_ext;
+
+paramdef string {
+  p_default = "";
+  p_descr = "File name sub-string.";
+  p_help = "If set, only files with names containing this sub-string will be processed.";
+} radar_file_search_substr;
+
+paramdef string {
+  p_default = "2015 06 26 00 00 00";
+  p_descr = "Set the start time for ARCHIVE mode analysis.";
+  p_help = "Format is 'yyyy mm dd hh mm ss'.";
+} start_time;
+
+paramdef string {
+  p_default = "2015 06 26 12 00 00";
+  p_descr = "Set the end time for ARCHIVE mode analysis.";
+  p_help = "Format is 'yyyy mm dd hh mm ss'.";
+} end_time;
+
+commentdef {
+  p_header = "RADAR FIELD NAMES";
+}
+
+typedef enum {
+  DBZ, VEL, WIDTH, SNR, ZDR, PHIDP, RHOHV, LDR
+} radar_field_type_t;
+
+typedef struct {
+  radar_field_type_t field_type;
+  boolean is_available;
+  string input_name;
+  boolean do_write;
+  string output_name;
+} radar_field_t;
+
+paramdef struct radar_field_t {
+  p_default = { 
+    { DBZ, TRUE, "DBZ", TRUE, "DBZ" },
+    { VEL, TRUE, "VEL", TRUE, "VEL" },
+    { WIDTH, TRUE, "WIDTH", TRUE, "WIDTH" },
+    { ZDR, TRUE, "ZDR", TRUE, "ZDR" },
+    { PHIDP, TRUE, "PHIDP", TRUE, "PHIDP" },
+    { RHOHV, TRUE, "RHOHV", TRUE, "RHOHV" },
+    { SNR, FALSE, "SNR", TRUE, "SNR" },
+    { LDR, FALSE, "LDR", FALSE, "LDR" }
+  };
+  p_descr = "Details of available radar fields. Exactly one of each field type must be present in the parameter file.";
+  p_help = "'is_available' specifies whether the field is available in the input file. 'do_write' specifies wiether to write the field in the output data set. You can rename the field on output. The following fields are required: DBZ, VEL, WIDTH, ZDR, PHIDP, RHOHV.";
+} radar_fields[];
+
+paramdef boolean {
+  p_default = TRUE;
+  p_descr = "Option to estimate SNR from DBZ field.";
+  p_help = "If true, we estimate the SNR field from DBZ, using 'noise_dbz_at_100km' adjusted for range.";
+} estimate_snr_from_dbz;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "The estimates noise value, represented as dBZ at a range of 100km.";
+  p_help = "This is used for estimating the SNR from the DBZ field. It is only used if SNR is not available. The SNR will be computed by range-correcting this value and using it as the noise value.";
+} noise_dbz_at_100km;
+
+commentdef {
+  p_header = "MODEL DATA FOR ENVIRONMENTAL CONDITIONS";
+  p_text = "We need access to model data to provide a temperature profile. We may also store the moisture and wind fields from the model for later use.";
+}
+
+paramdef string {
+  p_default = "mdv/model";
+  p_descr = "URL for reading model data, in MDV/Netcdf-CF format.";
+  p_help = "We read in the model data that is closest in time to the radar data.";
+} model_input_url;
+
+paramdef int {
+  p_default = 3600;
+  p_descr = "Search margin for model data (secs)";
+  p_help =  "We search for model data within this margin of the radar data time.";
+} model_search_margin_secs;
+
+// paramdef boolean {
+//   p_default = FALSE;
+//   p_descr = "Write out interpolated model data?";
+//   p_help = "This is useful for debugging.";
+// } write_interpolated_model_data;
+
+// paramdef string {
+//   p_default = "mdv/interp_model";
+//   p_descr = "URL for interpolated model data, in MDV/Netcdf-CF format.";
+//   p_help = "We interpolate the model data onto the output grid. Writing out this data is useful for debugging, allowing us to compare the original model with the interpolated model.";
+// } interpolated_model_output_url;
+
+typedef enum {
+  TEMP, RH, UVEL, VVEL, WVEL, MODEL_NOT_SET
+} model_field_type_t;
+
+typedef struct {
+  model_field_type_t field_type;
+  boolean is_available;
+  string input_name;
+  boolean do_write;
+  string output_name;
+} model_field_t;
+
+paramdef struct model_field_t {
+  p_default = { 
+    { TEMP, TRUE, "TEMP", TRUE, "TEMP" },
+    { RH, TRUE, "RH", TRUE, "RH" },
+    { UVEL, FALSE, "UVEL", FALSE, "UVEL" },
+    { VVEL, FALSE, "VVEL", FALSE, "VVEL" },
+    { WVEL, FALSE, "WVEL", FALSE, "WVEL" }
+  };
+  p_descr = "Details of available model fields. Exactly one of each field type must be present in the parameter file.";
+  p_help = "'is_available' specifies whether the field is available in the input file. 'do_write' specifies wiether to write the field in the output data set. You can rename the field on output.";
+} model_fields[];
+
+commentdef {
+  p_header = "BEAM BLOCKAGE";
+  p_text = "Beam blockage and terrain ht are computed by CartBeamBlock, using the same grid as RadxCartDP. We first run RadxCartDP without beam blockage. CartBeamBlock reads in one of the resulting files and uses it as a termplate for computing beam blockage. This ensures that the grids are identical.";
+}
+
+paramdef boolean {
+  p_default = TRUE;
+  p_descr = "Read in beam blockage data computed using CartBeamBlock.";
+  p_help = "Set this to FALSE when creating a template file for CartBeamBlock.";
+} read_beam_blockage;
+
+paramdef string {
+  p_default = "mdv/beamBlock/radar_name/20000101/20000101_000000.mdv.cf.nc";
+  p_descr = "File path for reading beam blockage data, in MDV/Netcdf-CF format.";
+  p_help = "Beam blockage and terrain ht are computed by CartBeamBlock.";
+} beam_block_input_file_path;
+
+paramdef string {
+  p_default = "extinction";
+  p_descr = "Name of extinction field in beam block data set.";
+} beam_extinction_field_name;
+
+paramdef string {
+  p_default = "terrain_ht";
+  p_descr = "Name of terrain height field in beam block data set.";
+} terrain_ht_field_name;
+
+commentdef {
+  p_header = "QPE - QUANTATIVE PRECIPITATION ESTIMATION";
+  p_text = "QPE needs the beam blockage and terrain_ht data from the BEAM BLOCKAGE section above.";
+}
+
+paramdef boolean {
+  p_default = TRUE;
+  p_descr = "Add in the QPE field.";
+  p_help = "This is a 2D field with the best estimate of precipitation rate at the surface. It depends on beam blockage and terrain height.";
+} add_qpe_field;
+
+paramdef double {
+  p_default = 0.5;
+  p_descr = "Max extinction value from the beam blockage calculations - see above.";
+  p_help = "To get QPE, at each (x, y) location we look for the lowest grid point with a blockage extinction value less than this threshold. If the extinction exceeds this threshold at a Cartesian point, we look above to get the precip rate estimate from a grid point with less blockage.";
+} qpe_max_extinction_fraction;
+
+paramdef double {
+  p_default = 1.0;
+  p_descr = "Minimum height margin above terrain for a valid precip estimate (km).";
+  p_help = "We require the QPE rate estimate to be drawn from a grid cell clear of the terrain. So for each (x, y) location we only accept precip rates from grid points with a height that exceeds the terrain by at least this margin.";
+} qpe_ht_margin_above_terrain_km;
+
+paramdef string {
+  p_default = "QPE_HYBRID";
+  p_descr = "Field name for QPE hybrid rate.";
+  p_help = "This 2D field will be written to the output MDV file.";
+} qpe_hybrid_field_name;
+
+paramdef string {
+  p_default = "QPE_ZR";
+  p_descr = "Field name for QPE ZR rate.";
+  p_help = "This 2D field will be written to the output MDV file.";
+} qpe_zr_field_name;
+
+commentdef {
+  p_header = "OUTPUT DATA";
+}
+
+paramdef string {
+  p_default = "/tmp/cart/pid";
+  p_descr = "Output directory for writing files.";
+  p_help = "Files will be written to this directory.";
+} output_dir;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "If true, name the output file using the start time.";
+  p_help = "If false, the end time is used, in the MDV tradition.";
+} name_file_from_start_time;
+
+paramdef string {
+  p_default = "EOL/NCAR";
+  p_descr = "Institution string for netCDF file.";
+} ncf_institution;
+
+paramdef string {
+  p_default = "";
+  p_descr = "References string for netCDF file.";
+} ncf_references;
+
+paramdef string {
+  p_default = "";
+  p_descr = "Comment string for netCDF file.";
+} ncf_comment;
+
+commentdef {
+  p_header = "WRITE DERIVED POLAR DATA FOR DEBUGGING";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Write derived polar variables for debugging.";
+  p_help = "If TRUE, write out the augmented input volume in polar coords, including all derived fields.";
+} write_debug_polar_output;
+
+paramdef string {
+  p_default = "/tmp/polar/debug";
+  p_descr = "Output directory for writing debug polar files.";
+} debug_polar_output_dir;
+
+commentdef {
+  p_header = "COMPUTING KDP";
+}
+
+paramdef string {
+  p_default = "use-defaults";
+  p_descr = "Path for parameters for computing KDP, if specified.";
+  p_help = "If set to use-defaults, no parameter file will be read in, and the default parameters will be used.";
+} KDP_params_file_path;
+
+commentdef {
+  p_header = "COMPUTING PID";
+}
+
+paramdef string {
+  p_default = "use-defaults";
+  p_descr = "Path for parameters for computing PID, if specified.";
+  p_help = "If set to use-defaults, no parameter file will be read in, and the default parameters will be used.";
+} PID_params_file_path;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "When computing PID, using KDP conditioned for self-consistency.";
+  p_help = "When KDP is computed, we compute both a standard result, and a conditioned result based on the self-consistency method. If this parameter is set to TRUE, the self-consistency result will be used instead of the standard result.";
+} PID_use_KDP_self_consistency;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to use Z and ZDR fields that are corrected for attenuation.";
+  p_help = "If TRUE, the attenuation-corrected Z and ZDR fields will be used for computing PID.";
+} PID_use_attenuation_corrected_fields;
+
+paramdef int {
+  p_default = 3;
+  p_descr = "Kernel size for 2D mode filter";
+  p_help = "The PID field is filtered, using the mode over a 2D kernel for each plane. The kernel is moved across each Cartesian plane, the mode is computed, and the value at the kernel center is replaced with the mode.";
+} PID_mode_filter_kernel_size;
+
+commentdef {
+  p_header = "COMPUTING PRECIP RATE";
+}
+
+paramdef string {
+  p_default = "use-defaults";
+  p_descr = "Path for parameters for computing PRECIP if specified.";
+  p_help = "If set to use-defaults, no parameter file will be read in, and the default parameters will be used.";
+} RATE_params_file_path;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "When computing PRECIP, using KDP conditioned for self-consistency.";
+  p_help = "When KDP is computed, we compute both a standard result, and a conditioned result based on the self-consistency method. If this parameter is set to TRUE, the self-consistency result will be used instead of the standard result.";
+} RATE_use_KDP_self_consistency;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to use Z and ZDR fields that are corrected for attenuation.";
+  p_help = "If TRUE, the attenuation-corrected Z and ZDR fields will be used for computing PRECIP.";
+} RATE_use_attenuation_corrected_fields;
+
+paramdef int {
+  p_default = 3;
+  p_descr = "Kernel size for 2D median filter";
+  p_help = "The precip rate field is filtered, using the median over a 2D kernel for each plane. The kernel is moved across each Cartesian plane, the median is computed, and the value at the kernel center is replaced with the median.";
+} RATE_median_filter_kernel_size;
+
+commentdef {
+  p_header = "INTERPOLATION OPTIONS";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to use nearest neighbor method instead of 3D linear interpolation.";
+  p_help = "If true, use the values from the nearest point instead of interpolating between the measured points that surround the grid point.";
+} use_nearest_neighbor;
+
+paramdef int {	
+  p_default = 5;
+  p_min = 1;
+  p_max = 8;
+  p_descr = "Minimum number of valid data points for theinterpolation.";
+  p_help = "The program performs an 8-point linear interpolation. This is the number of valid data points, out of the possible 8, which must be present for interpolation to proceed. A high number will exclude marginal points. A low number will include marginal points.";
+} min_nvalid_for_interp;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to use the fixed sweep angle for determining position for interpolation.";
+  p_help = "If false, we use the measured elevaiton and azimuth for each ray. If true, we use the fixed angle instead of the elevation angle in PPI scan mode and the fixed angle instead of azimuth in RHI mode.";
+} use_fixed_angle_for_interpolation;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to use the fixed sweep angle for determining the angle limits of the data.";
+  p_help = "If true, we use the scan strategy sweep fixed angle for determining the angular limits to the data. If false, we use the actual measured angles. We need to find the data limits so that we can extend the interpolation by a fraction of the beam width beyond the angular limits. See also 'beam_width_fraction_for_data_limit_extension'.";
+} use_fixed_angle_for_data_limits;
+
+paramdef double {
+  p_default = 0.5;
+  p_descr = "Fraction of the beam width used to extend the data beyond the observed limits.";
+  p_help = "At the edges of the observed region, the interpolated data is extended by an angle computed as beam_width * fraction. For extending below the lowest tilt and above the upper tilt, the vertical beam width is used. For extended to the left or right of sector limits, the horizontal beam width is used.";
+} beam_width_fraction_for_data_limit_extension;
+
+commentdef {
+  p_header = "CARTESIAN GRID DETAILS";
+}
+
+commentdef {
+  p_header = "CARTESIAN GRID VERTICAL LEVELS";
+  p_text = 
+    "\nSet the vertical levels for the Cartesian grid.\n"
+    "\nYou can either specify a grid with constant vertial spacing, or you can provide an array of heights. The latter allows you to specify a grid with irregular vertical spacing.";
+}
+
+typedef struct {
+  int nz;
+  double minz;
+  double dz;
+} grid_z_geom_t;
+
+paramdef struct grid_z_geom_t {
+  p_default = {20, 0.5, 1.0};
+  p_descr = "Specifying regular vertical grid levels.";
+  p_help =
+    "\tnz is the number of levels.\n"
+    "\tdz is constant spacing of the Z levels, in km.\n"
+    "\tminz is the lowest level, in km MSL.\n"
+    "\nNOTE: Applies if specify_individual_z_levels is false.";
+} grid_z_geom;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to specify each Z level individually.";
+  p_help = "If true, you will fill out the z_level array to specify each Z level. This allows you to set up a grid with unequal spacing in the vertical. If false, use grid_z_geom to specify Z levels at constant spacing.";
+} specify_individual_z_levels;
+
+paramdef double {
+  p_default = { 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0 };
+  p_descr = "Array of grid levels, in km MSL.";
+  p_help = "This applies if specify_individual_z_levels is true.";
+} z_level_array[];
+
+commentdef {
+  p_header = "CARTESIAN GRID XY DETAILS";
+  p_text = "Specify the grid details in (x,y). This will be a regular Cartesian grid. The units for the grid paramters are in (km,km) for all projections except for PROJ_LATLON. For the LATLON projection, the units are in (deg,deg).";
+}
+
+typedef struct {
+  int nx;
+  int ny;
+  double minx;
+  double miny;
+  double dx;
+  double dy;
+} grid_xy_geom_t;
+
+paramdef struct grid_xy_geom_t {
+  p_default = {400, 400, -199.5, -199.5, 1.0, 1.0};
+  p_descr = "Specify the grid parameters in x,y.";
+  p_help =
+    "\tnx: the number of grid points in the X dimension.\n"
+    "\tny: the number of grid points in the Y dimension.\n"
+    "\tminx: the X coordinate of the center of the SW grid cell.\n"
+    "\tminy: the Y coordinate of the center of the SW grid cell.\n"
+    "\tdx: the grid spacing in the X dimension.\n"
+    "\tdy: the grid spacing in the Y dimension.\n"
+    "\nUnits are in km, except for PROJ_LATLON, which has units in degrees.";
+} grid_xy_geom;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to set the grid origin at the radar.";
+  p_help = "If true, the latitude and longitude of the grid origin will be set to the radar location. If false, grid_origin_lat and grid_origin_lon will be used. This parameter is not applicable for moving platforms.";
+} center_grid_on_radar;
+
+commentdef {
+  p_header = "CARTESIAN GRID PROJECTION";
+}
+
+typedef enum {
+  PROJ_LATLON = 0,
+  PROJ_LAMBERT_CONF = 3,
+  PROJ_MERCATOR =  4,
+  PROJ_POLAR_STEREO = 5,
+  PROJ_FLAT = 8,
+  PROJ_OBLIQUE_STEREO = 12,
+  PROJ_TRANS_MERCATOR = 15,
+  PROJ_ALBERS = 16,
+  PROJ_LAMBERT_AZIM = 17
+} projection_t;
+
+paramdef enum projection_t {
+  p_default = PROJ_FLAT;
+  p_descr = "Projection details for the Cartesian grid..";
+  p_help =
+  "\tPROJ_LATLON: regular lat/lon grid (Equidistant Cylindrical)\n"
+  "\tPROJ_FLAT: Azimuthal Equidistant (Radar)\n"
+  "\tPROJ_LAMBERT_CONF: Lambert Conformal Conic\n"
+  "\tPROJ_LAMBERT_AZIM: Lambert Azimuthal Equal Area\n"
+  "\tPROJ_MERCATOR: Mercator - EW orientation\n"
+  "\tPROJ_TRANS_MERCATOR: Tranverse Mercator - NS orientation\n"
+  "\tPROJ_POLAR_STEREO: Stereographic- polar aspect\n"
+  "\tPROJ_OBLIQUE_STEREO: Stereographic - oblique aspect\n"
+  "\tPROJ_ALBERS: Albers Equal Area Conic\n"
+  "\tPROJ_VERT_PERSP: Vertical Perspective (satellite view)\n\n";
+} grid_projection;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Grid rotation.";
+  p_help = "This applies only to PROJ_FLAT projection.";
+} grid_rotation;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Grid origin latitude.";
+  p_help = "This applies to all projections except LATLON.\n\nIf 'center_grid_on_radar' is true, the radar location is used instead.";
+} grid_origin_lat;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Grid origin longitude.";
+  p_help = "This applies to all projections except LATLON.\n\nIf 'center_grid_on_radar' is true, the radar location is used instead.";
+} grid_origin_lon;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to first interpolate to a PROJ_FLAT projection, and then automatically remap to a latlon projection on output.";
+  p_help = "If TRUE, before writing the file, the app will choose a latlon grid that matches the FLAT grid extent and rsolution, and automatically remap to a PROJ_LATLON projection.";
+} auto_remap_flat_to_latlon;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Grid reference latitude 1.";
+  p_help = "This applies to LAMBERT_CONF and ALBERS projections.";
+} grid_lat1;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Grid reference latitude 2.";
+  p_help = "This applies to LAMBERT_CONF and ALBERS projections.";
+} grid_lat2;
+
+paramdef double {
+  p_default = 1.0;
+  p_descr = "Central scale for projections.";
+  p_help = "This applies to POLAR_STEREO, OBLIQUE_STEREO and TRANSVERSE_MERCATOR projections.";
+} grid_central_scale;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Tangent latitude (deg).";
+  p_help = "This applies to OBLIQUE_STEREO only.";
+} grid_tangent_lat;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Tangent longitude (deg).";
+  p_help = "This applies to OBLIQUE_STEREO and POLAR_STEREO.";
+} grid_tangent_lon;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Flag indicating stereogtraphic is over the NORTH pole.";
+  p_help = "This applies to POLAR_STEREO. If false, the projection is over the south pole.";
+} grid_pole_is_north;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "False northing correction.";
+  p_help = "Occasionally, this is added to the Y coordinate so that all coordinates are positive. Normally 0. As an alternative to false_northing and false_easting, you can set the offset_latitude and offset_longitude";
+} grid_false_northing;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "False easting correction.";
+  p_help = "Occasionally, this is added to the X coordinate so that all coordinates are positive. Normally 0.";
+} grid_false_easting;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Do you want to specify an offset origin using lat/lon instead of false_northing and false_easting?";
+  p_help = "If true, set grid_offset_origin_latitude and grid_offset_origin_longitude.";
+} grid_set_offset_origin;
+
+paramdef double {
+  p_default = 0;
+  p_descr = "Latitude of offset origin.";
+  p_help = "See grid_set_offset_origin.";
+} grid_offset_origin_latitude;
+
+paramdef double {
+  p_default = 0;
+  p_descr = "Longitude of offset origin.";
+  p_help = "See grid_set_offset_origin.";
+} grid_offset_origin_longitude;
+
+commentdef {
+  p_header = "CREATE A CARTESIAN GRID TEMPLATE CARTESIAN";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to create a template file for use by CartBeamBlock.";
+  p_help = "If TRUE, just create an MDV file for use as a template to obtain the Cartesian grid details. The file will contain a single field named 'template'. It will be time stamped with the current time. In order to get the grid details correct, we need to read in one radar volume from 'radar_input_dir'.";
+} create_grid_template;
+
+paramdef string {
+  p_default = "/tmp/mdv/template";
+  p_descr = "Directory for writing template grid file.";
+} grid_template_dir;
+
+paramdef string {
+  p_default = "template3D";
+  p_descr = "Name of 3D template field in grid template file.";
+} template_3d_field_name;
+
+commentdef {
+  p_header = "SPECIFY COPY-THROUGH FIELDS";
+  p_text = "These input fields are read from the input file and added to the interpolated output. This allows the user to consolidate the input and output data set in a single file.";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to copy input fields unchanged to the output file.";
+} copy_selected_input_fields_to_output;
+
+typedef struct {
+  string field_name; 
+  boolean censor_non_weather;
+} copy_field_t;
+
+paramdef struct copy_field_t {
+  p_default = {
+    {
+      field_name = "DBZ",
+      censor_non_weather = FALSE
+    }
+    ,
+    {
+      field_name = "VEL",
+      censor_non_weather = FALSE
+    }
+  };
+  p_descr = "These fields are copied through unchanged, and then interpolated.";
+  p_help = "Optionally you can censor the non-weather echoes, based on the PID.";
+} copy_fields[];
+
+commentdef {
+  p_header = "OPTION TO SET FOLDING LIMITS ON SELECTED FIELDS";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to set the folding limits for individual fields.";
+  p_help = "The limits are set prior to interpolation.\n\nIf TRUE, fold limits will be set for the specified fields. You should do this for fields such as VELOCITY and PHIDP. Some CfRadial files already contain the fold limits as attributes on the field - for these fields you do not need to set fold limits, unless you wish to override what is in the file. You only need to specify the limits if the file does not already have these attributes. The field_folds parameter can be set to FALSE to override an attribute set in the data file.";
+} set_fold_limits;
+
+typedef struct {
+  string field_name;
+  boolean field_folds;
+  boolean use_global_nyquist;
+  double fold_limit_lower;
+  double fold_limit_upper;
+} fold_field_t;
+
+paramdef struct fold_field_t {
+  p_default = {
+    {
+      field_name = "VEL",
+      field_folds = TRUE,
+      use_global_nyquist = TRUE,
+      fold_limit_lower = -25.0,
+      fold_limit_upper = 25.0
+    }
+  };
+  p_descr = "Use this to set the fold limits for a particular field.";
+  p_help = "If this is specified, the interpolation for this field will be performed 'on the circle' so that folding is handled correctly. If use_global_nyquist is true, the fold limits are set to plus and minus the main nyquist velocity. If false, the fold limits specified here are used instead.\n\nNOTE: 'field_name' for this step refers to the 'field_name' in 'select_fields' and 'output_name' in 'transform_fields'. This step is performed prior to renaming fields (see below).";
+} folded_fields[];
+
+commentdef {
+  p_header = "OPTION TO OVERRIDE THE NYQUIST VELOCITY";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to override nyquist velocity in incoming data.";
+  p_help = "If true, the nyquist_velocity parameter is used to specify the nyquist. If false, the nyquist is computed from the incoming radar data stream. The nyquist is used for velocity interpolation, to ensure that folded values are treated correctlty.";
+} override_nyquist;
+
+paramdef double {
+  p_default = 25.0;
+  p_descr = "Specify nyquist velocity (m/s).";
+  p_help = "See 'override_nyquist'.";
+} nyquist_velocity;
+
+commentdef {
+  p_header = "OPTION TO ADD DERIVED FIELDS";
+  p_text = "These fields are computed from the geometry of the radar rays, and then added as input fields in native radial coordinates.";
+}
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to add KDP field to the output.";
+  p_help = "KDP is derived from PHIDP.";
+} output_KDP_field;
+
+paramdef string {
+  p_default = "KDP";
+  p_descr = "Name of KDP field to be written.";
+  p_help = "See 'output_KDP_field'.";
+} KDP_field_name;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to add range field to the output.";
+  p_help = "This is the range, in km, from the radar to each gate.";
+} output_range_field;
+
+paramdef string {
+  p_default = "SlantRange";
+  p_descr = "Name of range field, if written.";
+  p_help = "See 'output_range_field'.";
+} range_field_name;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to add height field to the output.";
+  p_help = "This is the height, in km msl, of the center of each gate.";
+} output_height_field;
+
+paramdef string {
+  p_default = "BeamHt";
+  p_descr = "Name of height field, if written.";
+  p_help = "See 'output_height_field'.";
+} height_field_name;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to output a field indicating radar coverage.";
+  p_help = "This is a flag field, with a 1 indicating that the radar covers that location, and a 0 indicating that is does not. See also 'coverage_field_name'. This field is always transformed using nearest neighbor.";
+} output_coverage_field;
+
+paramdef string {
+  p_default = "Coverage";
+  p_descr = "Name of coverage field, if written.";
+  p_help = "See 'output_coverage_field'.";
+} coverage_field_name;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to output a field of time since start of volume (secs)";
+  p_help = "If true, time time elapsed field is included in the output file. See also 'time_field_name' and 'interp_time_field'.";
+} output_time_field;
+
+paramdef string {
+  p_default = "time_elapsed";
+  p_descr = "Name of time field, if written.";
+  p_help = "See 'output_time_field'.";
+} time_field_name;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to perform interpolation on the time field.";
+  p_help = "If false, nearest neighbor will be used for the time field.";
+} interp_time_field;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to output angle fields.";
+  p_descr = "These are the fields used for multi-Doppler analsysis, as well as the range from the radar.";
+} output_angle_fields;
+
+typedef struct {
+  string azimuth_field_name;
+  string elevation_field_name;
+  string alpha_field_name;
+  string beta_field_name;
+  string gamma_field_name;
+} angle_fields_t;
+
+paramdef struct angle_fields_t {
+  p_default = {
+    azimuth_field_name = "azimuth",
+    elevation_field_name = "elevation",
+    alpha_field_name = "alpha",
+    beta_field_name = "beta",
+    gamma_field_name = "gamma"
+  };
+  p_descr = "Specify the output names of the angle fields. If set to empty, that field will not be created.";
+  p_help =
+    "\tazimuth: the azimuth of the ray (deg)\n"
+    "\televation: the elevation of the ray (deg)\n"
+    "\talpha: sin(az) * cos(el)\n"
+    "\tbeta: cos(az) * cos(el)\n"
+    "\tgamma: sin(el)\n";
+} angle_fields;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to write out debug fields for checking the interpolation. The debug fields are added to the output Cartesian grid. These are geometry fields, and can be used to ensure the interpolation is working as expected.";
+  p_help = "The test fields allow us to ensure that the interpolation is working correctly.\n\nThe debug fields are:\n\n\tnContrib - number of points used in interpolation\n\tgridAz: azimuth deg\n\tgridEl: elevation deg\n\tgridRange: range km\n\tllEl: lower left elevation deg\n\tllAz: lower left azimuth deg\n\tlrEl: lower right elevation deg\n\tlrAz: lower right azimuth deg\n\tulEl: upper left elevation deg\n\tulAz: upper left azimuth deg\n\turEl: upper right elevation deg\n\turAz: upper right azimuth deg";
+} write_interp_debug_fields;
+
+commentdef {
+  p_header = "SETTING THE PSEUDO EARTH RADIUS RATIO FOR HEIGHT COMPUTATIONS";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to override the standard 4/3 earth radius model for refraction.";
+  p_help = "If true, the standard 4/3 earth radius will be overridden. The US NWS NEXRAD system uses 1.21 instead of 1.333.";
+} override_standard_pseudo_earth_radius;
+
+paramdef double {
+  p_default = 1.33333333;
+  p_descr = "Ratio for computing the pseudo earth radius for beam height computations.";
+  p_help = "For standard refraction this is 4/3. For super refraction it will be less than 4.3, and for sub-refraction it will be greater. NEXRAD uses 1.21.";
+} pseudo_earth_radius_ratio;
+
+commentdef {
+  p_header = "FILE READ OPTIONS";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to override the fixed angle with the mean angle for a sweep.";
+  p_help = "If true, for each sweep the mean pointing angle is computed and then this is used to override the fixed angle.";
+} override_fixed_angle_with_mean_measured_angle;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to set the max range for any ray.";
+} set_max_range;
+
+paramdef double {
+  p_default = 9999;
+  p_descr = "Specified maximim range - km.";
+  p_help = "Gates beyond this range are removed.";
+} max_range_km;
+
+commentdef {
+  p_header = "OPTION TO OVERRIDE RADAR LOCATION";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to override the radar location.";
+  p_help = "If true, the location in this file will be used. If not, the location in the time series data will be used.";
+} override_radar_location;
+
+paramdef double {
+  p_default = -999;
+  p_descr = "Radar latitude (deg).";
+  p_help = "See override_radar_location.";
+} radar_latitude_deg;
+
+paramdef double {
+  p_default = -999;
+  p_descr = "Radar longitude (deg).";
+  p_help = "See override_radar_location.";
+} radar_longitude_deg;
+
+paramdef double {
+  p_default = -999;
+  p_descr = "Radar altitude (meters).";
+  p_help = "See override_radar_location.";
+} radar_altitude_meters;
+
+commentdef {
+  p_header = "OPTION TO OVERRIDE RADAR BEAM WIDTH";
+  p_text = "The beam width is used to decide how far to extend the interpolated data beyond the observed data. The data is extended below the lowest tilt and above the highest tilt, and in the case of sector scans it is extended slightly beyond the sector limits.";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to override radar beam width.";
+  p_help = "If TRUE, the program will use beam width specified in the 'beam_width_deg' parameter.";
+} override_beam_width;
+
+paramdef double {
+  p_default = 1.0;
+  p_descr = "Horizontal beam width if override is set true (deg).";
+  p_help = "Used for extending the data to the left or right of sector limits, if applicable. This is only used if 'override_beam_width' is set true. Otherwise the metadata in the input data stream is used.";
+} beam_width_deg_h;
+
+paramdef double {
+  p_default = 1.0;
+  p_descr = "Vertical beam width if override is set true (deg).";
+  p_help = "Used for extending data above or below the observed region. This only used if 'override_beam_width' is set true. Otherwise the metadata in the input data stream is used.";
+} beam_width_deg_v;
+
+commentdef {
+  p_header = "OPTION TO OVERRIDE RADAR GATE GEOMETRY";
+  p_text = "If the start range and/or gate spacing is not correct in the data, you can override it using the parameters below.";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to override gate geometry.";
+  p_help = "If TRUE, the program will use the start range and gate spacing specified here.";
+} override_gate_geometry;
+
+paramdef double {
+  p_default = 0.125;
+  p_descr = "Start range (km).";
+  p_help = "Used for overriding the start range in the data.";
+} start_range_km;
+
+paramdef double {
+  p_default = 0.25;
+  p_descr = "Gate spacing (km).";
+  p_help = "Used for overriding the gate spacing in the data.";
+} gate_spacing_km;
+
+commentdef {
+  p_header = "PROCESS CONTROL";
+}
+
+paramdef string {
+  p_default = "test";
+  p_descr = "Program instance for process registration.";
+  p_help = "REALTIME mode only. This application registers with procmap. This is the instance used for registration.";
+} instance;
+
+paramdef int {
+  p_default = 60;
+  p_descr = "Interval for registering with procmap (secs).";
+  p_help = "REALTIME mode only. The app will register with procmap at this interval, to update its status. If it does not register within twice this interval, the auto_restart script will restart the app.";
+} procmap_register_interval;
+
+commentdef {
+  p_header = "MEMORY HANDLING";
+}
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to free up memory between each new file.";
+  p_help = "If true, we free up as much memory as possible between handling the files. If false, we reduce allocated memory to the extent possible.";
+} free_memory_between_files;
+
+commentdef {
+  p_header = "THREADING FOR SPEED.";
+}
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to use multiple compute threads to improve performance.";
+  p_help = "The read and write stages occur in the main thread, since netCDF is not thread safe. The compute stage can be multi-threaded to improve performance.";
+} use_multiple_threads;
+
+paramdef int {
+  p_default = 8;
+  p_min = 1;
+  p_descr = "The number of compute threads.";
+  p_help = "The moments computations are segmented in range, with each thread computing a fraction of the number of gates. For maximum performance, n_threads should be set to the number of processors multiplied by 4. For further tuning, use top to maximize CPU usage while varying the number of threads.";
+} n_compute_threads;
+
+commentdef {
+  p_header = "CONVECTIVE/STRATIFORM PARTITION";
+}
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to identify the convective / stratiform split.";
+  p_help = "Uses the standard deviation of reflectivity as a texture field for each Cartesian plane. Low variability indicates stratiform conditions.";
+} identify_conv_strat_partition;
+
+paramdef string {
+  p_default = "use-defaults";
+  p_descr = "Path for parameters for computing convective-stratiform partition, if specified.";
+  p_help = "If set to use-defaults, no parameter file will be read in, and the default parameters will be used.";
+} conv_strat_params_file_path;
+
+paramdef boolean {
+  p_default = TRUE;
+  p_descr = "Option to write out the convective/stratiform partition.";
+  p_help = "If true, the 3-D partition will be added to the output file.";
+} conv_strat_write_partition;
+
+paramdef boolean {
+  p_default = TRUE;
+  p_descr = "Option to write out the convective/stratiform partition.";
+  p_help = "If true, the 3-D convectivity field will be added to the output file.";
+} conv_strat_write_convectivity;
+
+paramdef boolean {
+  p_default = TRUE;
+  p_descr = "Option to write out the dbz field in convection.";
+  p_help = "This is a 3D field - the reflectivity trimmed only to convective regions, based on the convective/stratiform partition.";
+} conv_strat_write_convective_dbz;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to write out echo tops fields.";
+  p_help = "If true, the echo tops and convective echo tops will be written to the output file.";
+} conv_strat_write_echo_tops;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to write out the intermediate fields for debug purposes.";
+  p_help = "If true, the intermediate fields will be written to the output file.";
+} conv_strat_write_debug_fields;
+
+commentdef {
+  p_header = "USE ECHO ORIENTATION TO INFORM INTERPOLATION GEOMETRY";
+  p_text = "Vertically-oriented echoes (convective) should be interpolated in the vertical. Horizontally-oriented echoes (stratiform, bright-band, anvil) should be interpolated in the horizontal. This attempts to prevent the typical ringing behavior we see in Cartesian products in regionis with layered structures, for example anvils.";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "If TRUE, we will try to determine echo orientation to inform interpolation.";
+  p_help = "Vertically-oriented echoes should be interpolated in the vertical. Horizontally-oriented echoes should be interpolated in the horizontal. We try to determine the principal orientation of the echoes, so that we will use the correct gates for interpolation.";
+} use_echo_orientation;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "Starting azimuth for set of synthetic RHIs computed for determining echo orientation.";
+  p_help = "To find the orientation of echoes, we use a set of synthetic RHIs. These are computed on regular azimuths. This is the starting azimuth for the set of synthetic RHIs.";
+} synthetic_rhis_start_az;
+
+paramdef double {
+  p_default = 1.0;
+  p_descr = "Delta azimuth for set of synthetic RHIs computed for determining echo orientation.";
+  p_help = "To find the orientation of echoes, we use a set of synthetic RHIs. These are computed on regular azimuths. This is the delta azimuth for the set of synthetic RHIs.";
+} synthetic_rhis_delta_az;
+
+paramdef string {
+  p_default = "DBZ";
+  p_descr = "Name of reflectivity field in input data.";
+  p_help = "This is used for determining the orientation of echoes.";
+} echo_orientation_dbz_field_name;
+
+paramdef int {
+  p_default = 3;
+  p_descr = "Number of grid points used to compute the standard deviation of DBZ horizontally.";
+  p_help = "To decide on echo orientation, we need to determine whether the dbz is more constanthorizonatally or vertically. To do this we compute the standard deviation of the dbz field, horizontally and vertically.";
+} echo_orientation_n_points_sdev_h;
+
+paramdef int {
+  p_default = 3;
+  p_descr = "Number of grid points used to compute the standard deviation of DBZ vertically.";
+  p_help = "To decide on echo orientation, we need to determine whether the dbz is more constanthorizonatally or vertically. To do this we compute the standard deviation of the dbz field, horizontally and vertically.";
+} echo_orientation_n_points_sdev_v;
+

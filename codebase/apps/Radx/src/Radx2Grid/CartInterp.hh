@@ -39,7 +39,7 @@
 #include "Interp.hh"
 #include <toolsa/TaThread.hh>
 #include <toolsa/TaThreadPool.hh>
-#include <radar/ConvStrat.hh>
+#include <radar/ConvStratFinder.hh>
 class DsMdvx;
 class Orient;
 
@@ -164,6 +164,8 @@ private:
   DerivedField *_urElDebug;
   DerivedField *_urAzDebug;
 
+  DerivedField *_dbzH;
+  DerivedField *_dbzV;
   DerivedField *_sdevDbzH;
   DerivedField *_sdevDbzV;
 
@@ -177,7 +179,7 @@ private:
 
   // convective / stratiform split
 
-  ConvStrat _convStrat;
+  ConvStratFinder _convStrat;
   bool _gotConvStrat;
 
   // private methods

@@ -26,6 +26,22 @@ paramdef enum debug_t {
   p_help = "If set, debug messages will be printed appropriately";
 } debug;
 
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to compute all of the filtered methods.";
+  p_help = "This is useful for debugging and comparing the filter results. This is forced to true if KDP_write_ray_files is true.";
+} compute_all_filters;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to write ray files to debug KDP computation.";
+} write_ray_files;
+
+paramdef string {
+  p_default = "/tmp/kdp_ray_files";
+  p_descr = "Directory for KDP ray files.";
+} ray_files_dir;
+
 commentdef {
   p_header = "THREADING FOR SPEED.";
   p_text = "Multiple threads are used to improve performance. The computations are carried out in parallel in separate threads. The read and write stages occur in the main thread, since netCDF is not thread safe.";
@@ -85,6 +101,49 @@ paramdef string {
   p_descr = "Set the end time for ARCHIVE mode analysis.";
   p_help = "Format is 'yyyy mm dd hh mm ss'.";
 } end_time;
+
+commentdef {
+  p_header = "OPTIONAL FIXED ANGLE LIMITS";
+  p_text = "Fixed angles are elevation in PPI mode and azimuth in RHI mode.";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to set fixed angle limits";
+  p_help = "Only use sweeps within the specified fixed angle limits.";
+  p_help = "If 'apply_strict_angle_limits' is set, only read sweeps within the specified fixed angle limits. If strict checking is false and no data lies within the limits, return the closest applicable sweep. NOTE - fixed angles are elevation in PPI mode and azimuth in RHI mode.";
+} set_fixed_angle_limits;
+
+paramdef boolean {
+  p_default = true;
+  p_descr = "Option to apply strict checking for angle or sweep number limits on read.";
+  p_help = "If true, an error will occur if the fixed angle limits or sweep num limits are outside the bounds of the data. If false, a read is guaranteed to return at least 1 sweep - if no sweep lies within the angle limits set, the nearest sweep will be returned.";
+} apply_strict_angle_limits;
+
+paramdef double {
+  p_default = 0;
+  p_descr = "Lower fixed angle limit - degrees.";
+} lower_fixed_angle_limit;
+
+paramdef double {
+  p_default = 90;
+  p_descr = "Upper fixed angle limit - degrees.";
+} upper_fixed_angle_limit;
+
+commentdef {
+  p_header = "OPTIONAL RANGE LIMIT";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to set the max range for any ray.";
+} set_max_range;
+
+paramdef double {
+  p_default = 9999;
+  p_descr = "Specified maximim range - km.";
+  p_help = "Gates beyond this range are removed.";
+} max_range_km;
 
 commentdef {
   p_header = "INPUT FIELD INFORMATION";
@@ -149,6 +208,7 @@ typedef enum {
   
   KDP,
   KDP_SC,
+  DELTA,
 
   DBZ_ATTEN_CORRECTION,
   ZDR_ATTEN_CORRECTION,

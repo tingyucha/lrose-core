@@ -45,6 +45,7 @@
 #include <toolsa/str.h>
 #include <toolsa/pjg.h>
 #include <toolsa/TaArray.hh>
+#include <toolsa/Path.hh>
 using namespace std;
 
 ////////////////////////////////////////////////////////////
@@ -66,9 +67,12 @@ TitanTrackFile::TitanTrackFile()
   _complex_track_nums = NULL;
   _complex_track_offsets = NULL;
   _simple_track_offsets = NULL;
-  _nsimples_per_complex = NULL;
+  _n_simples_per_complex = NULL;
   _simples_per_complex_offsets = NULL;
   _simples_per_complex = NULL;
+
+  _prev_in_track_offset = 0;
+  _prev_in_scan_offset = 0;
 
   _header_file_label = TRACK_HEADER_FILE_TYPE;
   _data_file_label = TRACK_DATA_FILE_TYPE;
@@ -140,12 +144,12 @@ void TitanTrackFile::AllocSimpleArrays(int n_simple_needed)
 
     int n_realloc = n_simple_needed + N_ALLOC;
     _n_simple_allocated = n_realloc;
-    
+
     _simple_track_offsets = (si32 *) urealloc
       (_simple_track_offsets, n_realloc * sizeof(si32));
       
-    _nsimples_per_complex = (si32 *) urealloc
-      (_nsimples_per_complex, n_realloc * sizeof(si32));
+    _n_simples_per_complex = (si32 *) urealloc
+      (_n_simples_per_complex, n_realloc * sizeof(si32));
     
     _simples_per_complex_offsets = (si32 *) urealloc
       (_simples_per_complex_offsets, n_realloc * sizeof(si32));
@@ -157,10 +161,10 @@ void TitanTrackFile::AllocSimpleArrays(int n_simple_needed)
   
     int n_new = _n_simple_allocated - n_start;
 
-    memset (_simple_track_offsets + n_start, 0, n_new * sizeof(si32));
-    memset (_nsimples_per_complex + n_start, 0, n_new * sizeof(si32));
-    memset (_simples_per_complex_offsets + n_start, 0, n_new * sizeof(si32));
-    memset (_complex_track_offsets + n_start, 0, n_new * sizeof(si32));
+    memset(_simple_track_offsets + n_start, 0, n_new * sizeof(si32));
+    memset(_n_simples_per_complex + n_start, 0, n_new * sizeof(si32));
+    memset(_simples_per_complex_offsets + n_start, 0, n_new * sizeof(si32));
+    memset(_complex_track_offsets + n_start, 0, n_new * sizeof(si32));
   
   } // if (_n_simple_allocated < n_simple_needed) 
 
@@ -177,25 +181,17 @@ void TitanTrackFile::AllocSimpleArrays(int n_simple_needed)
 void TitanTrackFile::FreeSimpleArrays()
      
 {
-  
-  if (_simples_per_complex) {
-    for (int i = 0; i < _n_simples_per_complex_allocated; i++) {
-      if(_simples_per_complex[i] != NULL) {
-	ufree(_simples_per_complex[i]);
-      }
-    }
-    ufree(_simples_per_complex);
-    _simples_per_complex = NULL;
-  }
-  
+
+  FreeSimplesPerComplex();
+     
   if (_simple_track_offsets) {
     ufree(_simple_track_offsets);
     _simple_track_offsets = NULL;
   }
 
-  if (_nsimples_per_complex) {
-    ufree(_nsimples_per_complex);
-    _nsimples_per_complex = NULL;
+  if (_n_simples_per_complex) {
+    ufree(_n_simples_per_complex);
+    _n_simples_per_complex = NULL;
   }
 
   if (_simples_per_complex_offsets) {
@@ -532,7 +528,7 @@ int TitanTrackFile::OpenFiles(const char *mode,
     // the data file name
 
     char tmp_path[MAX_PATH_LEN];
-    strncpy(tmp_path, header_file_path, MAX_PATH_LEN);
+    strncpy(tmp_path, header_file_path, MAX_PATH_LEN - 1);
 
     // if dir path has slash, get pointer to that and end the sting
     // immediately after
@@ -556,7 +552,7 @@ int TitanTrackFile::OpenFiles(const char *mode,
     }
 
     char tmp_path[MAX_PATH_LEN];
-    strncpy(tmp_path, _header_file_path.c_str(), MAX_PATH_LEN);
+    strncpy(tmp_path, _header_file_path.c_str(), MAX_PATH_LEN - 1);
     
     char *chptr;
     if ((chptr = strrchr(tmp_path, '.')) == NULL) {
@@ -663,7 +659,9 @@ void TitanTrackFile::CloseFiles()
 
   // unlock the header file
 
-  UnlockHeaderFile();
+  if (_header_file != NULL) {
+    UnlockHeaderFile();
+  }
 
   // close the header file
   
@@ -678,7 +676,7 @@ void TitanTrackFile::CloseFiles()
     fclose(_data_file);
     _data_file = (FILE *) NULL;
   }
-  
+
 }
 
 //////////////////////////////////////////////////////////////
@@ -793,7 +791,7 @@ int TitanTrackFile::ReadHeader(bool clear_error_str /* = true*/ )
   
   // check label
   
-  if (_header_file_label != header_file_label) {
+  if (_header_file_label != string(header_file_label)) {
     _errStr +=
       "  Header file does not contain correct label.\n";
     TaStr::AddStr(_errStr, "  File label is: ", header_file_label);
@@ -907,7 +905,7 @@ int TitanTrackFile::ReadHeader(bool clear_error_str /* = true*/ )
   
   // read in nsimples_per_complex
   
-  if (ufread(_nsimples_per_complex, sizeof(si32),
+  if (ufread(_n_simples_per_complex, sizeof(si32),
 	     n_simple_tracks, _header_file) != n_simple_tracks) {
     int errNum = errno;
     TaStr::AddStr(_errStr, "  ", "Reading nsimples_per_complex");
@@ -915,7 +913,7 @@ int TitanTrackFile::ReadHeader(bool clear_error_str /* = true*/ )
     TaStr::AddStr(_errStr, "  ", strerror(errNum));
     return -1;
   }
-  BE_to_array_32(_nsimples_per_complex, n_simple_tracks * sizeof(si32));
+  BE_to_array_32(_n_simples_per_complex, n_simple_tracks * sizeof(si32));
   
   // read in simples_per_complex_offsets
   
@@ -1054,7 +1052,7 @@ int TitanTrackFile::ReadComplexParams(int track_num,
   }
   _errStr += "ERROR - TitanTrackFile::ReadComplexParams\n";
   TaStr::AddStr(_errStr, "  Reading from file: ", _data_file_path);
-  TaStr::AddInt(_errStr, "  track_num", track_num);
+  TaStr::AddInt(_errStr, "  track_num: ", track_num);
 
   // move to offset in file
   
@@ -1080,34 +1078,11 @@ int TitanTrackFile::ReadComplexParams(int track_num,
   // simple tracks are part of this complex track.
 
   if (read_simples_per_complex) {
-    
-    int nsimples = _nsimples_per_complex[track_num];
-    
-    AllocSimplesPerComplex(track_num + 1);
-
-    if (_simples_per_complex[track_num] == NULL) {
-      _simples_per_complex[track_num] = (si32 *) umalloc
-	(nsimples * sizeof(si32));
-    } else {
-      _simples_per_complex[track_num] = (si32 *) urealloc
-	(_simples_per_complex[track_num],
-	 nsimples * sizeof(si32));
-    }
-    
-    fseek(_header_file, _simples_per_complex_offsets[track_num], SEEK_SET);
-  
-    if (ufread(_simples_per_complex[track_num],
-	       sizeof(si32), nsimples, _header_file) != nsimples) {
-      int errNum = errno;
-      TaStr::AddStr(_errStr, "  ", "Reading simples per complex for");
-      TaStr::AddStr(_errStr, "  ", "  complex track params.");
-      TaStr::AddStr(_errStr, "  ", strerror(errNum));
+    if (ReadSimplesPerComplex(track_num)) {
       return -1;
     }
-    BE_to_array_32(_simples_per_complex[track_num], nsimples * sizeof(si32));
-
-  } //   if (read_simples_per_complex) 
-  
+  }
+    
   return 0;
   
 }
@@ -1130,7 +1105,7 @@ int TitanTrackFile::ReadSimpleParams(int track_num,
   }
   _errStr += "ERROR - TitanTrackFile::ReadSimpleParams\n";
   TaStr::AddStr(_errStr, "  Reading from file: ", _data_file_path);
-  TaStr::AddInt(_errStr, "  track_num", track_num);
+  TaStr::AddInt(_errStr, "  track_num: ", track_num);
 
   // move to offset in file
   
@@ -1216,12 +1191,12 @@ int TitanTrackFile::ReadSimplesPerComplex()
   _errStr += "ERROR - TitanTrackFile::ReadSimplesPerComplex\n";
   TaStr::AddStr(_errStr, "  Reading from file: ", _data_file_path);
 
+  AllocSimplesPerComplex(_header.n_simple_tracks);
+
   for (int itrack = 0; itrack < _header.n_complex_tracks; itrack++) {
 
     int complex_num = _complex_track_nums[itrack];
-    int nsimples = _nsimples_per_complex[complex_num];
-
-    AllocSimplesPerComplex(complex_num + 1);
+    int nsimples = _n_simples_per_complex[complex_num];
 
     _simples_per_complex[complex_num] = (si32 *) urealloc
       (_simples_per_complex[complex_num],
@@ -1244,6 +1219,79 @@ int TitanTrackFile::ReadSimplesPerComplex()
   } // itrack 
   
   return 0;
+  
+}
+
+///////////////////////////////////////////////////////////////////////////
+// read in the array of simple tracks for specified complex track
+//
+// returns 0 on success, -1 on failure
+///////////////////////////////////////////////////////////////////////////
+
+int TitanTrackFile::ReadSimplesPerComplex(int complex_track_num)
+     
+{
+  
+  int nsimples = _n_simples_per_complex[complex_track_num];
+  
+  AllocSimplesPerComplex(complex_track_num + 1);
+
+  if (_simples_per_complex[complex_track_num] == NULL) {
+    _simples_per_complex[complex_track_num] = (si32 *) umalloc
+      (nsimples * sizeof(si32));
+  } else {
+    _simples_per_complex[complex_track_num] = (si32 *) urealloc
+      (_simples_per_complex[complex_track_num],
+       nsimples * sizeof(si32));
+  }
+    
+  fseek(_header_file, _simples_per_complex_offsets[complex_track_num], SEEK_SET);
+  
+  if (ufread(_simples_per_complex[complex_track_num],
+             sizeof(si32), nsimples, _header_file) != nsimples) {
+    int errNum = errno;
+    TaStr::AddStr(_errStr, "  ", "Reading simples per complex for");
+    TaStr::AddStr(_errStr, "  ", "  complex track params.");
+    TaStr::AddStr(_errStr, "  ", strerror(errNum));
+    return -1;
+  }
+  BE_to_array_32(_simples_per_complex[complex_track_num], nsimples * sizeof(si32));
+
+  return 0;
+    
+}
+  
+///////////////////////////////////////////////////////////////////////////
+//
+// load vector with simples per complex, in linear order
+//
+// in memory these are stored in a si32** 2-d array
+//
+///////////////////////////////////////////////////////////////////////////
+
+void TitanTrackFile::LoadVecSimplesPerComplex(vector<si32> &simpsPerComplexLin,
+                                              vector<si32> &simpsPerComplexOffsets)
+  
+{
+
+  simpsPerComplexLin.clear();
+  simpsPerComplexOffsets.resize(_header.n_simple_tracks);
+  int count = 0;
+  
+  for (int itrack = 0; itrack < _header.n_complex_tracks; itrack++) {
+    
+    int complex_num = _complex_track_nums[itrack];
+    int nsimples = _n_simples_per_complex[complex_num];
+    si32 *simples = _simples_per_complex[complex_num];
+
+    for (int ii = 0; ii < nsimples; ii++) {
+      simpsPerComplexLin.push_back(simples[ii]);
+    }
+
+    simpsPerComplexOffsets[complex_num] = count;
+    count += nsimples;
+    
+  } // itrack 
   
 }
 
@@ -1387,7 +1435,7 @@ void TitanTrackFile::Reinit()
   if (_n_simple_allocated > 0) {
     memset (_simple_track_offsets, 0,
 	    _n_simple_allocated * sizeof(si32));
-    memset (_nsimples_per_complex, 0,
+    memset (_n_simples_per_complex, 0,
 	    _n_simple_allocated * sizeof(si32));
     memset (_simples_per_complex_offsets, 0,
 	    _n_simple_allocated * sizeof(si32));
@@ -1573,6 +1621,63 @@ int TitanTrackFile::SeekStartData()
 //
 ///////////////////////////////////////////////////////////////////////////
 
+int TitanTrackFile::WriteHeader(const track_file_header_t &track_file_header,
+                                const si32 *complex_track_nums,
+                                const si32 *n_simples_per_complex,
+                                const si32 **simples_per_complex)
+{
+
+  // save state to local variables
+  _header = track_file_header;
+  AllocSimplesPerComplex(_header.n_simple_tracks);
+  AllocComplexArrays(_header.n_complex_tracks);
+  memcpy(_complex_track_nums, complex_track_nums,
+         _header.n_complex_tracks *  sizeof(si32));
+  memcpy(_n_simples_per_complex, n_simples_per_complex,
+         _header.n_simple_tracks *  sizeof(si32));
+  for (int ii = 0; ii < _header.n_complex_tracks; ii++) {
+    int complex_num = complex_track_nums[ii];
+    int nsimples = n_simples_per_complex[complex_num];
+    _simples_per_complex[complex_num] = (si32 *) urealloc
+      (_simples_per_complex[complex_num],
+       (nsimples * sizeof(si32)));
+    memcpy(_simples_per_complex[complex_num],
+           simples_per_complex[complex_num],
+           nsimples * sizeof(si32));
+  }
+  // call in-class method
+  return WriteHeader();
+}
+
+int TitanTrackFile::WriteHeader(const track_file_header_t &track_file_header,
+                                const vector<si32> &complex_track_nums,
+                                const vector<si32> &n_simples_per_complex,
+                                const vector<vector<si32> > &simples_per_complex)
+{
+
+  // save state to local variables
+  _header = track_file_header;
+  AllocSimplesPerComplex(_header.n_simple_tracks);
+  AllocComplexArrays(_header.n_complex_tracks);
+  memcpy(_complex_track_nums, complex_track_nums.data(),
+         _header.n_complex_tracks *  sizeof(si32));
+  memcpy(_n_simples_per_complex, n_simples_per_complex.data(),
+         _header.n_simple_tracks *  sizeof(si32));
+  for (int ii = 0; ii < _header.n_complex_tracks; ii++) {
+    int complex_num = complex_track_nums[ii];
+    int nsimples = n_simples_per_complex[complex_num];
+    _simples_per_complex[complex_num] = (si32 *) urealloc
+      (_simples_per_complex[complex_num],
+       (nsimples * sizeof(si32)));
+    memcpy(_simples_per_complex[complex_num],
+           simples_per_complex[complex_num].data(),
+           nsimples * sizeof(si32));
+  }
+  // call in-class method
+  return WriteHeader();
+}
+
+
 int TitanTrackFile::WriteHeader()
      
 {
@@ -1591,6 +1696,22 @@ int TitanTrackFile::WriteHeader()
   // set file time to gmt
   
   _header.file_time = time(NULL);
+
+  // set file names if not set
+  
+  if (strlen(_header.header_file_name) == 0) {
+    Path hpath(_header_file_path);
+    STRncopy(_header.header_file_name, hpath.getFile().c_str(), R_LABEL_LEN);
+    if (strlen(_header.storm_header_file_name) == 0) {
+      Path spath(hpath);
+      spath.setExt(STORM_HEADER_FILE_EXT_V5);
+      STRncopy(_header.storm_header_file_name, spath.getFile().c_str(), R_LABEL_LEN);
+    }
+  }
+  if (strlen(_header.data_file_name) == 0) {
+    Path dpath(_data_file_path);
+    STRncopy(_header.data_file_name, dpath.getFile().c_str(), R_LABEL_LEN);
+  }
   
   // copy file label
   
@@ -1627,10 +1748,10 @@ int TitanTrackFile::WriteHeader()
   track_file_scan_index_t *scan_index = sindexArray.alloc(n_scans);
 
   // copy the header and arrays to local variables
-  
+
   track_file_header_t header = _header;
   
-  memcpy (complex_track_nums,_complex_track_nums,
+  memcpy (complex_track_nums, _complex_track_nums,
           n_complex_tracks *  sizeof(si32));
   
   memcpy (complex_track_offsets, _complex_track_offsets,
@@ -1639,7 +1760,7 @@ int TitanTrackFile::WriteHeader()
   memcpy (simple_track_offsets, _simple_track_offsets,
           n_simple_tracks *  sizeof(si32));
   
-  memcpy (nsimples_per_complex, _nsimples_per_complex,
+  memcpy (nsimples_per_complex, _n_simples_per_complex,
           n_simple_tracks *  sizeof(si32));
   
   memcpy (scan_index, _scan_index,
@@ -1750,7 +1871,7 @@ int TitanTrackFile::WriteHeader()
   for (int icomplex = 0; icomplex < n_complex_tracks; icomplex++) {
 
     int complex_num = _complex_track_nums[icomplex];
-    int nsimples = _nsimples_per_complex[complex_num];
+    int nsimples = _n_simples_per_complex[complex_num];
     simples_per_complex_offsets[complex_num] = ftell(_header_file);
 
     TaArray<si32> simpleArray;
@@ -1801,9 +1922,18 @@ int TitanTrackFile::WriteHeader()
 //
 ///////////////////////////////////////////////////////////////////////////
 
+int TitanTrackFile::WriteSimpleParams(const simple_track_params_t &sparams)
+     
+{
+  _simple_params = sparams;
+  return WriteSimpleParams(sparams.simple_track_num);
+}
+  
 int TitanTrackFile::WriteSimpleParams(int track_num)
      
 {
+
+  AllocSimpleArrays(track_num + 1);
   
   _clearErrStr();
   _errStr += "ERROR - TitanTrackFile::WriteSimpleParams\n";
@@ -1860,6 +1990,18 @@ int TitanTrackFile::WriteSimpleParams(int track_num)
 //
 ///////////////////////////////////////////////////////////////////////////
 
+int TitanTrackFile::WriteComplexParams(int complex_index,
+                                       const complex_track_params_t &cparams)
+{
+  _complex_params = cparams;
+  AllocComplexArrays(complex_index + 1);
+  _complex_track_nums[complex_index] = cparams.complex_track_num;
+  AllocSimpleArrays(cparams.n_simple_tracks);
+  AllocSimpleArrays(cparams.complex_track_num + 1);
+  _n_simples_per_complex[cparams.complex_track_num] = cparams.n_simple_tracks;
+  return WriteComplexParams(cparams.complex_track_num);
+}
+  
 int TitanTrackFile::WriteComplexParams(int track_num)
      
 {
@@ -1931,7 +2073,7 @@ int TitanTrackFile::WriteComplexParams(int track_num)
 	      1, _data_file) != 1) {
     int errNum = errno;
     TaStr::AddStr(_errStr, "  ", "Writing complex track params.");
-    TaStr::AddInt(_errStr, "  track_num", track_num);
+    TaStr::AddInt(_errStr, "  track_num: ", track_num);
     TaStr::AddStr(_errStr, "  ", strerror(errNum));
     return -1;
   }
@@ -1952,6 +2094,68 @@ int TitanTrackFile::WriteComplexParams(int track_num)
 //
 // returns offset of last entry written on success, -1 on failure
 //
+// Use of this method assumes that the entries for a simple track
+// will be written in time order, so that the offsets can be set
+// accordingly.
+//
+///////////////////////////////////////////////////////////////////////////
+
+long TitanTrackFile::WriteEntry(const track_file_entry_t &entry)
+     
+{
+
+  // save state
+  
+  _entry = entry;
+
+  // set initial offsets if needed
+  
+  if (entry.storm_num == 0) {
+    // first entry in a scan
+    _prev_in_scan_offset = 0;
+  }
+  if (entry.duration_in_secs == 0) {
+    // first entry in a simple track
+    _prev_in_track_offset = 0;
+  }
+
+  // do the write
+  
+  long writeOffset = WriteEntry(_prev_in_track_offset, _prev_in_scan_offset);
+  if (writeOffset < 0) {
+    TaStr::AddStr(_errStr, "TitanTrackFile::WriteTrackEntry()");
+    return -1;
+  }
+  
+  // save offsets for next time
+  
+  _prev_in_track_offset = writeOffset;
+  _prev_in_scan_offset = writeOffset;
+
+  // set the scan index for this entry
+
+  AllocScanIndex(entry.scan_num + 1);
+  track_file_scan_index_v5_t &index(_scan_index[entry.scan_num]);
+  if (entry.storm_num == 0) {
+    index.utime = entry.time;
+    index.first_entry_offset = writeOffset;
+    index.n_entries = 1;
+  } else {
+    index.n_entries++;
+  }
+
+  return writeOffset;
+       
+}
+  
+///////////////////////////////////////////////////////////////////////////
+//
+// write an entry for a track in the track data file
+//
+// The entry is written at the end of the file
+//
+// returns offset of last entry written on success, -1 on failure
+//
 ///////////////////////////////////////////////////////////////////////////
 
 long TitanTrackFile::WriteEntry(int prev_in_track_offset,
@@ -1959,17 +2163,17 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
      
 {
   
+  // swap
+  
   _clearErrStr();
   _errStr += "ERROR - TitanTrackFile::WriteEntry\n";
   TaStr::AddStr(_errStr, "  Writing to file: ", _data_file_path);
 
-  long file_mark;
-
   // Go to the end of the file and save the file position.
 
   fseek(_data_file, 0, SEEK_END);
-  file_mark = ftell(_data_file);
-  
+  long file_end_mark = ftell(_data_file);
+
   // If prev_in_track_offset is non-zero (which indicates that this is not
   // the first entry in a track) read in the entry at that location,
   // update the next_entry prev_in_track_offset with the current file
@@ -1982,10 +2186,10 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
     fseek(_data_file, prev_in_track_offset, SEEK_SET);
     
     // read in entry
-    
+
     track_file_entry_t entry;
     if (ufread(&entry, sizeof(track_file_entry_t),
-	       1, _data_file) != 1) {
+               1, _data_file) != 1) {
       int errNum = errno;
       TaStr::AddStr(_errStr, "  ",
 		    "Reading track entry to update in_track_offset");
@@ -1996,7 +2200,7 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
     
     // store next_entry_offset, swap
     
-    entry.next_entry_offset = file_mark;
+    entry.next_entry_offset = file_end_mark;
     BE_from_array_32(&entry.next_entry_offset,
 		     sizeof(entry.next_entry_offset));
     
@@ -2016,7 +2220,9 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
       return -1;
     }
     
-  } // if (prev_in_track_offset == 0) 
+  } // if (prev_in_track_offset == 0)
+
+  FlushFiles();
   
   // If prev_in_scan_offset is non-zero (which indicates that this is not
   // the first entry in a track) read in the entry at that location,
@@ -2033,7 +2239,7 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
     
     track_file_entry_t entry;
     if (ufread(&entry, sizeof(track_file_entry_t),
-	       1, _data_file) != 1) {
+               1, _data_file) != 1) {
       int errNum = errno;
       TaStr::AddStr(_errStr, "  ",
 		    "Reading track entry to update in_track_offset.");
@@ -2044,7 +2250,7 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
     
     // store next_entry_offset, swap
     
-    entry.next_scan_entry_offset = file_mark;
+    entry.next_scan_entry_offset = file_end_mark;
     BE_from_array_32(&entry.next_scan_entry_offset,
 		     sizeof(entry.next_scan_entry_offset));
     
@@ -2055,7 +2261,7 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
     // rewrite entry
     
     if (ufwrite(&entry, sizeof(track_file_entry_t),
-		1, _data_file) != 1) {
+        	1, _data_file) != 1) {
       int errNum = errno;
       TaStr::AddStr(_errStr, "  ",
 		    "Re-writing track entry.");
@@ -2066,6 +2272,8 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
     
   } // if (prev_in_scan_offset == 0) 
   
+  FlushFiles();
+
   // go to end of file to write entry structure
   
   fseek(_data_file, 0, SEEK_END);
@@ -2077,9 +2285,9 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
   // set entry offsets
   
   entry.prev_entry_offset = prev_in_track_offset;
-  entry.this_entry_offset = file_mark;
+  entry.this_entry_offset = file_end_mark;
   entry.next_entry_offset = 0;
-  
+
   // swap
   
   BE_from_array_32(&entry, sizeof(track_file_entry_t));
@@ -2096,6 +2304,6 @@ long TitanTrackFile::WriteEntry(int prev_in_track_offset,
     return -1;
   }
   
-  return (file_mark);
+  return file_end_mark;
   
 }

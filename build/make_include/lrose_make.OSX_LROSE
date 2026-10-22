@@ -36,7 +36,11 @@ DATE = date -u
 # includes
 #
 
-#SYS_INCLUDES = -I/usr/include -I/usr/include/sys
+# Homebrew on Apple Silicon. Apple clang does not search this path by default.
+# -isystem keeps this behind -I$(LROSE_INSTALL_DIR)/include. A linked
+# Homebrew lrose-core also installs headers here, and those must not
+# shadow the headers from this build.
+SYS_INCLUDES = -isystem /opt/homebrew/include
 SYS_X_INCLUDES = -I/usr/X11R6/include  -I/sw/include -I/opt/X11/include
 SYS_XVIEW_INCLUDES =
 
@@ -59,16 +63,17 @@ SYS_LD_LIBRARY_PATH =
 CC = gcc
 SYS_CFLAGS = $(GCC_WARNINGS) -D$(HOST_OS) -D_BSD_TYPES -DF_UNDERSCORE2 $(MY_CFLAGS)
 PROFILE_FLAG = -pg
-DEBUG_FLAG = -g -O2
-OPT_FLAG = -O2
+DEBUG_FLAG = -g
+#DEBUG_FLAG = -g -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address -fsanitize-address-use-after-scope
+OPT_FLAG = -g
 
 #
 # cc
 #
 
-SYS_CPPC_CFLAGS = $(SYS_CFLAGS) $(MY_CPPC_CFLAGS) 
+SYS_CPPC_CFLAGS = $(SYS_CFLAGS) $(MY_CPPC_CFLAGS) -std=c++17
 CPPC = g++
-SYS_CPPC_INCLUDES =
+SYS_CPPC_INCLUDES = -isystem /opt/homebrew/include
 ACC = $(CC)
 
 # fortran
@@ -94,12 +99,14 @@ SYS_FFLAGS = -DLITENDIAN
 #
 
 STATIC_FLAG=-static
-SYS_LIBS = 
+SYS_LIBS = -lzstd 
 SYS_CPPC_LIBS =
+LROSE_PROFILE_LIB_DIR = $(LROSE_INSTALL_DIR)/lib
+
 # Don't include -lXm, -lXpm as it fails with the libc6 version of libX11
 SYS_X_LIBS = -lXext -lXt -lX11 -lSM -lICE
-SYS_LDFLAGS =
-SYS_CPPC_LDFLAGS =
+SYS_LDFLAGS = -L/opt/homebrew/lib
+SYS_CPPC_LDFLAGS = -L/opt/homebrew/lib
 SYS_X_LDFLAGS = -L/usr/X11R6/lib -L/sw/lib -L/opt/X11/lib
 SYS_F_LDFLAGS =
 SYS_XVIEW_LDFLAGS =
@@ -139,8 +146,8 @@ LEX = lex
 #	NCAR_CC		defines name of script to do NCAR Graphics links
 #	NCAR_CPPC	defines name of script to do NCAR Graphics links
 
-NCG_INC_DIR=-I/usr/local/ncarg/include
-NCG_LIB_DIR=-L/usr/local/ncarg/lib
+NCG_INC_DIR=-I/opt/homebrew/ncarg/include
+NCG_LIB_DIR=-L/opt/homebrew/ncarg/lib
 NCAR_CC=ncargcc
 NCAR_CPPC=ncarg++
 
@@ -153,30 +160,47 @@ NCAR_CPPC=ncarg++
 #       NETCDF4_INCS defines location of netCDF 4 include files
 #       NETCDF4_LDFLAGS defines location of netCDF 4 libraries
 
-NETCDF_INCS=$(MY_NETCDF_INCS) -I/usr/local/netcdf/include
-NETCDF_LDFLAGS=$(MY_NETCDF_LDFLAGS) -L/usr/local/netcdf/lib
-NETCDF4_INCS=$(MY_NETCDF4_INCS)
-NETCDF4_LDFLAGS=$(MY_NETCDF4_LDFLAGS)
+# Homebrew netCDF/HDF5/udunits live in the prefix, not /opt/homebrew/netcdf.
+UDUNITS_INCS=$(MY_UDUNITS_INCS) -isystem /opt/homebrew/include
+UDUNITS_LDFLAGS=$(MY_UDUNITS_LDFLAGS) -L/opt/homebrew/lib
+
+HDF5_INCLUDES=$(MY_HDF5_INCS) -isystem /opt/homebrew/include
+HDF5_LDFLAGS=$(MY_HDF5_LDFLAGS) -L/opt/homebrew/lib
+HDF5_LIBS=$(MY_HDF5_LIBS) -lhdf5 -lhdf5_hl -lsz -lz
+
+NETCDF_INCS=$(MY_NETCDF_INCS) -isystem /opt/homebrew/include
+NETCDF_LDFLAGS=$(MY_NETCDF_LDFLAGS) -L/opt/homebrew/lib
+NETCDF4_INCS=$(MY_NETCDF4_INCS) -isystem /opt/homebrew/include $(HDF5_INCLUDES)
+NETCDF4_LDFLAGS=$(MY_NETCDF4_LDFLAGS) -L/opt/homebrew/lib $(HDF5_LDFLAGS)
 
 NETCDF_C_LIB=-lnetcdf
 NETCDF_C++_LIB=-lnetcdf_c++
 NETCDF_FF_LIB=-lnetcdff
 NETCDF_C_AND_C++_LIBS=-lnetcdf
 NETCDF_C_AND_F_LIBS=-lnetcdff -lnetcdf
-#NETCDF4_LIBS=-lNcxx -lnetcdf -lhdf5_cpp -lhdf5_hl -lhdf5 -lz -lbz2 -lexpat
-NETCDF4_LIBS=-lNcxx -lnetcdf -lhdf5_cpp -lhdf5_hl -lhdf5 -lz -lbz2
+NETCDF4_LIBS=-lnetcdf -lhdf5_hl -lhdf5 -lsz -lz
 
 #
 # Qt
 #
 
-QJSENGINE = -F/usr/local/Cellar/qt/5.14.2/lib -framework QtQml
-PKG_CONFIG_PATH = /usr/local/opt/qt5/lib/pkgconfig
-QT_INCLUDES = $(shell pkg-config --cflags Qt5Core Qt5Widgets Qt5Gui)
-QT_LDFLAGS = -L$(shell pkg-config --variable=libdir Qt5Gui)
-QT_LIBS = $(shell pkg-config --libs Qt5Core Qt5Widgets Qt5Gui)
-QT_CPPC_CFLAGS = -std=c++11
-QT_EXEC_PATH=$(shell pkg-config --variable=exec_prefix Qt5Core)
+#QJSENGINE = -F/opt/homebrew/Cellar/qt/5.14.2/lib -framework QtQml
+#PKG_CONFIG_PATH = /opt/homebrew/opt/qt5/lib/pkgconfig
+#QT_INCLUDES = $(shell pkg-config --cflags Qt5Core Qt5Widgets Qt5Gui)
+#QT_LDFLAGS = -L$(shell pkg-config --variable=libdir Qt5Gui)
+#QT_LIBS = $(shell pkg-config --libs Qt5Core Qt5Widgets Qt5Gui)
+#QT_CPPC_CFLAGS = -std=c++17
+#QT_EXEC_PATH=$(shell pkg-config --variable=exec_prefix Qt5Core)
+
+# Use the Homebrew qt opt symlink so this survives version upgrades.
+# Pass PKG_CONFIG_PATH into each shell call; a make assignment is not exported.
+QJSENGINE = -F/opt/homebrew/lib -framework QtQml
+PKG_CONFIG_PATH = /opt/homebrew/opt/qt/lib/pkgconfig
+QT_INCLUDES = $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags Qt6Core Qt6Widgets Qt6Gui Qt6Network Qt6Qml | sed 's|-I/opt/homebrew/include|-isystem /opt/homebrew/include|g')
+QT_LDFLAGS = -L$(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --variable=libdir Qt6Gui)
+QT_LIBS = $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs Qt6Core Qt6Widgets Qt6Gui Qt6Network Qt6Qml)
+QT_CPPC_CFLAGS = -std=c++17
+QT_EXEC_PATH=$(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --variable=exec_prefix Qt6Core)
 
 # do not have jasper lib
 
@@ -188,7 +212,7 @@ JASPER_LIBS =
 # have jasper lib
 
 # JASPER_CPPC_CFLAGS =
-# JASPER_INCLUDES = -I/usr/local/jasper/include
-# JASPER_LDFLAGS = -L/usr/local/jasper/lib
+# JASPER_INCLUDES = -I/opt/homebrew/jasper/include
+# JASPER_LDFLAGS = -L/opt/homebrew/jasper/lib
 # JASPER_LIBS = -ljasper
 

@@ -38,6 +38,7 @@
 #include <toolsa/mem.h>
 #include <toolsa/str.h>
 #include <toolsa/TaStr.hh>
+#include <toolsa/safe_snprintf.hh>
 using namespace std;
 
 const double acPosVector::missingVal = -9999.0;
@@ -472,4 +473,3 @@ void acPosVector::_swapTimesIfRequired(){
   }
   return;
 }
-

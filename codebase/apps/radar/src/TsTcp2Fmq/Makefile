@@ -36,15 +36,16 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_macros
 
 TARGET_FILE = TsTcp2Fmq
 
-LOC_INCLUDES =
-LOC_CPPC_CFLAGS =
-LOC_LDFLAGS =
+LOC_INCLUDES = $(NETCDF4_INCS)
+LOC_LDFLAGS = $(NETCDF4_LDFLAGS)
+
 LOC_LIBS = \
-          -ldsdata -lradar -lFmq -lSpdb -lMdv  -ldsserver -ldidss \
-          -lRadx -lNcxx -lrapformats -leuclid -lrapmath \
-          -lphysics -ltoolsa -ldataport -ltdrp \
-          $(NETCDF4_LIBS) \
-          -lfftw3 -lbz2 -lz -lpthread
+	-ldsdata -lradar -lMdv -lSpdb \
+	-lFmq -lrapformats -ldsserver -ldidss \
+	-leuclid -lrapmath -ltoolsa -ldataport \
+	-ltdrp -lRadx -lNcxx -lphysics \
+	$(NETCDF4_LIBS) -lfftw3 -lbz2 -lz \
+	-lpthread
 
 CPPC_SRCS = \
 	$(PARAMS_CC) \
@@ -75,4 +76,5 @@ include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
 #
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

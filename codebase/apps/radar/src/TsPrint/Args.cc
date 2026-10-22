@@ -98,7 +98,12 @@ int Args::parse(int argc, char **argv, string &prog_name)
       sprintf(tmp_str, "print_format = TRUE;");
       TDRP_add_override(&override, tmp_str);
       
-    } else if (!strcmp(argv[i], "-once")) {
+    } else if (!strcmp(argv[i], "-lag1")) {
+      
+      sprintf(tmp_str, "print_lag1_coherent_power = TRUE;");
+      TDRP_add_override(&override, tmp_str);
+      
+  } else if (!strcmp(argv[i], "-once")) {
       
       sprintf(tmp_str, "once_only = TRUE;");
       TDRP_add_override(&override, tmp_str);
@@ -404,6 +409,11 @@ int Args::parse(int argc, char **argv, string &prog_name)
 	TDRP_add_override(&override, tmp_str);
       }
 
+    } else if (argv[i][0] == '-' && strcmp(argv[i], "-params")) {
+
+      cerr<< "====>> WARNING - invalid command line argument: '"
+          << argv[i] << "' <<====" << endl;
+
     } // if
     
   } // i
@@ -418,6 +428,10 @@ int Args::parse(int argc, char **argv, string &prog_name)
 
 void Args::_usage(string &prog_name, ostream &out)
 {
+
+  out << endl;
+  out << "TsPrint reads radar time series data from an FMQ, and prints in various ways." << endl;
+  out << endl;
 
   out << "Usage: " << prog_name << " [options as below]\n"
       << "options:\n"
@@ -446,6 +460,7 @@ void Args::_usage(string &prog_name, ostream &out)
       << "       [ -instance ?] instance for registering with procmap\n"
       << "       [ -invert ] invert the sense of the HV flag\n"
       << "       [ -labels ?] number of lines between labels (default 60)\n"
+      << "       [ -lag1 ] print lag1 coherent power, in addition to lag0 power\n"
       << "       [ -lat_lon ] prints latitude and longitude (max power mode only)\n"
       << "       [ -max_angle_change ?] set max angle change from pulse to pulse\n"
       << "                              prints warning if change exceeds this\n"

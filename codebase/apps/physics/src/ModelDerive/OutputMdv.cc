@@ -101,11 +101,12 @@ int OutputMdv::writeVol(Mdvx::master_header_t masterHdr, const char *dataSetInfo
     Mdvx::vlevel_header_t vlevel_hdr;
 
     float levels[MDV_MAX_VLEVELS];
-    int nx, ny, nz;
-    float missing, bad;
+    int nx = 0, ny = 0, nz = 0;
+    float missing = 0.0, bad = 0.0;
     int outz = _params->interpolate_levels_n;
     float *outlevels = _params->_interpolate_levels;
     Mdvx::grid_order_indices_t order = Mdvx::ORDER_XYZ;
+    bool haveInterpInput = false;
 
     //
     // First gather up the input fields to the interpolation function
@@ -124,7 +125,7 @@ int OutputMdv::writeVol(Mdvx::master_header_t masterHdr, const char *dataSetInfo
       field_hdr = field->getFieldHeader();
       vlevel_hdr = field->getVlevelHeader();
 
-      if(b == 1) {
+      if (!haveInterpInput) {
 	nx = field_hdr.nx;
 	ny = field_hdr.ny;
 	nz = field_hdr.nz;
@@ -132,6 +133,7 @@ int OutputMdv::writeVol(Mdvx::master_header_t masterHdr, const char *dataSetInfo
 	bad = field_hdr.bad_data_value;
 	for(int c = 0; c < nz; c++)
 	  levels[c] = vlevel_hdr.level[c];
+        haveInterpInput = true;
       } else {
 	if(field_hdr.nx != nx || field_hdr.ny != ny || field_hdr.nz != nz) {
 	  cerr << "ERROR: Input fields for interpolation " << _params->_interpolate_function[0]
@@ -149,12 +151,15 @@ int OutputMdv::writeVol(Mdvx::master_header_t masterHdr, const char *dataSetInfo
     if(_params->interpolate_function_n < 2)
       cerr << "WARNING: No input fields for interpolation " << _params->_interpolate_function[0]
 	   << ". At least one input field is required for vertical interp functions." << endl;
+    if (!haveInterpInput) {
+      return (-5);
+    }
 
     //
     // Gather all fields in the output file and stored local to be output
     // that match the input fields dimensions.
     //
-    for(int a = 0; a < fields.size(); a++) {
+    for (size_t a = 0; a < fields.size(); a++) {
 
       field_hdr = fields[a]->getFieldHeader();
       vlevel_hdr = fields[a]->getVlevelHeader();
@@ -200,7 +205,7 @@ int OutputMdv::writeVol(Mdvx::master_header_t masterHdr, const char *dataSetInfo
     // Swap out the data in the field for the new interpolated data
     // If using Grib2 convetion vertical level field names, switch those
     //
-    for(int a = 0; a < data_index.size(); a++) {
+    for (size_t a = 0; a < data_index.size(); a++) {
       fields[data_index[a]]->clearVolData();
 
       //
@@ -267,9 +272,9 @@ int OutputMdv::writeVol(Mdvx::master_header_t masterHdr, const char *dataSetInfo
     // Load previous mdv fields and add them to our list
     //
     vector<MdvxField *> f = mdvx.getFields();
-    for(int a = 0; a < f.size(); a++) {
+    for (size_t a = 0; a < f.size(); a++) {
       overwrite = false;
-      for(int b = 0; b < fields.size(); b++)
+      for (size_t b = 0; b < fields.size(); b++)
 	if(strcmp(f[a]->getFieldHeader().field_name, fields[b]->getFieldHeader().field_name) == 0)
 	  overwrite = true;
       if(!overwrite) {
@@ -293,7 +298,7 @@ int OutputMdv::writeVol(Mdvx::master_header_t masterHdr, const char *dataSetInfo
   Mdvx::scaling_type_t scalingType = 
     (Mdvx::scaling_type_t)_params->scaling_type;
   
-  for(int a = 0; a < fields.size(); a++) {
+  for (size_t a = 0; a < fields.size(); a++) {
     //
     // Convert to specified type and encode
     //
@@ -366,7 +371,7 @@ void OutputMdv::createMdvxField(Mdvx::field_header_t fieldHeader, Mdvx::vlevel_h
 MdvxField *OutputMdv::getField(char *fieldName)
 {
   MdvxField *field = NULL;
-  for(int a = 0; a < fields.size(); a++) {
+  for (size_t a = 0; a < fields.size(); a++) {
     field = fields[a];
     if(strcasecmp(field->getFieldName(), fieldName) == 0)
       return field;

@@ -215,6 +215,10 @@ public:
 
   void printXML(FILE *out);
 
+  // Convert to XML
+  
+  string convertToXML() const;
+
 protected:
 
   // errors
@@ -292,5 +296,3 @@ private:
 };
 
 #endif
-
-

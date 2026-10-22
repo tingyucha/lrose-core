@@ -109,16 +109,16 @@ public:
   } projection_t;
 
   typedef enum {
+    LOGICAL_AND = 0,
+    LOGICAL_OR = 1
+  } logical_t;
+
+  typedef enum {
     TRANSFORM_DB_TO_LINEAR = 0,
     TRANSFORM_DB_TO_LINEAR_AND_BACK = 1,
     TRANSFORM_LINEAR_TO_DB = 2,
     TRANSFORM_LINEAR_TO_DB_AND_BACK = 3
   } interp_transform_t;
-
-  typedef enum {
-    LOGICAL_AND = 0,
-    LOGICAL_OR = 1
-  } logical_t;
 
   typedef enum {
     CLASSIC = 0,
@@ -128,6 +128,11 @@ public:
   } netcdf_style_t;
 
   // struct typedefs
+
+  typedef struct {
+    char* output_name;
+    tdrp_bool_t suppress_this_field;
+  } suppress_field_t;
 
   typedef struct {
     int nz;
@@ -148,6 +153,13 @@ public:
     char* input_name;
     tdrp_bool_t process_this_field;
   } select_field_t;
+
+  typedef struct {
+    char* name;
+    double min_valid_value;
+    double max_valid_value;
+    logical_t combination_method;
+  } censoring_field_t;
 
   typedef struct {
     char* input_name;
@@ -183,13 +195,6 @@ public:
   } angle_fields_t;
 
   typedef struct {
-    char* name;
-    double min_valid_value;
-    double max_valid_value;
-    logical_t combination_method;
-  } censoring_field_t;
-
-  typedef struct {
     char* input_name;
     double min_value;
     double max_value;
@@ -215,7 +220,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -493,6 +498,10 @@ public:
 
   char* input_dir;
 
+  char* input_file_search_ext;
+
+  char* input_file_search_substr;
+
   mode_t mode;
 
   int max_realtime_data_age_secs;
@@ -504,6 +513,11 @@ public:
   char* output_dir;
 
   output_format_t output_format;
+
+  tdrp_bool_t suppress_fields_from_output;
+
+  suppress_field_t *_suppressed_fields;
+  int suppressed_fields_n;
 
   interp_mode_t interp_mode;
 
@@ -567,6 +581,13 @@ public:
   select_field_t *_selected_fields;
   int selected_fields_n;
 
+  tdrp_bool_t apply_censoring;
+
+  censoring_field_t *_censoring_fields;
+  int censoring_fields_n;
+
+  int censoring_min_valid_run;
+
   tdrp_bool_t transform_fields_for_interpolation;
 
   transform_field_t *_transform_fields;
@@ -614,13 +635,6 @@ public:
   tdrp_bool_t interp_time_field;
 
   tdrp_bool_t output_debug_fields;
-
-  tdrp_bool_t apply_censoring;
-
-  censoring_field_t *_censoring_fields;
-  int censoring_fields_n;
-
-  int censoring_min_valid_run;
 
   tdrp_bool_t override_standard_pseudo_earth_radius;
 
@@ -776,19 +790,19 @@ public:
 
   double conv_strat_min_valid_dbz;
 
-  double conv_strat_dbz_threshold_for_definite_convection;
-
-  double conv_strat_convective_radius_km;
-
   double conv_strat_texture_radius_km;
 
   double conv_strat_min_valid_fraction_for_texture;
 
-  double conv_strat_min_texture_for_convection;
+  double conv_strat_min_convectivity_for_convective;
+
+  double conv_strat_max_convectivity_for_stratiform;
+
+  int conv_strat_min_overlap_for_convective_clumps;
 
   tdrp_bool_t conv_strat_write_partition;
 
-  tdrp_bool_t conv_strat_write_mean_texture;
+  tdrp_bool_t conv_strat_write_max_texture;
 
   tdrp_bool_t conv_strat_write_convective_dbz;
 
@@ -840,7 +854,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[210];
+  mutable TDRPtable _table[214];
 
   const char *_className;
 

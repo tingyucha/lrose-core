@@ -42,7 +42,7 @@
 
 #include <toolsa/toolsa_macros.h>
 #include "WorldPlot.hh"
-#include "ColorMap.hh"
+#include <qtplot/ColorMap.hh>
 using namespace std;
 
 ////////////////////////////////////////
@@ -1339,7 +1339,7 @@ void WorldPlot::drawDistanceTicks(QPainter &painter,
     const RadxTime &tickTime = tickTimes[i];
     double distVal = tickDists[i];
     
-    if (!isfinite(distVal)) {
+    if (!std::isfinite(distVal)) {
       continue;
     }
 
@@ -1530,7 +1530,8 @@ void WorldPlot::_computeTransform()
 
 void WorldPlot::drawColorScale(const ColorMap &colorMap,
                                QPainter &painter,
-                               int unitsFontSize)
+                               int unitsFontSize,
+                               char *textColor)
   
 {
   
@@ -1603,6 +1604,7 @@ void WorldPlot::drawColorScale(const ColorMap &colorMap,
   
   // add labels
 
+  painter.setPen(QColor(textColor)); // Qt::darkCyan); // (QColor(_params.text_color));
   painter.setBrush(Qt::black);
   painter.setBackgroundMode(Qt::OpaqueMode);
   QRect tRect(painter.fontMetrics().tightBoundingRect("1.0"));

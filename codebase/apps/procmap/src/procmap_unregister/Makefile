@@ -37,25 +37,29 @@ LOC_INCLUDES =
 LOC_CFLAGS =
 LOC_LDFLAGS =
 LOC_LIBS = \
-	-ltoolsa -lpthread -ldataport -lz -lbz2 -lm
+	-ltoolsa -ldataport -lpthread -lz \
+	-lbz2 -lm
 
 TARGET_FILE = procmap_unregister
 
 HDRS =
 
-SRCS = \
-	parse_args.c \
-	procmap_unregister.c
+CPPC_SRCS = \
+	parse_args.cc \
+	procmap_unregister.cc
 
 #
 # general targets
 #
 
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c_targets
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
 
 #
 # local targets
 #
 
+clean_tdrp:
+
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

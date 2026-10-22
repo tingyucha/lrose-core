@@ -109,6 +109,18 @@ public:
   } primary_axis_t;
 
   typedef enum {
+    SWEEP_MODE_SECTOR = 1,
+    SWEEP_MODE_RHI = 3,
+    SWEEP_MODE_VERTICAL_POINTING = 4,
+    SWEEP_MODE_AZIMUTH_SURVEILLANCE = 8,
+    SWEEP_MODE_ELEVATION_SURVEILLANCE = 9,
+    SWEEP_MODE_SUNSCAN = 11,
+    SWEEP_MODE_POINTING = 12,
+    SWEEP_MODE_SUNSCAN_RHI = 17,
+    SWEEP_MODE_ELECTRONIC_STEERING = 20
+  } sweep_mode_t;
+
+  typedef enum {
     ATTR_STRING = 0,
     ATTR_INT = 1,
     ATTR_DOUBLE = 2,
@@ -143,7 +155,7 @@ public:
   typedef enum {
     OUTPUT_FORMAT_CFRADIAL = 0,
     OUTPUT_FORMAT_CFRADIAL2 = 1,
-    OUTPUT_FORMAT_NCXX = 2,
+    OUTPUT_FORMAT_FM301 = 2,
     OUTPUT_FORMAT_DORADE = 3,
     OUTPUT_FORMAT_FORAY = 4,
     OUTPUT_FORMAT_NEXRAD = 5,
@@ -168,6 +180,11 @@ public:
   } filename_mode_t;
 
   // struct typedefs
+
+  typedef struct {
+    char* field_name;
+    double nyquist_mps;
+  } nyquist_field_t;
 
   typedef struct {
     char* name;
@@ -198,6 +215,8 @@ public:
     char* input_field_name;
     double transform_scale;
     double transform_offset;
+    tdrp_bool_t field_folds;
+    double folding_value;
   } transform_field_t;
 
   typedef struct {
@@ -206,6 +225,23 @@ public:
     char* xml_tag;
     char* lookup_table;
   } variable_transform_field_t;
+
+  typedef struct {
+    char* sector_label;
+    char* coplane_label;
+    char* rhi_label;
+    char* vert_label;
+    char* idle_label;
+    char* az_sur_label;
+    char* el_sur_label;
+    char* sunscan_label;
+    char* sunscan_rhi_label;
+    char* cal_label;
+    char* man_label;
+    char* dbs_label;
+    char* traj_label;
+    char* par_label;
+  } sweep_mode_labels_t;
 
   ///////////////////////////
   // Member functions
@@ -227,7 +263,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -523,6 +559,8 @@ public:
 
   char* search_ext;
 
+  char* search_substr;
+
   tdrp_bool_t gematronik_realtime_mode;
 
   int gematronik_realtime_wait_secs;
@@ -567,6 +605,8 @@ public:
 
   tdrp_bool_t preserve_sweeps;
 
+  tdrp_bool_t preserve_rays;
+
   tdrp_bool_t remove_long_range_rays;
 
   tdrp_bool_t remove_short_range_rays;
@@ -593,6 +633,10 @@ public:
 
   char* site_name;
 
+  tdrp_bool_t override_scan_name;
+
+  char* scan_name;
+
   tdrp_bool_t override_volume_number;
 
   int starting_volume_number;
@@ -601,15 +645,25 @@ public:
 
   tdrp_bool_t override_radar_location;
 
+  tdrp_bool_t override_altitude_only;
+
   double radar_latitude_deg;
 
   double radar_longitude_deg;
 
-  double radar_altitude_meters;
-
   tdrp_bool_t change_radar_latitude_sign;
 
+  double radar_altitude_meters;
+
+  tdrp_bool_t override_height_agl;
+
+  double radar_height_agl_meters;
+
   tdrp_bool_t apply_georeference_corrections;
+
+  tdrp_bool_t read_georeference_corrections;
+
+  char* georeference_corrections_path;
 
   tdrp_bool_t apply_time_offset;
 
@@ -647,6 +701,11 @@ public:
 
   double antenna_gain_db_v;
 
+  tdrp_bool_t set_nyquist_velocity;
+
+  nyquist_field_t *_nyquist_fields;
+  int nyquist_fields_n;
+
   tdrp_bool_t reload_sweep_info_from_rays;
 
   tdrp_bool_t reload_volume_info_from_rays;
@@ -657,15 +716,31 @@ public:
 
   double optimized_transitions_max_elev_error;
 
+  tdrp_bool_t combine_rhi;
+
+  tdrp_bool_t override_sweep_mode;
+
+  sweep_mode_t sweep_mode;
+
+  tdrp_bool_t set_sweep_mode_from_ray_angles;
+
   tdrp_bool_t adjust_sweep_limits_using_angles;
 
   tdrp_bool_t sort_sweeps_by_fixed_angle;
+
+  tdrp_bool_t combine_sweeps_by_fixed_angle;
+
+  double combined_sweep_max_fixed_angle_diff;
 
   tdrp_bool_t reverse_sweep_order_in_vol;
 
   tdrp_bool_t sort_rays_by_time;
 
   tdrp_bool_t sort_rays_by_time_decreasing;
+
+  char* convention_override;
+
+  char* subconvention_override;
 
   char* version_override;
 
@@ -711,6 +786,35 @@ public:
 
   int censoring_min_valid_run;
 
+  tdrp_bool_t specify_fields_to_be_censored;
+
+  char* *_fields_to_be_censored;
+  int fields_to_be_censored_n;
+
+  tdrp_bool_t censoring_limit_elev_angles;
+
+  double censoring_min_elev_deg;
+
+  double censoring_max_elev_deg;
+
+  tdrp_bool_t censor_test_pulse_ring;
+
+  double test_pulse_min_range_km;
+
+  double test_pulse_max_range_km;
+
+  double test_pulse_margin_km;
+
+  char* test_pulse_field_name;
+
+  tdrp_bool_t add_SNR_field;
+
+  char* DBZ_field_name;
+
+  char* SNR_field_name;
+
+  double noise_dbz_at_100km;
+
   tdrp_bool_t apply_linear_transforms;
 
   transform_field_t *_transform_fields;
@@ -724,6 +828,8 @@ public:
   output_format_t output_format;
 
   netcdf_style_t netcdf_style;
+
+  char* FM301_params_file_path;
 
   tdrp_bool_t output_native_byte_order;
 
@@ -748,6 +854,16 @@ public:
   tdrp_bool_t include_subsecs_in_file_name;
 
   tdrp_bool_t include_scan_type_in_file_name;
+
+  tdrp_bool_t override_sweep_mode_labels;
+
+  sweep_mode_labels_t sweep_mode_labels;
+
+  tdrp_bool_t include_scan_name_in_file_name;
+
+  tdrp_bool_t include_scan_id_in_file_name;
+
+  tdrp_bool_t include_range_resolution_in_file_name;
 
   tdrp_bool_t include_vol_num_in_file_name;
 
@@ -806,7 +922,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[176];
+  mutable TDRPtable _table[217];
 
   const char *_className;
 

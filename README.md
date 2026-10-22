@@ -14,7 +14,7 @@ LROSE is a co-operative project between:
 
 LROSE is funded by the [National Science Foundation](https://www.nsf.gov).
 
-### LROSE REPOSITORY
+### LROSE CORE REPOSITORY
 
 This GitHub distribution contains the core software for LROSE.
 
@@ -28,57 +28,57 @@ To download this repository from GitHub, run:
 
 The latest release can be found at:
 
-* [lrose-core releases](https://github.com/NCAR/lrose-core/releases)
+* [NCAR/lrose-core/releases](https://github.com/NCAR/lrose-core/releases)
 
-### DOWNLOADS
+| Release | Notes  |
+| ------- |:------:|
+| [Cyclone](https://github.com/nsf-lrose/lrose-cyclone) | LROSE year 2, final |
+| [Elle](https://github.com/nsf-lrose/lrose-elle) | LROSE year 3, final |
+| [Topaz](https://github.com/nsf-lrose/lrose-topaz) | LROSE year 4 |
+| [Jade](https://github.com/NCAR/lrose-core/releases/tag/lrose-core-20230814) | LROSE final Jade release |
+| [Colette final](https://github.com/NCAR/lrose-core/releases/tag/lrose-core-20250105) | LROSE Colette final spring 2025 release |
+| [Laguna initial](https://github.com/NCAR/lrose-core/releases/tag/lrose-core-20250811) | LROSE Laguna Fall 2025 release |
+| [Laguna interim](https://github.com/NCAR/lrose-core/releases/tag/lrose-core-20260425) | LROSE Laguna interim 2026 release |
 
-| Download and install |
-| --------------------- |
-| [LINUX - install from RedHat .rpm package](./docs/download/download_rpm_and_install.md) |
-| [LINUX - install from Debian .deb package](./docs/download/download_deb_and_install.md) |
-| [OSX - homebrew build and install](./docs/download/homebrew_install.mac_osx.md) |
-| [OSX - install HawkEye from DMG file](./docs/download/hawkeye_install_from_dmg.md) |
-| [homebrew notes](./docs/download/homebrew_notes.md) |
-| [CIDD binary install](./docs/download/CIDD_binary_download_and_install.linux.md) |
-| [Cyclone release](https://github.com/nsf-lrose/lrose-cyclone) |
+
+### INSTALLING FROM DOWNLOADS
+
+| Target | Description   |
+| ------------- |:-------------:|
+| [LINUX - RHEL, Fedora, Alma, Rocky, Orcacle](./docs/download/download_package_and_install.redhat.md) | Install from .rpm package file |
+| [LINUX - Debian, Ubuntu](./docs/download/download_package_and_install.debian.md) | Install from .deb package file |
+| [MAC lrose-core](./docs/download/install_using_homebrew.mac_osx.md) | Build and install using homebrew |
+| [CIDD - LINUX 32-bit emulation](./docs/download/CIDD_binary_download_and_install.linux.md) | Binary install of CIDD for LINUX |
 
 ### BUILDS
 
-| Build and install |
-| --------------------- |
-| [Build overview](./docs/build/LROSE_build_overview.md) |
-| [LROSE make system](./docs/build/LROSE_manual_make_system.md) |
-| [Build manually - LINUX](./docs/build/LROSE_manual_build.linux.md) |
-| [Build manually - OSX](./docs/build/LROSE_manual_build.osx.md) |
-| [Build using autoconf - LINUX](./docs/build/LROSE_autoconf_build.linux.md) |
-| [CIDD build - 32-bit mode - LINUX](./docs/build/CIDD_build.linux.md) |
-| [fractl build](./docs/build/build_fractl.md) |
-| [samurai build](./docs/build/build_samurai.md) |
-| [NetCdf build - LINUX](./docs/build/NETCDF_build.linux.md) |
-| [LROSE package dependencies - core](./docs/build/lrose_package_dependencies.md) |
-| [LROSE package dependencies - CIDD](./docs/build/lrose_package_dependencies.cidd.md) |
+For details on builds and the code development environment, see:
 
-### CODE DEVELOPMENT
-
-Use the following if you need to set up an environment suitable for code development.
-
-| Setup instructions |
-| --------------------- |
-| [Build manually - LINUX](./docs/build/LROSE_manual_build.linux.md) |
-| [Build manually - OSX](./docs/build/LROSE_manual_build.osx.md) |
+| Location      | Description   |
+| ------------- |:-------------:|
+| [Prepare for build](./docs/build/prepare_for_build.md) | Prepare your OS for building LROSE |
+| [Build overview](./docs/build/LROSE_build_main_page.md) | Building and code development |
 
 ### REPOSITORY ORGANIZATION
 
 | Location      | Description   |
 | ------------- |:-------------:|
-| [docs](./docs) | README files |
-| [release_notes](./release_notes) | release notes for the various packages in LROSE |
-| [build](./build) | build scripts, release scripts and associated files |
-| [codebase/libs](./codebase/libs) | library source code |
-| [codebase/apps](./codebase/apps) | application source code |
-| [LROSE_DOCS_OVERVIEW.md](./docs/LROSE_DOCS_OVERVIEW.md) | Documentation index |
+| [build](./build/README.md) | build scripts, release scripts and associated files |
+| [codebase/libs](./docs/libs/lrose-libs-summary.pdf) | list of libraries |
+| [codebase/apps](./docs/apps/lrose_app_table.md) | table of primary applications |
+| [codebase/apps](./docs/apps/lrose-apps-summary.pdf) | directory list of app code |
+| [github.com/ncar/lrose-bootstrap](https://github.com/NCAR/lrose-bootstrap) | Bootstrap scripts and configurations for releases and builds |
 
-### DOI
+### DOCUMENTATION LINKS
+
+| Name           | Description   |
+| -------------- |:-------------:|
+| [LROSE_DOCS_OVERVIEW.md](./docs/LROSE_DOCS_OVERVIEW.md) | Documentation index |
+| [RadxDualPolApps.md](./docs/apps/radx/dualpol/RadxDualpolApps.md) | Dual-polarization apps |
+| [Wiki](https://github.com/NCAR/lrose-docs/wiki) | LROSE wiki |
+| [Quickstart guide](https://github.com/NCAR/lrose-docs/wiki/Lrose_quickstart) | LROSE Quickstart Guide |
+
+### DOIs
 
 The DOI for lrose-core is:
 
@@ -88,14 +88,11 @@ The DOI entry information is stored at:
 
 * [https://search.datacite.org/works/10.5065/60hz-ry38](https://search.datacite.org/works/10.5065/60hz-ry38)
 
-### DOCUMENTATION
-
-| Name           | Description   |
-| -------------- |:-------------:|
-| [LROSE_DOCS_OVERVIEW.md](./docs/LROSE_DOCS_OVERVIEW.md) | Documentation index |
-| [RadxDualPolApps.md](./docs/apps/radx/dualpol/RadxDualpolApps.md) | Dual-polarization apps |
-
 ### This page is published at:
 
 [https://ncar.github.io/lrose-core](https://ncar.github.io/lrose-core)
+
+### How to contribute, and flag issues:
+
+[CONTRIBUTING.md](https://github.com/NCAR/lrose-docs/blob/master/CONTRIBUTING.md)
 

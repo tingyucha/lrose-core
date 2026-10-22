@@ -89,9 +89,10 @@ bool ModelDeriveMdv::processData(TriggerInfo &trigger_info)
     Mdvx::field_header_t field_hdr;
     Mdvx::vlevel_header_t vlevel_hdr;
 
-    int nx, ny, nz;
-    float missing, bad;
-    char *input_units;
+    int nx = 0, ny = 0, nz = 0;
+    float missing = 0.0, bad = 0.0;
+    char *input_units = NULL;
+    bool haveInputField = false;
 
     for(int b = 1; b < _params->derive_functions_n2; b++)
     {
@@ -116,13 +117,14 @@ bool ModelDeriveMdv::processData(TriggerInfo &trigger_info)
       field_hdr = (*field).getFieldHeader();
       vlevel_hdr = (*field).getVlevelHeader();
 
-      if(b == 1) {
+      if (!haveInputField) {
 	nx = field_hdr.nx;
 	ny = field_hdr.ny;
 	nz = field_hdr.nz;
 	missing = field_hdr.missing_data_value;
 	bad = field_hdr.bad_data_value;
 	input_units = field_hdr.units;
+        haveInputField = true;
       } else {
 	if(field_hdr.nx != nx || field_hdr.ny != ny || field_hdr.nz != nz) {
 	  cerr << "Error input fields for function " << _params->__derive_functions[a][0]
@@ -137,6 +139,12 @@ bool ModelDeriveMdv::processData(TriggerInfo &trigger_info)
      
       input_data.push_back((float *)field->getVol());
       
+    }
+
+    if (!haveInputField) {
+      cerr << "Error no input fields specified for derive function "
+           << _params->__derive_functions[a][0] << endl;
+      return false;
     }
 
     DeriveBase *deriveFunction = 
@@ -164,7 +172,7 @@ bool ModelDeriveMdv::processData(TriggerInfo &trigger_info)
 
     //
     // Save the output fields 
-    for(int d = 0; d < output_data.size(); d++) {
+    for (size_t d = 0; d < output_data.size(); d++) {
       //
       // If the output field units are "inputs" set its units to the inputs units
       if(strcasecmp((*units)[d].c_str(), "inputs") == 0) {
@@ -186,7 +194,7 @@ bool ModelDeriveMdv::processData(TriggerInfo &trigger_info)
   //
   // Copy over requested fields
   //
-  for(int a = 0; a < fields_to_copy.size(); a++) {
+  for (size_t a = 0; a < fields_to_copy.size(); a++) {
 
       MdvxField *field = input_mdv.getField(fields_to_copy[a]);
       if(field == 0)
@@ -318,7 +326,7 @@ int ModelDeriveMdv::_create_verify_input_field_list(DsMdvx &input_mdv)
 	continue;
 
       int field_index = -1;
-      for(int d = 0; d < fhdrsFile.size(); d++) {
+      for (size_t d = 0; d < fhdrsFile.size(); d++) {
 	if( strcasecmp( (fhdrsFile[d]).field_name_long, _params->__derive_functions[a][b]) == 0 ||
 	    strcasecmp( (fhdrsFile[d]).field_name, _params->__derive_functions[a][b]) == 0) {
 	  field_index = d;
@@ -329,7 +337,7 @@ int ModelDeriveMdv::_create_verify_input_field_list(DsMdvx &input_mdv)
       if (field_index == -1) 
       {
 	bool found = false;
-	for(int c = 0; c < deriveFields.size(); c++) {
+	for (size_t c = 0; c < deriveFields.size(); c++) {
 	  if(strcasecmp(deriveFields[c].c_str(), _params->__derive_functions[a][b]) == 0) {
 	    found = true;
 	    break;
@@ -348,11 +356,11 @@ int ModelDeriveMdv::_create_verify_input_field_list(DsMdvx &input_mdv)
       
     }
     const vector<string> *shortNames = DeriveBase::getOutputShortNames();
-    for(int d = 0; d < shortNames->size(); d++)
+    for (size_t d = 0; d < shortNames->size(); d++)
       deriveFields.push_back( (*shortNames)[d] );
 
     const vector<string> *longNames = DeriveBase::getOutputLongNames();
-    for(int d = 0; d < longNames->size(); d++)
+    for (size_t d = 0; d < longNames->size(); d++)
       deriveFields.push_back( (*longNames)[d] );
 
   }
@@ -368,7 +376,7 @@ int ModelDeriveMdv::_create_verify_input_field_list(DsMdvx &input_mdv)
 	continue;
 
       bool found = false;
-      for(int c = 0; c < deriveFields.size(); c++) {
+      for (size_t c = 0; c < deriveFields.size(); c++) {
 	if(strcasecmp(deriveFields[c].c_str(), _params->_interpolate_function[b]) == 0) {
 	  found = true;
 	  break;
@@ -376,7 +384,7 @@ int ModelDeriveMdv::_create_verify_input_field_list(DsMdvx &input_mdv)
       }
       if(found == false) {
 	int field_index = -1;
-	for(int d = 0; d < fhdrsFile.size(); d++) {
+	for (size_t d = 0; d < fhdrsFile.size(); d++) {
 	  if( strcasecmp( (fhdrsFile[d]).field_name_long, _params->_interpolate_function[b]) == 0 ||
 	      strcasecmp( (fhdrsFile[d]).field_name, _params->_interpolate_function[b]) == 0) {
 	    field_index = d;
@@ -411,7 +419,7 @@ int ModelDeriveMdv::_create_verify_input_field_list(DsMdvx &input_mdv)
 	continue;
 
       int field_index = -1;
-      for(int d = 0; d < fhdrsFile.size(); d++) {
+      for (size_t d = 0; d < fhdrsFile.size(); d++) {
 	if( strcasecmp( (fhdrsFile[d]).field_name_long, _params->_copy_fields[b]) == 0 ||
 	    strcasecmp( (fhdrsFile[d]).field_name, _params->_copy_fields[b]) == 0) {
 	  field_index = d;

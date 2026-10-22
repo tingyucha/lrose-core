@@ -383,7 +383,7 @@ int Dsr2Radx::_processRay(RadxRay *ray)
   // set platform parameters if avaliable
 
   if (_reader->getPlatformUpdated()) {
-    _updatePlatform(ray);
+    _updatePlatform();
   }
 
   // set calibration parameters if avaliable
@@ -505,21 +505,23 @@ int Dsr2Radx::_processRay(RadxRay *ray)
   
   if (_params.debug) {
     int nPrintFreq = 90;
-    if (_params.debug >= Params::DEBUG_VERBOSE) {
-      nPrintFreq = 10;
-    } else if (_params.debug >= Params::DEBUG_EXTRA) {
+    if (_params.debug >= Params::DEBUG_EXTRA) {
       nPrintFreq = 1;
+    } else if (_params.debug >= Params::DEBUG_VERBOSE) {
+      nPrintFreq = 10;
     }
     if ((_nRaysRead > 0) && (_nRaysRead % nPrintFreq == 0) &&
         (int) _vol.getNRays() != _nCheckPrint) {
       _nCheckPrint = (int) _vol.getNRays();
-      cerr << "  nRays, sweep, vol, latest time, el, az: "
-           << _nRaysRead << ", "
-           << ray->getSweepNumber() << ", "
-           << ray->getVolumeNumber() << ", "
-           << utimstr(ray->getTimeSecs()) << ", "
-           << ray->getElevationDeg() << ", "
-           << ray->getAzimuthDeg() << endl;
+      fprintf(stderr,
+              "  nRays, sweep, vol, latest time, el, az: "
+              "%4d,%3d,%5d,%20s,%7.2f,%7.2f\n",
+              _nRaysRead,
+              ray->getSweepNumber(),
+              ray->getVolumeNumber(),
+              utimstr(ray->getTimeSecs()),
+              ray->getElevationDeg(),
+              ray->getAzimuthDeg());
     }
   }
     
@@ -538,6 +540,15 @@ int Dsr2Radx::_processRay(RadxRay *ray)
         cerr << "Going back in time - reprocessing old data?" << endl;
       }
       _computeEndOfVolTime(ray->getTimeSecs());
+      _clearData();
+    } else if ((ray->getTimeSecs() - _endOfVolTime) >
+               _params.nsecs_per_volume * 2) {
+      // data gap, start again
+      if (_params.debug) {
+        cerr << "Jumping over data gap" << endl;
+      }
+      _computeEndOfVolTime(ray->getTimeSecs());
+      _clearData();
     }
     if (ray->getTimeSecs() >= _endOfVolTime) {
       _endOfVol = true;
@@ -593,7 +604,7 @@ int Dsr2Radx::_processRay(RadxRay *ray)
   if ((int) _vol.getNRays() > _params.max_rays_in_vol) {
     _endOfVol = true;
   }
-
+  
   // check in sweep mode?
 
   if (ray->getSweepMode() != _sweepMode &&
@@ -655,6 +666,7 @@ int Dsr2Radx::_processRay(RadxRay *ray)
         _cachedRay = NULL;
       }
       if (_endOfVol) {
+        _updatePlatform();
         if (_endOfVolAutomatic ||
             _params.end_of_vol_decision == Params::CHANGE_IN_VOL_NUM ||
             _params.end_of_vol_decision == Params::CHANGE_IN_SWEEP_NUM ||
@@ -714,6 +726,10 @@ int Dsr2Radx::_processVol()
     cerr << "**** Start Dsr2Radx::_processVol() ****" << endl;
   }
 
+  // update metadata as needed
+  
+  _updatePlatform();
+  
   // load the current scan mode - PPI or RHI
   
   _loadCurrentScanMode();
@@ -924,11 +940,14 @@ void Dsr2Radx::_setupWrite()
   if (strlen(_params.output_filename_prefix) > 0) {
     _outFile->setWriteFileNamePrefix(_params.output_filename_prefix);
   }
+  
   _outFile->setWriteInstrNameInFileName(_params.include_instrument_name_in_file_name);
   _outFile->setWriteSiteNameInFileName(_params.include_site_name_in_file_name);
   _outFile->setWriteSubsecsInFileName(_params.include_subsecs_in_file_name);
   _outFile->setWriteScanTypeInFileName(_params.include_scan_type_in_file_name);
+  _outFile->setWriteScanNameInFileName(_params.include_scan_name_in_file_name);
   _outFile->setWriteVolNumInFileName(_params.include_vol_num_in_file_name);
+  _outFile->setWriteFixedAngleInFileName(_params.include_mean_fixed_angle_in_file_name);
   _outFile->setWriteHyphenInDateTime(_params.use_hyphen_in_file_name_datetime_part);
 
 }
@@ -1152,25 +1171,13 @@ int Dsr2Radx::_writeLdataInfo(const string &outputDir,
 ////////////////////////////////////////////////////////////////
 // update platform params
 
-void Dsr2Radx::_updatePlatform(RadxRay *ray)
+void Dsr2Radx::_updatePlatform()
 
 {
 
   const RadxPlatform &platform = _reader->getPlatform();
   _vol.setPlatform(platform);
-
-  // set scan name
-  // is this a solar?
-
-  string solarScanName(_params.solar_scan_name);
-  string scanName(ray->getScanName());
-  if (scanName == solarScanName) {
-    _isSolarScan = true;
-  } else {
-    _isSolarScan = false;
-  }
-  _vol.setScanName(scanName);
-
+  
   if (_params.override_radar_name) {
     _vol.setInstrumentName(_params.radar_name);
   }
@@ -1350,10 +1357,11 @@ void Dsr2Radx::_censorInputRay(RadxRay *ray)
   vector<RadxField *> fields = ray->getFields();
   for (size_t ifield = 0; ifield < fields.size(); ifield++) {
     RadxField *field = fields[ifield];
+    Radx::fl32 fmiss = field->getMissingFl32();
     Radx::fl32 *fdata = (Radx::fl32 *) field->getData();
     for (size_t igate = 0; igate < nGates; igate++) {
       if (censorFlag[igate] == 1) {
-        fdata[igate] = Radx::missingFl32;
+        fdata[igate] = fmiss;
       }
     } // igate
   } // ifield
@@ -1658,6 +1666,24 @@ int Dsr2Radx::_loadCurrentScanMode()
     }      
   }
 
+  // set scan name
+  // is this a solar?
+
+  const vector<RadxRay *> rays = _vol.getRays();
+  if (rays.size() > 0) {
+    size_t nRays = rays.size();
+    size_t midIndex = nRays / 2;
+    RadxRay *midRay = rays[midIndex];
+    string solarScanName(_params.solar_scan_name);
+    string scanName(midRay->getScanName());
+    if (scanName == solarScanName) {
+      _isSolarScan = true;
+    } else {
+      _isSolarScan = false;
+    }
+    _vol.setScanName(scanName);
+  }
+
   return 0;
 
 }
@@ -1926,13 +1952,13 @@ void Dsr2Radx::_computeMaxRangeLut(double radarAltitudeKm)
 /////////////////////////////////////////////////////////////////
 // compute time for end of volume
 	
-void Dsr2Radx::_computeEndOfVolTime(time_t beamTime)
+void Dsr2Radx::_computeEndOfVolTime(time_t rayTime)
 
 {
 
   int secsPerDay = 86400;
-  int jDay = beamTime / secsPerDay;
-  int secInDay = beamTime % secsPerDay;
+  int jDay = rayTime / secsPerDay;
+  int secInDay = rayTime % secsPerDay;
   int volInDay = secInDay / _params.nsecs_per_volume;
   int endOfVolSec = (volInDay + 1) * _params.nsecs_per_volume;
   if (endOfVolSec > secsPerDay) {

@@ -98,6 +98,20 @@ int InputFile::readFile (const string &file_path)
   if (_swapped) {
     _swapHeader();
   }
+
+  // sanity check
+
+  if (_header.year < 1900 || _header.year > 3000 ||
+      _header.month < 0 || _header.month > 12 ||
+      _header.day < 0 || _header.day > 32 ||
+      _header.hour < 0 || _header.hour > 24 ||
+      _header.min  < 0 || _header.min > 60 ||
+      _header.sec < 0 || _header.sec > 60) {
+    cerr << "ERROR - InputFile::readFile" << endl;
+    cerr << "  Bad header, cannot swap" << endl;
+    return -1;
+  }
+  
   
   // set members
   
@@ -425,8 +439,14 @@ string InputFile::_convert2String(const char *input_text, int max_len)
   
   TaArray<char> stored_text_;
   char *stored_text = stored_text_.alloc(max_len + 1);
-  memcpy(stored_text, input_text, max_len);
-  
+  if (max_len <= 0) {
+    stored_text[0] = '\0';
+    return stored_text;
+  }
+
+  memcpy(stored_text, input_text, static_cast<size_t>(max_len));
+  stored_text[max_len] = '\0';
+
   for (int i = max_len - 1; i >= 0; i--) {
     if (stored_text[i] == ' ') {
       stored_text[i] = '\0';

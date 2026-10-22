@@ -41,6 +41,8 @@
 #include "Params.hh"
 #include <radar/InterestMap.hh>
 #include <radar/GateData.hh>
+#include <radar/ForsytheRegrFilter.hh>
+
 using namespace std;
 
 ////////////////////////
@@ -52,9 +54,9 @@ public:
 
   // constructor
 
-  Cmd (const string &prog_name,
-       const Params &params,
-       vector<GateData *> &gate_data);
+  Cmd(const string &prog_name,
+      const Params &params,
+      vector<GateData *> &gate_data);
   
   // destructor
   
@@ -67,15 +69,30 @@ public:
     _gateSpacingKm = gateSpacingKm;
   }
 
+  // set the transmit/receive mode
+
+  void setXmitRcvMode(iwrf_xmit_rcv_mode_t val) { _xmitRcvMode = val; }
+
   // Create interest maps.
   // These are static on the class, and should be created before any
   // beams are constructed.
  
   int createInterestMaps(const Params &params);
+
+  // set number of samples in dwell
+
+  void setNSamples(int val) { _nSamples = val; }
+  
+  // set the number of samples assuming a rectangular window
+  // this will be fewer than nSamples if the window in use
+  // is not rectangular
+  
+  void setNSamplesRect(int val) { _nSamplesRect = val; }
   
   // compute CMD
   
-  void compute(int nGates, bool useDualPol);
+  void compute(int nGates, const RadarMoments *mom,
+               bool useDualPol, bool useRhohvTest);
 
 protected:
   
@@ -85,7 +102,8 @@ private:
   const Params &_params;
 
   // gate data vector - belongs to the MomentsMgr which created this class
-
+  
+  iwrf_xmit_rcv_mode_t _xmitRcvMode;
   vector<GateData *> &_gateData;
 
   // range geometry
@@ -129,7 +147,15 @@ private:
   bool _phidpFoldsAt90;
   double _phidpFoldVal, _phidpFoldRange;
 
+  // regression filter for rhohv test
+  
+  ForsytheRegrFilter _regr;
 
+  // number of samples
+  
+  int _nSamples;
+  int _nSamplesRect;
+  
   // private functions
   
   int _createInterestMaps(const Params &params);
@@ -138,9 +164,13 @@ private:
   void _computeSpin(int nGates);
   void _computeMaxTdbzAndSpinInterest(int nGates);
   void _computeZdrSdev(int nGates);
-  void _computePhidpSdevOld(int nGates);
-  void _computePhidpSdevNew(int nGates);
+  void _computePhidpSdev(int nGates);
   void _computePhidpFoldingRange(int nGates);
+  void _computeRhohvTest(const RadarMoments *mom, int nGates);
+  void _applyRegrFiltFixed(const vector<RadarComplex_t> &iq,
+                           vector<RadarComplex_t> &filt);
+  void _applyRegrFiltStag(const vector<RadarComplex_t> &iq,
+                          vector<RadarComplex_t> &filt);
   int _convertInterestMapToVector(const string &label,
                                   const Params::interest_map_point_t *map,
                                   int nPoints,

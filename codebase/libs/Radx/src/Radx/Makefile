@@ -41,6 +41,7 @@ HDRS = \
 	../include/Radx/RadxRcalib.hh \
 	../include/Radx/RadxReadDir.hh \
 	../include/Radx/RadxRemap.hh \
+	../include/Radx/RadxStatusXml.hh \
 	../include/Radx/RadxStr.hh \
 	../include/Radx/RadxSweep.hh \
 	../include/Radx/RadxTime.hh \
@@ -75,6 +76,7 @@ CPPC_SRCS = \
 	RadxReadDir.cc \
 	RadxRemap.cc \
 	RadxSweep.cc \
+	RadxStatusXml.cc \
 	RadxStr.cc \
 	RadxTime.cc \
 	RadxTimeList.cc \
@@ -88,6 +90,21 @@ CPPC_SRCS = \
 #
 
 include $(LROSE_CORE_DIR)/build/make_include/lrose_make_lib_module_targets
+
+#
+# testing
+#
+
+test: RadxGeoref-test
+
+RadxGeoref-test: TEST_RadxGeoref.o
+	$(CPPC) $(DBUG_OPT_FLAGS) TEST_RadxGeoref.o \
+	$(LDFLAGS) -o RadxGeoref-test -lRadx -lm
+
+clean_test:
+	$(RM) RadxGeoref-test TEST_RadxGeoref.o
+	$(RM) *errlog
+
 
 #
 # local targets

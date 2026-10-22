@@ -636,24 +636,22 @@
     tt->ptype = ENUM_TYPE;
     tt->param_name = tdrpStrDup("run_mode");
     tt->descr = tdrpStrDup("Run mode");
-    tt->help = tdrpStrDup("PRINT_MODE: print power, averaged over a number of gates, data to the screen, a line at a time.\n\nASCOPE_MODE: print data for a range of gates to the screen.\n\nCAL_MODE: average the powers for a number of gates, and write out in a file suitable for calibration.\n\nSERVER_MODE: listen on a port, and when a connection is established read an incoming set of commands in XML, average power over gates, and respond to the client in XML.\n\nMAX_POWER_MODE: compute the max power at any range within the specified gate limits, and print out the max power and range at which it occurs most often.\n\n\n\nMAX_POWER_SERVER_MODE: compute max power stats, write results to socket.");
+    tt->help = tdrpStrDup("PRINT_MODE: print power, averaged over a number of gates, data to the screen, a line at a time.\n\nASCOPE_MODE: print data for a range of gates to the screen.\n\nSERVER_MODE: listen on a port, and when a connection is established read an incoming set of commands in XML, average power over gates, and respond to the client in XML.\n\nMAX_POWER_MODE: compute the max power at any range within the specified gate limits, and print out the max power and range at which it occurs most often.\n\n\n\nMAX_POWER_SERVER_MODE: compute max power stats, write results to socket.");
     tt->val_offset = (char *) &run_mode - &_start_;
     tt->enum_def.name = tdrpStrDup("run_mode_t");
-    tt->enum_def.nfields = 6;
+    tt->enum_def.nfields = 5;
     tt->enum_def.fields = (enum_field_t *)
         tdrpMalloc(tt->enum_def.nfields * sizeof(enum_field_t));
       tt->enum_def.fields[0].name = tdrpStrDup("PRINT_MODE");
       tt->enum_def.fields[0].val = PRINT_MODE;
       tt->enum_def.fields[1].name = tdrpStrDup("ASCOPE_MODE");
       tt->enum_def.fields[1].val = ASCOPE_MODE;
-      tt->enum_def.fields[2].name = tdrpStrDup("CAL_MODE");
-      tt->enum_def.fields[2].val = CAL_MODE;
-      tt->enum_def.fields[3].name = tdrpStrDup("SERVER_MODE");
-      tt->enum_def.fields[3].val = SERVER_MODE;
-      tt->enum_def.fields[4].name = tdrpStrDup("MAX_POWER_MODE");
-      tt->enum_def.fields[4].val = MAX_POWER_MODE;
-      tt->enum_def.fields[5].name = tdrpStrDup("MAX_POWER_SERVER_MODE");
-      tt->enum_def.fields[5].val = MAX_POWER_SERVER_MODE;
+      tt->enum_def.fields[2].name = tdrpStrDup("SERVER_MODE");
+      tt->enum_def.fields[2].val = SERVER_MODE;
+      tt->enum_def.fields[3].name = tdrpStrDup("MAX_POWER_MODE");
+      tt->enum_def.fields[3].val = MAX_POWER_MODE;
+      tt->enum_def.fields[4].name = tdrpStrDup("MAX_POWER_SERVER_MODE");
+      tt->enum_def.fields[4].val = MAX_POWER_SERVER_MODE;
     tt->single_val.e = PRINT_MODE;
     tt++;
     
@@ -711,6 +709,18 @@
     tt->descr = tdrpStrDup("Print all meta-data headers and pulse headers.");
     tt->help = tdrpStrDup("");
     tt->val_offset = (char *) &print_all_headers - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'print_lag1_coherent_power'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("print_lag1_coherent_power");
+    tt->descr = tdrpStrDup("Print the lag1 (coherent) power in addition to lag0 power.");
+    tt->help = tdrpStrDup("lag1 powers can help to distinguish between noise and coherent signal.");
+    tt->val_offset = (char *) &print_lag1_coherent_power - &_start_;
     tt->single_val.b = pFALSE;
     tt++;
     
@@ -959,30 +969,6 @@
     tt->help = tdrpStrDup("");
     tt->val_offset = (char *) &tcp_server_port - &_start_;
     tt->single_val.i = 12000;
-    tt++;
-    
-    // Parameter 'dual_channel'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("dual_channel");
-    tt->descr = tdrpStrDup("Handle dual channels.");
-    tt->help = tdrpStrDup("Normally, only a single channel is used.");
-    tt->val_offset = (char *) &dual_channel - &_start_;
-    tt->single_val.b = pFALSE;
-    tt++;
-    
-    // Parameter 'fast_alternating'
-    // ctype is 'tdrp_bool_t'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = BOOL_TYPE;
-    tt->param_name = tdrpStrDup("fast_alternating");
-    tt->descr = tdrpStrDup("Radar is in fast-alternating mode.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &fast_alternating - &_start_;
-    tt->single_val.b = pFALSE;
     tt++;
     
     // Parameter 'invert_hv_flag'
@@ -1270,6 +1256,64 @@
     tt->param_name = tdrpStrDup("Comment 11");
     tt->comment_hdr = tdrpStrDup("XML RESULT - LABVIEW MODE");
     tt->comment_text = tdrpStrDup("The following is an example of the XML result in normal (non-labview) mode:\n  \n  <Cluster>\n    <Name>RVP8_power</Name>\n    <NumElts>10</NumElts>\n    <Boolean>\n      <Name>success</Name>\n      <Val>1</Val>\n    </Boolean>\n    <DBL>\n      <Name>time</Name>\n      <Val>3.3569173307e+09</Val>\n    </DBL>\n    <DBL>\n      <Name>el</Name>\n      <Val>0</Val>\n    </DBL>\n    <DBL>\n      <Name>az</Name>\n      <Val>360</Val>\n    </DBL>\n    <DBL>\n      <Name>dbm0</Name>\n      <Val>-76.8911</Val>\n    </DBL>\n    <DBL>\n      <Name>dbm1</Name>\n      <Val>-77.5407</Val>\n    </DBL>\n    <DBL>\n      <Name>dbmHc</Name>\n      <Val>-76.9401</Val>\n    </DBL>\n    <DBL>\n      <Name>dbmHx</Name>\n      <Val>-77.6436</Val>\n    </DBL>\n    <DBL>\n      <Name>dbmVc</Name>\n      <Val>-76.8426</Val>\n    </DBL>\n    <DBL>\n      <Name>dbmVx</Name>\n      <Val>-77.4402</Val>\n    </DBL>\n  </Cluster>\n\n");
+    tt++;
+    
+    // Parameter 'Comment 12'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 12");
+    tt->comment_hdr = tdrpStrDup("ADDING COLUMNS FROM STATUS XML");
+    tt->comment_text = tdrpStrDup("If activated, this section allows you to add extra columns to the output, by parsing the status xml.");
+    tt++;
+    
+    // Parameter 'add_cols_from_status_xml'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("add_cols_from_status_xml");
+    tt->descr = tdrpStrDup("Add columns using data from status xml messages in the time series.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &add_cols_from_status_xml - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'xml_entries_for_extra_cols'
+    // ctype is '_status_xml_entry_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("xml_entries_for_extra_cols");
+    tt->descr = tdrpStrDup("Details of XML entries to be added as columns to the printout.");
+    tt->help = tdrpStrDup("\txml_tag_list: list of tags, from outer to inner, for identifying the entry.\n\tcol_label: column label\n.");
+    tt->array_offset = (char *) &_xml_entries_for_extra_cols - &_start_;
+    tt->array_n_offset = (char *) &xml_entries_for_extra_cols_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(status_xml_entry_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("status_xml_entry_t");
+    tt->struct_def.nfields = 2;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[0].fname = tdrpStrDup("xml_tag_list");
+      tt->struct_def.fields[0].ptype = STRING_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_xml_entries_for_extra_cols->xml_tag_list - (char *) _xml_entries_for_extra_cols;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[1].fname = tdrpStrDup("col_label");
+      tt->struct_def.fields[1].ptype = STRING_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_xml_entries_for_extra_cols->col_label - (char *) _xml_entries_for_extra_cols;
+    tt->n_struct_vals = 4;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].s = tdrpStrDup("<HcrStatus><HcrReceiverStatus><VLnaTemp>");
+      tt->struct_vals[1].s = tdrpStrDup("VLnaTemp");
+      tt->struct_vals[2].s = tdrpStrDup("<HcrStatus><HcrReceiverStatus><HLnaTemp>");
+      tt->struct_vals[3].s = tdrpStrDup("HLnaTemp");
     tt++;
     
     // trailing entry has param_name set to NULL

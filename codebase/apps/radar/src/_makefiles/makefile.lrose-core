@@ -19,43 +19,60 @@ SUB_DIRS = \
 	ChillTsFile2Fmq \
 	ChillTsTcp2Fmq \
 	CmdVerify \
+	Colide \
 	Cov2Mom \
 	DowSendFreq \
 	DsrGrabber \
 	DsrMerge \
 	DualDopplerLobes \
+	Ecco \
+	EccoStats \
 	HawkEye \
+	HawkEdit \
 	HcrTempRxGain \
 	HcrVelCorrect \
 	Hsrl2Radx \
 	IntfRemove \
+	IpsEye \
+	IpsTsArchive \
+	IpsTs2Moments \
+	IpsTs2NetCDF \
+	IpsTsPrint \
+	IpsTsSim \
 	Iq2Dsr \
 	KinGin2Ncf \
+	Lucid \
 	Mdv2Vad \
 	MdvFold \
 	MdvRadarShear \
         MergeHcrAndHsrl \
 	NexradPowerStats \
+	NoiseMon \
 	PointingCpCompute \
 	PowerInfo2Spdb \
 	Qmap2Cidd \
+	QpeVerify \
 	QuadratureTest \
 	RadarCal \
 	RadarConst \
 	RadarMdvCompare \
 	RadxDealias \
 	RapMap2Chill \
+	RcalXml2Table \
 	SimCpCompute \
 	SpectraPrint \
+	Sprite \
 	StaggeredLimits \
 	SunCal \
 	SunCpCompute \
 	SweepInfo2Spdb \
+	Ts2Moments \
 	Ts2NetCDF \
 	TsCalAuto \
 	TsConvert \
 	TsFile2Fmq \
 	TsFmq2Tcp \
+	TsMaxPower2Fmq \
 	TsGamic2Iwrf \
 	TsMerge \
 	TsOverlay \

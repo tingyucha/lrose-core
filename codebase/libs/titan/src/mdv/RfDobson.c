@@ -38,13 +38,14 @@
  **************************************************************************/
 
 #include <toolsa/compress.h>
+#include <toolsa/str.h>
+#include <toolsa/pjg.h>
+#include <toolsa/toolsa_macros.h>
 #include <titan/radar.h>
 #include <titan/file_io.h>
 #include <rapformats/titan_grid.h>
 #include <titan/mdv.h>
 #include <dataport/bigend.h>
-#include <toolsa/pjg.h>
-#include <toolsa/toolsa_macros.h>
 
 #define MAX_SEQ 256
 
@@ -426,10 +427,10 @@ void RfCartParams2TITANGrid(cart_params_t *cart,
     grid->sensor_lon = 0.0;
     
   } /* if (grid_type == TITAN_PROJ_LATLON) */
-      
-  strncpy(grid->unitsx, cart->unitsx, TITAN_GRID_UNITS_LEN);
-  strncpy(grid->unitsy, cart->unitsy, TITAN_GRID_UNITS_LEN);
-  strncpy(grid->unitsz, cart->unitsz, TITAN_GRID_UNITS_LEN);
+
+  STRncopy(grid->unitsx, cart->unitsx, TITAN_GRID_UNITS_LEN);
+  STRncopy(grid->unitsy, cart->unitsy, TITAN_GRID_UNITS_LEN);
+  STRncopy(grid->unitsz, cart->unitsz, TITAN_GRID_UNITS_LEN);
 
   return;
 
@@ -1959,14 +1960,14 @@ static ui08 *RLDecode(ui08 *coded_data, ui32 *nbytes_full)
      
 {
 
-  register int runcount;
+  int runcount;
   ui32 nbytes_coded;
   ui32 nbytes_extra;
 
-  register ui08 byteval;
+  ui08 byteval;
   ui08 *full_data;
-  register ui08 *last_data;
-  register ui08 *fdata, *cdata;
+  ui08 *last_data;
+  ui08 *fdata, *cdata;
 
   if (coded_data != NULL) {
 
@@ -2059,11 +2060,11 @@ static ui08 *RLEncode(ui08 *full_data, ui32 nbytes_full,
      
 {
 
-  register ui08 byteval;
-  register ui08 *coded_data;
-  register ui08 *fdata, *cdata, *last_data;
+  ui08 byteval;
+  ui08 *coded_data;
+  ui08 *fdata, *cdata, *last_data;
 
-  register ui32 runcount;
+  ui32 runcount;
 
   ui32 nbytes_coded;
   ui32 nbytes_extra;

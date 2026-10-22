@@ -9,7 +9,7 @@
 // ** 1) If the software is modified to produce derivative works,            
 // ** such modified software should be clearly marked, so as not             
 // ** to confuse it with the version available from UCAR.                    
-// ** 2) Redistributions of source code must retain the above copyright      
+// ** 2) Redistributions of source code must retain the above conypyright      
 // ** notice, this list of conditions and the following disclaimer.          
 // ** 3) Redistributions in binary form must reproduce the above copyright   
 // ** notice, this list of conditions and the following disclaimer in the    
@@ -39,17 +39,19 @@
 #include <Radx/RadxPath.hh>
 #include <Ncxx/Nc3xFile.hh>
 #include <Mdv/GenericRadxFile.hh>
-#include <didss/LdataInfo.hh>
+#include <dsserver/DsLdataInfo.hh>
 #include <toolsa/pmu.h>
 #include <toolsa/toolsa_macros.h>
 #include <toolsa/sincos.h>
 #include <toolsa/TaArray.hh>
+#include <toolsa/Path.hh>
 #include <toolsa/file_io.h>
 #include <rapmath/RapComplex.hh>
 #include <physics/IcaoStdAtmos.hh>
 #include <physics/thermo.h>
 #include <Spdb/SoundingPut.hh>
 #include <algorithm>
+
 using namespace std;
 
 const double RadxEvad::missingVal = -9999.0;
@@ -118,7 +120,6 @@ RadxEvad::RadxEvad(int argc, char **argv)
   _sliceDeltaAz = 360.0 / _nAzSlices;
 
   // profile geometry
-
   _profileMinHt = _params.profile_min_height;
   _profileMaxHt = _params.profile_max_height;
   _profileDeltaHt = _params.profile_height_interval;
@@ -204,9 +205,6 @@ int RadxEvad::_runArchive()
   RadxTimeList tlist;
   tlist.setDir(_params.input_dir);
   tlist.setModeInterval(_args.startTime, _args.endTime);
-  if (_params.aggregate_sweep_files_on_read) {
-    tlist.setReadAggregateSweeps(true);
-  }
   if (tlist.compile()) {
     cerr << "ERROR - RadxEvad::_runFilelist()" << endl;
     cerr << "  Cannot compile time list, dir: " << _params.input_dir << endl;
@@ -321,12 +319,6 @@ int RadxEvad::_processFile(const string &filePath)
   
   _readVol.setNGatesConstant();
   
-  // trip sweeps to 360 deg if requested
-  
-  if (_params.trim_surveillance_sweeps_to_360deg) {
-    _readVol.trimSurveillanceSweepsTo360Deg();
-  }
-
   // convert to floats
 
   _readVol.convertToFl32();
@@ -371,40 +363,11 @@ void RadxEvad::_setupRead(RadxFile &file)
     file.setVerbose(true);
   }
 
-  if (_params.set_fixed_angle_limits) {
-    file.setReadFixedAngleLimits(_params.lower_fixed_angle_limit,
-                                 _params.upper_fixed_angle_limit);
-  }
-
   file.addReadField(_params.VEL_field_name);
   if (_params.censor_using_thresholds) {
     file.addReadField(_params.censor_field_name);
   }
 
-  if (_params.aggregate_sweep_files_on_read) {
-    file.setReadAggregateSweeps(true);
-  } else {
-    file.setReadAggregateSweeps(false);
-  }
-
-  if (_params.remove_long_range_rays) {
-    file.setReadRemoveLongRange(true);
-  }
-
-  if (_params.remove_short_range_rays) {
-    file.setReadRemoveShortRange(true);
-  }
-
-  if (_params.set_max_range) {
-    file.setReadMaxRangeKm(_params.max_range_km);
-  }
-
-  if (_params.remove_rays_with_antenna_transitions &&
-      !_params.trim_surveillance_sweeps_to_360deg) {
-    file.setReadIgnoreTransitions(true);
-    file.setReadTransitionNraysMargin(_params.transition_nrays_margin);
-  }
-  
   if (_params.debug >= Params::DEBUG_EXTRA) {
     file.printReadRequest(cerr);
   }
@@ -437,9 +400,25 @@ int RadxEvad::_processDataSet()
 
   _rings.clear();
 
+  //double _max_range 
+   // _max_range = _params.max_range;
+  double _min_range = _params.min_range;
+  double _delta_range = _params.delta_range;
+  _nRanges = (int) ((_params.max_range - _params.min_range) /
+    _params.delta_range + 0.5);  
+
+  if (_params.range_gate_geom_equal) {
+    _min_range = _radxStartRange;
+    _delta_range = _radxGateSpacing;
+    _nRanges = _nGates;
+  } 
+
   // loop through the sweeps
 
   int ngood = 0;
+
+  double firstval, lastval, vallo, valmid, valhi;
+
   const vector<RadxSweep *> &radxSweeps = _readVol.getSweeps();
   for (size_t isweep = 0; isweep < radxSweeps.size(); isweep++) {
     
@@ -448,14 +427,11 @@ int RadxEvad::_processDataSet()
     
     if (elev < _params.min_elev || elev > _params.max_elev) {
       if (_params.debug) {
-	cerr << "Ignoring sweep number: " << isweep << endl;
-	cerr << "    elev out of range: " << elev << endl;
+	      cerr << "Ignoring sweep number: " << isweep << endl;
+	      cerr << "    elev out of range: " << elev << endl;
       }
       continue;
     }
-
-    _nRanges = (int) ((_params.max_range - _params.min_range) /
-                      _params.delta_range + 0.5);
 
     for (int irange = 0; irange < _nRanges; irange++) {
 
@@ -467,8 +443,8 @@ int RadxEvad::_processDataSet()
       
       // compute gates to be used
       
-      _ring.startRange = _params.min_range + irange * _params.delta_range;
-      _ring.endRange = _ring.startRange + _params.delta_range;
+      _ring.startRange = _min_range + irange * _delta_range;
+      _ring.endRange = _ring.startRange + _delta_range;
       
       _ring.startGate = 
         (int) ((_ring.startRange - _radxStartRange) / _radxGateSpacing + 0.5);
@@ -481,12 +457,31 @@ int RadxEvad::_processDataSet()
 	_ring.endGate = _nGates - 1;
       }
 
+      if (_params.debug >= Params::DEBUG_VERBOSE) {
+        cerr << "ring at range " << irange << " ... " << endl;
+        cerr << " startRange=" << _ring.startRange << endl;
+        cerr << "   endRange=" << _ring.endRange << endl;
+        cerr << " startGate =" << _ring.startGate << endl;
+        cerr << "   endGate =" << _ring.endGate << endl;
+      }
+
       // set elevation, compute range and height at ring mid-pt
 
       _ring.elev = elev;
       _ring.midRange = (_ring.startRange + _ring.endRange) / 2.0;
       _ring.midHt = (_ring.midRange * sin(_ring.elev * DEG_TO_RAD) +
                      (_ring.midRange * _ring.midRange / pseudoEarthDiamKm));
+
+      if (_params.compute_profile_spacing_from_data) {
+        if (irange == 1) firstval = _ring.midHt; // pick the 2nd value (zero-based) to be the profileMin
+        if (irange % 3 == 1) lastval = _ring.midHt;
+        if (irange == 1) vallo = _ring.midHt;
+        if (irange == 3) valmid = _ring.midHt;
+        if (irange == 4) valhi = _ring.midHt;
+        if (_params.debug > Params::DEBUG_VERBOSE) {
+          cout << "ring_midHt " << _ring.midHt << endl;
+        }
+      }
 
       // compute corrected elevation and coefficient for use in
       // computing divergence and vertical velocity
@@ -527,6 +522,22 @@ int RadxEvad::_processDataSet()
     cerr << "  Probably cannot find VEL field, name: " 
          << _params.VEL_field_name << endl;
     return -1;
+  }
+
+  if (_params.compute_profile_spacing_from_data) {
+    double one_delta = valhi - valmid;
+    _profileMinHt = firstval;
+    _profileMaxHt = lastval;
+    _profileDeltaHt = (valhi - vallo);
+    _profileNLevels = (int) ((_profileMaxHt - _profileMinHt) / _profileDeltaHt) + 1;
+
+    if (_params.debug > Params::DEBUG_VERBOSE) {
+      cout << "one_delta " << one_delta << endl;
+      cout << "_profileMinHt " << _profileMinHt << endl;
+      cout << "_profileMaxHt " << _profileMaxHt << endl;
+      cout << "_profileDeltaHt " << _profileDeltaHt << endl;
+      cout << "_profileNLevels " << _profileNLevels << endl;  
+    }    
   }
 
   // load up the raw profile
@@ -1691,6 +1702,17 @@ void RadxEvad::_computeDivergence()
     double midHt = _profileMinHt + ilevel * _profileDeltaHt;
     double lowerLimit = midHt - _profileDeltaHt;
     double upperLimit = midHt + _profileDeltaHt;
+    if (_params.compute_profile_spacing_from_data) {
+      lowerLimit = midHt - _profileDeltaHt*0.5;
+      upperLimit = midHt + _profileDeltaHt*0.5;      
+    }
+
+    if (_params.debug > Params::DEBUG_VERBOSE) {
+      cout << "lowerLimit " << lowerLimit << endl;
+      cout << "midHt      " << midHt << endl;
+      cout << "upperLimit " << upperLimit << endl;
+      cout << "----------" << endl;
+    }
 
     // initialize matrices
     
@@ -2210,16 +2232,16 @@ int RadxEvad::_writeNetcdfOutput()
   
   // compute file name
   
-  char fileName[BUFSIZ];
-  sprintf(fileName,
-          "profile.%.4d%.2d%.2d_%.2d%.2d%.2d.%s.nc",
-          fileTime.getYear(), fileTime.getMonth(), fileTime.getDay(),
-          fileTime.getHour(), fileTime.getMin(), fileTime.getSec(),
-          _radarName.c_str());
+  char fileName[128];
+  snprintf(fileName, 128,
+           "profile.%.4d%.2d%.2d_%.2d%.2d%.2d.%s.nc",
+           fileTime.getYear(), fileTime.getMonth(), fileTime.getDay(),
+           fileTime.getHour(), fileTime.getMin(), fileTime.getSec(),
+           _radarName.c_str());
   
   char outPath[BUFSIZ];
-  sprintf(outPath, "%s%s%s",
-          outDir.c_str(), PATH_DELIM,  fileName);
+  snprintf(outPath, BUFSIZ, "%s%s%s",
+           outDir.c_str(), PATH_DELIM,  fileName);
 
   // open file for writing
 
@@ -2241,6 +2263,10 @@ int RadxEvad::_writeNetcdfOutput()
   // add dimensions
   
   int nZ = _getNValidLevels();
+  if (_params.write_data_from_all_levels) {
+    nZ = _profileNLevels;
+  }
+
   Nc3Dim *zDim;
   if (file.addDim(zDim, "z", nZ)) {
     cerr << "ERROR - RadxEvad::_writeNetcdfOutput" << endl;
@@ -2428,6 +2454,10 @@ int RadxEvad::_writeNetcdfOutput()
     cerr << "Wrote netcdf file: " << file.getPathInUse() << endl;
   }
 
+  // write latest data info file
+
+  _writeLdataInfo(outPath);
+
   return 0;
 
 }
@@ -2462,22 +2492,24 @@ int RadxEvad::_writeSpdbOutput()
   vector<double> ww;
   vector<double> div;
 
-  for (int iz = 0; iz < _profileNLevels; iz++) {
+  int nZ = _getNValidLevels();
+  if (_params.write_data_from_all_levels) {
+    nZ = _profileNLevels;
+  }
+  if (nZ == 0) {
+    nZ = 1;
+  }
+  
+  for (int iz = 0; iz < nZ; iz++) {
     const ProfilePt &pt = _profile.interp[iz];
-    if (iz == 0 ||
-        pt.uu != missingVal ||
-        pt.vv != missingVal ||
-        pt.ww != missingVal ||
-        pt.div != missingVal) {
-      ht.push_back(pt.ht);
-      uu.push_back(pt.uu);
-      vv.push_back(pt.vv);
-      ww.push_back(pt.ww);
-      if (pt.div == missingVal) {
-        div.push_back(pt.div);
-      } else {
-        div.push_back(pt.div * 1.0e5);
-      }
+    ht.push_back(pt.ht);
+    uu.push_back(pt.uu);
+    vv.push_back(pt.vv);
+    ww.push_back(pt.ww);
+    if (pt.div == missingVal) {
+      div.push_back(pt.div);
+    } else {
+      div.push_back(pt.div * 1.0e5);
     }
   }
   
@@ -2538,3 +2570,30 @@ int RadxEvad::_doubleCompare(const void *i, const void *j)
     return 0;
   }
 }
+
+//////////////////////////////////////
+// Write LdataInfo file
+
+void RadxEvad::_writeLdataInfo(const string &outputPath)
+{
+
+  DsLdataInfo ldata(_params.output_netcdf_dir, _params.debug);
+  
+  ldata.setWriter("RadxEvad");
+  ldata.setDataFileExt("nc");
+  ldata.setDataType("netCDF");
+
+  string fileName;
+  Path::stripDir(_params.output_netcdf_dir, outputPath, fileName);
+  ldata.setRelDataPath(fileName);
+  
+  ldata.setIsFcast(false);
+  ldata.write(_readVol.getStartTimeSecs());
+  
+  if (_params.debug) {
+    cerr << "RadxEvad::_writeLdataInfo(): Data written to "
+         << outputPath << endl;
+  }
+
+}
+

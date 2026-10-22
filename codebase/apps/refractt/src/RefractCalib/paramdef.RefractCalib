@@ -32,8 +32,25 @@
 commentdef
 {
   p_header = "RefractCalib";
-  p_text = "This program creates the calibration file used by Refract.";
+  p_text = "RefractCalib (a) reads radar scan files, in polar coordinates; (b) identifies suitable clutter targets; (c) computes the mean phase of those targets for a baseline calibration; and (d) writes the calibration details to a file. Typically we use 6 hours of scans for this purpose. Ideally the moisture field should be uniform for this procedure to work well.";
 };
+
+///////////////////////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "DEBUGGING AND PROCESS CONTROL";
+}
+
+typedef enum {
+  DEBUG_OFF, DEBUG_NORM, DEBUG_VERBOSE, DEBUG_EXTRA
+} debug_t;
+
+paramdef enum debug_t
+{
+  p_default = DEBUG_OFF;
+  p_descr = "Debug option";
+  p_help = "If set, debug messages will be printed appropriately";
+} debug;
 
 paramdef boolean
 {
@@ -47,128 +64,234 @@ paramdef string
   p_default = "mdvp:://localhost::mdv/debug/RefractCalib";
 } debug_mdv_url;
 
+paramdef double
+{
+  p_descr = "debug latitude";
+  p_help = "Extreme debugging at a point, set to -9999 to disable";
+  p_default = -9999.0;
+} debug_lat;
+
+paramdef double
+{
+  p_descr = "debug longitude";
+  p_help = "Extreme debugging at a point, set to -9999 to disable";
+  p_default = -9999;
+} debug_lon;
+
+paramdef int
+{
+  p_descr = "debug npt";
+  p_help = "Extreme debugging radius around the debug point to keep showing debugging, number of gridpoints";
+  p_default = 1;
+} debug_npt;
+
+///////////////////////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "DATA INPUT";
+}
+
+typedef enum {
+  ARCHIVE, FILELIST
+} mode_t;
+
+paramdef enum mode_t {
+  p_default = ARCHIVE;
+  p_descr = "Processing mode";
+  p_help = "In ARCHIVE mode, we loop through the data between the start and end times. In FILELIST mode, we moves through the list of files specified on the command line. Typically we use about 6 hours of data for this step.";
+} mode;
+
+paramdef string
+{
+  p_descr = "Directory for input data files";
+  p_default = "/tmp/Refract/input_dir";
+} input_dir;
+
+paramdef string {
+  p_default = "2017 03 21 00 00 00";
+  p_descr = "Set the start time for ARCHIVE mode analysis.";
+  p_help = "Format is 'yyyy mm dd hh mm ss'.";
+} start_time;
+
+paramdef string {
+  p_default = "2017 03 21 06 00 00";
+  p_descr = "Set the end time for ARCHIVE mode analysis.";
+  p_help = "Format is 'yyyy mm dd hh mm ss'.";
+} end_time;
+
+///////////////////////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "DATA OUTPUT";
+}
+
+paramdef string
+{
+  p_default = "/tmp/RefractCalib.mdv.nc";
+  p_descr = "Full path, including file name, for output";
+  p_help = "Full path for the file containing calibration information. This is the file that is created by the calibration and used as input to the RefractCompute algorithm.";
+} output_file_path;
+
+paramdef string
+{
+  p_default = "/tmp/Refract/output_dir";
+  p_descr = "Directory for output data files";
+  p_descr = "This is a copy of the output file, using the standard time stamps for day directories and output file name. It is suitable for displaying in CIDD and Lucid.";
+} output_dir;
+
+///////////////////////////////////////////////////////////////////////////////
+
+commentdef
+{
+  p_header = "DATA FIELD DETAILS";
+  p_text = "Details of the fields to be retrieved from the data files.";
+};
 
 paramdef boolean
 {
-  p_descr = "Flag indicating whether to use a file list for input data, or a range of times";
-  p_help = "TRUE means use the file list, FALSE means use a range of times.";
+  p_descr = "Flag indicating whether the raw I and Q values are included in "
+            "the input stream.";
+  p_help = "If true, the raw fields will be read from the input stream. "
+           "If false, the raw fields will be calculated from the NIQ/AIQ "
+           "values which must be inluded in the input stream instead.";
   p_default = true;
-} file_list_inputs;
+} raw_iq_in_input;
 
 paramdef string
 {
-  p_descr = "Host on which target files are found";
-  p_default = "localhost";
-} target_files_host;
+  p_descr = "Raw I field name in the input stream.";
+  p_help = "Used only if raw_iq_in_input is set to TRUE.";
+  p_default = "MeanI";
+} raw_i_field_name;
 
 paramdef string
 {
-  p_descr = "Host on which calibration files are found";
-  p_default = "localhost";
-} calibration_files_host;
+  p_descr = "Raw Q field name in the input stream.";
+  p_help = "Used only if raw_iq_in_input is set to TRUE.";
+  p_default = "MeanQ";
+} raw_q_field_name;
 
 paramdef string
 {
-  p_descr = "List of files to use for target identification, when file_list_inputs=true";
-  p_default = { "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804183718.KFTG_RVP.0.0.4_SUR_v368",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804183832.KFTG_RVP.0.0.4_SUR_v370",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804184738.KFTG_RVP.0.0.4_SUR_v375",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804185329.KFTG_RVP.0.0.4_SUR_v383",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804185919.KFTG_RVP.0.0.4_SUR_v391",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804190509.KFTG_RVP.0.0.4_SUR_v399",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804191100.KFTG_RVP.0.0.4_SUR_v407",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804191650.KFTG_RVP.0.0.4_SUR_v415",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804192240.KFTG_RVP.0.0.4_SUR_v423",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804192830.KFTG_RVP.0.0.4_SUR_v431",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804193420.KFTG_RVP.0.0.4_SUR_v439",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804194010.KFTG_RVP.0.0.4_SUR_v447",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804194600.KFTG_RVP.0.0.4_SUR_v455",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804195150.KFTG_RVP.0.0.4_SUR_v463",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804195740.KFTG_RVP.0.0.4_SUR_v471",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804200330.KFTG_RVP.0.0.4_SUR_v479",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804200919.KFTG_RVP.0.0.4_SUR_v487",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804201508.KFTG_RVP.0.0.4_SUR_v495",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804202058.KFTG_RVP.0.0.4_SUR_v503",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804202647.KFTG_RVP.0.0.4_SUR_v511",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804210134.KFTG_RVP.0.0.4_SUR_v517",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804210207.KFTG_RVP.0.0.4_SUR_v518",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804210756.KFTG_RVP.0.0.4_SUR_v526",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804211346.KFTG_RVP.0.0.4_SUR_v534",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/target_id/swp.1060804211936.KFTG_RVP.0.0.4_SUR_v542" };
-} target_id_file_list[];
+  p_descr = "NIQ field name in the input stream.";
+  p_help = "Used only if raw_iq_in_input is set to FALSE.";
+  p_default = "NIQ";
+} niq_field_name;
+
+paramdef double
+{
+  p_descr = "Input NIQ scale value";
+  p_help = "The NIQ value from the input source is multiplied by this "
+           "value before the data is used. "
+           "For most radars this value should be 0.1. "
+           "For SPOL this value should be 0.025.";
+  p_default = 0.1;
+} input_niq_scale;
+
+paramdef boolean
+{
+  p_descr = "Flag indicating whether to invert the sign of the target angles.";
+  p_help = "This fix should be done upstream, but is added here "
+           "just in case.\n"
+           "Used only if raw_iq_in_input is set to FALSE.";
+  p_default = false;
+} invert_target_angle_sign;
 
 paramdef string
 {
-  p_descr = "List of files to use for calibration, when file_list_inputs=true";
-  p_default = { "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807000458.KFTG_RVP.0.0.5_SUR_v8",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807000602.KFTG_RVP.0.0.6_SUR_v10",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807001047.KFTG_RVP.0.0.5_SUR_v16",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807001635.KFTG_RVP.0.0.5_SUR_v24",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807002224.KFTG_RVP.0.0.5_SUR_v32",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807002813.KFTG_RVP.0.0.5_SUR_v40",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807003401.KFTG_RVP.0.0.5_SUR_v48",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807003950.KFTG_RVP.0.0.5_SUR_v56",
-                "$(RAP_DATA_DIR)/apps/refractt/src/RefractCalib/KFTG/raw/calib/swp.1060807004539.KFTG_RVP.0.0.5_SUR_v64" };
-} calibration_file_list[];
+  p_descr = "AIQ field name in the input stream.";
+  p_help = "Used only if raw_iq_in_input is set to FALSE.";
+  p_default = "AIQ";
+} aiq_field_name;
+
+paramdef boolean {
+  p_default = TRUE;
+  p_descr = "Is SNR data available?";
+  p_help = "If not, SNR will be computed from the DBZ field. See 'noise_dbz_at_100km'.";
+} snr_available;
+
+paramdef string {
+  p_default = "SNR";
+  p_descr = "Field name for SNR.";
+  p_help = "Signal-to-noise ratio (dB).";
+} snr_field_name;
+
+paramdef double {
+  p_default = 0.0;
+  p_descr = "The noise value, represented as dBZ at a range of 100km.";
+  p_help = "This is used for computing the SNR from the DBZ field. It is only used if SNR_available is FALSE. The SNR will be computed by range-correcting this value and using it as the noise value.";
+} noise_dbz_at_100km;
+
+paramdef string {
+  p_default = "DBZ";
+  p_descr = "Field name for DBZ.";
+  p_help = "Horizontally-polarized reflectivity factor.";
+} dbz_field_name;
+
+typedef enum
+{
+  QUALITY_FROM_WIDTH,
+  QUALITY_FROM_CPA
+} quality_source_t;
+
+paramdef enum quality_source_t
+{
+  p_descr = "Which field to use when calculating the quality value.";
+  p_help = "\tQUALITY_FROM_WIDTH - The quality field is calculated using "
+           "a spectrum width field.\n"
+           "\tQUALITY_FROM_CPA - The quality field is calculated using "
+           "a CPA field.\n";
+  p_default = QUALITY_FROM_WIDTH;
+} quality_source;
+
+paramdef string
+{
+  p_descr = "Name of field to use in the quality calculations.";
+  p_help = "If quality_source is set to QUALITY_FROM_WIDTH then this should be "
+           "a spectrum width field.\n"
+           "If quality_source is set to QUALITY_FROM_CPA then this shoudl be a "
+           "probability of clutter field. "
+           "The probability of clutter field should range from 0.0 to 1.0 with "
+           "0.0 indicating the gate definitely doesn't contain clutter and 1.0 "
+           "indicating that the gate definitely is clutter.\n";
+  p_default = "WIDTH";
+} quality_field_name;
 
 typedef struct
 {
-  int year;
-  int month;
-  int day;
-  int hour;
-  int min;
-  int sec;
-} Time_t;
+  double min_angle;
+  double max_angle;
+} elevation_angle_t;
 
-paramdef string
+paramdef struct elevation_angle_t
 {
-  p_descr = "Path with files to use for target identification when file_list_inputs = false, can be relative to $RAP_DATA_DIR";
-  p_default = "./data";
-} target_files_path;
+  p_descr = "The angle limits for the desired elevation angle. "
+            "Only sweeps with elevation angles between these limits will "
+            "be used in the calibration.";
+  p_help = "Used only if specify_elevation_by_index is set to false.";
+  p_default = { 0.3, 0.5 };
+} elevation_angle;
 
-paramdef struct Time_t
+paramdef long
 {
-  p_descr = "Starting/ending time for target identification data when file_list_inputs = false";
-  p_default = {{2017, 3, 21, 0, 0, 0}, {2017, 3, 22, 0, 0, 0}};
-} target_files_time_range[2];
+  p_descr = "Number of azimuths used in data processing";
+  p_min = 1;
+  p_default = 360;
+} num_azim;
 
-paramdef string
+paramdef long
 {
-  p_descr = "Path with files to use for calibration when file_list_inputs = false, can be relative to $RAP_DATA_DIR";
-  p_default = "./data";
-} calibration_files_path;
+  p_descr = "Number of range bins used in data processing";
+  p_min = 1;
+  p_default = 450;
+} num_range_bins;
 
-paramdef struct Time_t
-{
-  p_descr = "Starting/ending time for calibration data when file_list_inputs = false";
-  p_default = {{2017, 3, 21, 0, 0, 0}, {2017, 3, 22, 0, 0, 0}};
-} calibration_files_time_range[2];
-
-/***********************************************************************
- * Algorithm parameters.
- */
+///////////////////////////////////////////////////////////////////////////////
 
 commentdef
 {
   p_header = "ALGORITHM PARAMETERS";
 };
-
-paramdef string
-{
-  p_descr = "Reference file path";
-  p_help = "Full path for the file containing calibration information.  "
-           "This is the file that is created by the calibration and used "
-           "as input to the Refract algorithm.";
-  p_default = "";
-} ref_file_path;
-
-paramdef string
-{
-  p_descr = "Reference file url";
-  p_help = "Second path in which time stamped MDV is written so as to be useful in display";
-  p_default = "";
-} ref_url;
 
 paramdef double
 {
@@ -211,7 +334,7 @@ paramdef enum entry_type_t
 
 paramdef double
 {
-  p_descr = "N value to use in the calibration.";
+  p_descr = "Default N value to use in the calibration.";
   p_help = "Used only if entry_type is set to ENTER_N.";
   p_default = 1.0;
 } calib_n;
@@ -239,45 +362,3 @@ paramdef double
 } calib_dewpoint_temperature;
 
 
-/***********************************************************************
- * Colorscale parameters.
- */
-
-commentdef
-{
-  p_header = "COLORSCALE PARAMETERS";
-  p_text = "These colorscale files can be generated as a convenience to the "
-           "user. "
-           "They are not required for the calculating of the calibration.";
-};
-
-paramdef boolean
-{
-  p_descr = "Flag indicating whether to create the strength colorscale "
-            "file.";
-  p_help = "This creates a CIDD colorscale file that matches the colors "
-           "used by Frederic Fabry in his original n_viewcalib program.";
-  p_default = false;
-} create_strength_colorscale;
-
-paramdef string
-{
-  p_descr = "Full path for the strength colorscale file.";
-  p_help = "Used only if create_strength_colorscale is set to true.";
-  p_default = "colorscales/strength.colors";
-} strength_colorscale_path;
-
-paramdef boolean
-{
-  p_descr = "Flag indicating whether to create the quality colorscale file.";
-  p_help = "This creates a CIDD colorscale file that matches the colors "
-           "used by Frederic Fabry in his original n_viewcalib program.";
-  p_default = false;
-} create_quality_colorscale;
-
-paramdef string
-{
-  p_descr = "Full path for the quality colorscale file.";
-  p_help = "Used only if create_quality_colorscale is set to true.";
-  p_default = "colorscales/quality.colors";
-} quality_colorscale_path;

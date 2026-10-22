@@ -122,8 +122,7 @@ private:
   double _radarHtKm;
   double _wavelengthM;
 
-  //////////////////////////////////////////////////////////////
-  // inner thread class for calling Moments computations
+  // mutex for debug prints
   
   pthread_mutex_t _debugPrintMutex;
   
@@ -150,6 +149,7 @@ private:
   void _addExtraFieldsToOutput();
 
   int _compute();
+  int _computeNonThreaded();
   int _storeDerivedRay(WorkerThread *thread);
 
   int _writeVol();

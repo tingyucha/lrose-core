@@ -76,7 +76,8 @@ public:
 
   typedef enum {
     REALTIME = 0,
-    FILELIST = 1
+    ARCHIVE = 1,
+    FILELIST = 2
   } mode_t;
 
   typedef enum {
@@ -141,7 +142,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -450,6 +451,14 @@ public:
   field_rename_t *_field_rename;
   int field_rename_n;
 
+  tdrp_bool_t add_coverage_flag;
+
+  char* name_of_field_encoding_coverage;
+
+  double input_field_value_for_coverage;
+
+  char* name_of_coverage_flag_output_field;
+
   char* output_url;
 
   char* data_set_info;
@@ -465,6 +474,8 @@ public:
   bounding_box_t output_bounding_box;
 
   int min_time_between_output_files_in_secs;
+
+  tdrp_bool_t convert_to_column_max;
 
   tdrp_bool_t remap_output_grid;
 
@@ -531,7 +542,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[63];
+  mutable TDRPtable _table[70];
 
   const char *_className;
 

@@ -36,6 +36,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <vector>
 using namespace std;
 
 // data class for use by main class
@@ -58,6 +59,10 @@ public:
   void set(double re_, double im_) {
     re = re_;
     im = im_;
+  }
+  // clear method
+  void clear() {
+    set(0.0, 0.0);
   }
   // data
   double re;
@@ -130,6 +135,14 @@ public:
   
   static RadarComplex_t complexMean(RadarComplex_t c1, RadarComplex_t c2);
   
+  // phase shift in the time domain
+  // add the phase shift provided in radians
+  
+  static void timeDomainPhaseShift(const RadarComplex_t *orig,
+                                   int len,
+                                   double shiftRadians,
+                                   RadarComplex_t *shifted);
+  
   // compute mean by dividing by the number of obs
   
   static RadarComplex_t mean(RadarComplex_t sum, double nn);
@@ -197,6 +210,17 @@ public:
   
   static void loadMag(const RadarComplex_t *in, double *mag, int len);
 
+  // clear an array
+  
+  static void clear(RadarComplex_t *cc,
+                    size_t nn);
+
+  // copy an array of RadarComplex_t
+  
+  static void copy(RadarComplex_t *dest,
+                   const RadarComplex_t *src,
+                   size_t nn);
+  
   // print IQ time series
   // 3 columns are printed: n, i, q
   // An optional header is printed, labelling the columns
@@ -229,6 +253,14 @@ public:
                           const string &heading,
                           bool reCenter = false);
 
+  // interpolate between 2 values
+  // load vector of specified length
+  
+  static void interpAndLoadVec(const RadarComplex_t &start,
+                               const RadarComplex_t &end,
+                               int nInterp,
+                               vector<RadarComplex_t> &interpVec);
+  
 private:
 
 };

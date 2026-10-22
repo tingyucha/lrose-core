@@ -11,6 +11,7 @@ SUB_DIRS = \
 	DsrGrabber \
 	DsrMerge \
 	DualDopplerLobes \
+        Ecco \
 	HawkEye \
 	IntfRemove \
 	Mdv2Vad \

@@ -42,6 +42,7 @@
 #include <Mdv/MdvxRadar.hh>
 #include <toolsa/mem.h>
 #include <toolsa/pjg.h>
+#include <toolsa/TaStr.hh>
 #include <toolsa/toolsa_macros.h>
 #include <math.h>
 using namespace std;
@@ -159,6 +160,7 @@ MdvxProj &MdvxProj::operator=(const MdvxProj &rhs)
 
 ///////////////////////////////////////////////////
 // equality operator
+// just check the 2D (x,y) sense
 
 bool MdvxProj::operator==(const MdvxProj &other) const {
 
@@ -175,16 +177,18 @@ bool MdvxProj::operator==(const MdvxProj &other) const {
   if (_coord.ny != other._coord.ny) {
     return false;
   }
-  if (_coord.dx != other._coord.dx) {
+
+  double maxError = 1.0e-4;
+  if (fabs(_coord.dx - other._coord.dx) > maxError) {
     return false;
   }
-  if (_coord.dy != other._coord.dy) {
+  if (fabs(_coord.dy - other._coord.dy) > maxError) {
     return false;
   }
-  if (_coord.minx != other._coord.minx) {
+  if (fabs(_coord.minx - other._coord.minx) > maxError) {
     return false;
   }
-  if (_coord.miny != other._coord.miny) {
+  if (fabs(_coord.miny - other._coord.miny) > maxError) {
     return false;
   }
   return true;
@@ -350,6 +354,146 @@ void MdvxProj::init(const Mdvx::coord_t &coord)
   // now initialize from the _coord struct
 
   _initFromCoords();
+
+}
+
+/////////////////////////////////
+// initialize from proj string
+// i.e. proj 4 etc.
+//
+
+void MdvxProj::initFromProjStr(const string &projStr)
+
+{
+  
+  _clear();
+
+  // tokenize the string
+
+  vector<string> toks;
+  TaStr::tokenize(projStr, " ", toks);
+
+  // determine the projection type
+
+  Mdvx::projection_type_t ptype = Mdvx::PROJ_UNKNOWN;
+  for (size_t itok = 0; itok < toks.size(); itok++) {
+    string tok = toks[itok];
+    if (tok.find("+proj") == string::npos) {
+      continue;
+    }
+    if (tok.find("=aea") != string::npos) {
+      ptype = Mdvx::PROJ_ALBERS;
+    } else if (tok.find("=aeqd") != string::npos) {
+      ptype = Mdvx::PROJ_FLAT;
+    } else if (tok.find("=lcc") != string::npos) {
+      ptype = Mdvx::PROJ_LAMBERT_CONF;
+    } else if (tok.find("=laea") != string::npos) {
+      ptype = Mdvx::PROJ_LAMBERT_AZIM;
+    } else if (tok.find("=merc") != string::npos) {
+      ptype = Mdvx::PROJ_MERCATOR;
+    } else if (tok.find("=tmerc") != string::npos) {
+      ptype = Mdvx::PROJ_TRANS_MERCATOR;
+    } else if (tok.find("=ups") != string::npos) {
+      ptype = Mdvx::PROJ_POLAR_STEREO;
+    } else if (tok.find("=stere") != string::npos) {
+      ptype = Mdvx::PROJ_OBLIQUE_STEREO;
+    } else if (tok.find("=pconic") != string::npos) {
+      ptype = Mdvx::PROJ_VERT_PERSP;
+    } else if ((tok.find("=latlon") != string::npos) ||
+               (tok.find("=lonlat") != string::npos) ||
+               (tok.find("=latlong") != string::npos)) {
+      ptype = Mdvx::PROJ_LATLON;
+    } 
+  } // itok
+
+  if (ptype == Mdvx::PROJ_UNKNOWN) {
+    cerr << "WARNING - MdvzProj::init from proj string" << endl;
+    cerr << "  projStr: " << projStr << endl;
+    cerr << "  proj type not supported" << endl;
+    cerr << "  assuming LATLON projection" << endl;
+    ptype = Mdvx::PROJ_LATLON;
+  }
+
+  // determine the projection parameters
+
+  double lon_0 = 0.0;
+  double lat_0 = 0.0;
+  double lat_1 = 0.0;
+  double lat_2 = 0.0;
+  double x_0 = 0.0;
+  double y_0 = 0.0;
+  double k_0 = 1.0;
+  bool isSouth = false;
+  double perspRadius = 6.0 * Pjg::EradKm;
+  bool unitsAreM = false;
+  
+  char cc;
+  for (size_t itok = 0; itok < toks.size(); itok++) {
+    string tok = toks[itok];
+    if (tok.find("+lon_0") != string::npos) {
+      sscanf(tok.c_str(), "+lon_0%1c%lg", &cc, &lon_0);
+    }
+    if (tok.find("+lat_0") != string::npos) {
+      sscanf(tok.c_str(), "+lat_0%1c%lg", &cc, &lat_0);
+    }
+    if (tok.find("+lat_1") != string::npos) {
+      sscanf(tok.c_str(), "+lat_1%1c%lg", &cc, &lat_1);
+    }
+    if (tok.find("+lat_2") != string::npos) {
+      sscanf(tok.c_str(), "+lat_2%1c%lg", &cc, &lat_2);
+    }
+    if (tok.find("+x_0") != string::npos) {
+      sscanf(tok.c_str(), "+x_0%1c%lg", &cc, &x_0);
+    }
+    if (tok.find("+y_0") != string::npos) {
+      sscanf(tok.c_str(), "+y_0%1c%lg", &cc, &y_0);
+    }
+    if (tok.find("+k_0") != string::npos) {
+      sscanf(tok.c_str(), "+k_0%1c%lg", &cc, &k_0);
+    }
+    if (tok.find("+south") != string::npos) {
+      isSouth = true;
+    }
+    if ((tok.find("+units=m") != string::npos) ||
+        (tok.find("+units#m") != string::npos)) {
+      unitsAreM = true;
+    }
+  }
+
+  if (unitsAreM) {
+    x_0 /= 1000.0;
+    y_0 /= 1000.0;
+  }
+
+  if (ptype == Mdvx::PROJ_LATLON) {
+    initLatlon(lon_0);
+  } else if (ptype == Mdvx::PROJ_ALBERS) {
+    initAlbers(lat_0, lon_0, lat_1, lat_2);
+  } else if (ptype == Mdvx::PROJ_FLAT) {
+    initAzimEquiDist(lat_0, lon_0, 0.0);
+  } else if (ptype == Mdvx::PROJ_LAMBERT_CONF) {
+    initLambertConf(lat_0, lon_0, lat_1, lat_2);
+  } else if (ptype == Mdvx::PROJ_LAMBERT_AZIM) {
+    initLambertAzim(lat_0, lon_0);
+  } else if (ptype == Mdvx::PROJ_MERCATOR) {
+    initMercator(lat_0, lon_0);
+  } else if (ptype == Mdvx::PROJ_TRANS_MERCATOR) {
+    initTransMercator(lat_0, lon_0, k_0);
+  } else if (ptype == Mdvx::PROJ_POLAR_STEREO) {
+    if (isSouth) {
+      initStereographic(lon_0, Mdvx::POLE_SOUTH, k_0);
+    } else {
+      initStereographic(lon_0, Mdvx::POLE_NORTH, k_0);
+    }
+  } else if (ptype == Mdvx::PROJ_OBLIQUE_STEREO) {
+    initStereographic(lat_0, lon_0, k_0);
+  } else if (ptype == Mdvx::PROJ_VERT_PERSP) {
+    initVertPersp(lat_0, lon_0, perspRadius);
+  }
+
+  // if (x_0 != 0.0 || y_0 != 0.0) {
+  //   setOffsetCoords(y_0, x_0);
+  // }
 
 }
 
@@ -795,6 +939,22 @@ void MdvxProj::setOffsetCoords(double false_northing,
   }
 }
 
+///////////////////////////////////////
+// set origin lat/lon
+// can be used to correct for errors
+
+void MdvxProj::setOriginLat(double origin_lat)
+{
+  _coord.proj_origin_lat = origin_lat;
+  _initFromCoords();
+}
+
+void MdvxProj::setOriginLon(double origin_lon)
+{
+  _coord.proj_origin_lon = origin_lon;
+  _initFromCoords();
+}
+
 //////////////////////////////////////
 // generic latlon-to-xy transformation
 // most projections: x, y in km, z ignored
@@ -902,7 +1062,7 @@ int MdvxProj::latlon2xyIndex(double lat, double lon,
 // returns 0 on success, -1 on failure (data outside grid)
 
 int MdvxProj::latlon2arrayIndex(double lat, double lon,
-				int &array_index,
+				int64_t &array_index,
 				bool wrap_lon /* = false */,
                                 double zz /* = -9999.0*/) const
 
@@ -915,7 +1075,7 @@ int MdvxProj::latlon2arrayIndex(double lat, double lon,
     return -1;
   }
 
-  array_index = (_coord.nx * y_index) + x_index;
+  array_index = (_coord.nx * (int64_t) y_index) + (int64_t) x_index;
   return 0;
 
 }
@@ -1229,52 +1389,56 @@ void MdvxProj::getGridOrigin(double &lat, double &lon) const
 
 ////////////////////////////////////////////////////////
 // 
-// getEdgeExtrema()
-//
 // Get the maximum and minimum lat, lon by going
-// around the edge of the grid. Computationally expensive
-// in some cases. Niles Oien November 2004.
-//
+// around the edge of the grid.
+// Optionally set the extra margin around in the grid, in grid indices.
+// Setting margin > 0 enlarges the resulting region.
+// Computationally expensive in some cases.
+
 void MdvxProj::getEdgeExtrema(double &minLat, double &minLon,
-			      double &maxLat, double &maxLon) const
+			      double &maxLat, double &maxLon,
+                              int margin /* = 0 */) const
 {
 
   // Initialize.
 
   double lat, lon;
   xyIndex2latlon(0, 0, lat, lon);
-  minLat = maxLat = lat;         maxLon = minLon = lon;
+  minLat = maxLat = lat;
+  maxLon = minLon = lon;
 
   // Go around all four sides.
 
-  // First, the sides defined by ix=0 and ix=Nx-1.
+  // go around the sides defined by ix=0 and ix=Nx-1
+  // plus the margin as appropriate
 
-  for (int iy = 0; iy < _coord.ny; iy++){
+  for (int iy = 0 - margin; iy < _coord.ny + margin; iy++){
     //
-    xyIndex2latlon(0, iy, lat, lon);
+    xyIndex2latlon(0 - margin, iy, lat, lon);
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
     //
-    xyIndex2latlon(_coord.nx-1, iy, lat, lon);
+    xyIndex2latlon(_coord.nx - 1 + margin, iy, lat, lon);
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
   }
 
-  // Then, the sides defined by iy=0 and iy=Ny-1.
+  // go around the sides defined by iy=0 and iy=Ny-1
+  // plus the margin as appropriate
 
-  for (int ix = 0; ix < _coord.nx; ix++){
+  for (int ix = 0 - margin; ix < _coord.nx + margin; ix++){
     //
-    xyIndex2latlon(ix, 0, lat, lon);
+    xyIndex2latlon(ix, 0 - margin, lat, lon);
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
     //
-    xyIndex2latlon(ix,  _coord.ny-1, lat, lon);
+    xyIndex2latlon(ix,  _coord.ny - 1 + margin, lat, lon);
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
     if (lat < minLat) minLat = lat;
@@ -1761,7 +1925,7 @@ void MdvxProj::_coord2ProjParams(Mdvx::projection_type_t proj_type,
   
 {
 
-  memset(proj_params, 0, MDV_MAX_PROJ_PARAMS * sizeof(fl32));
+  memset(proj_params, 0, MDV_MAX_PROJ_PARAMS * sizeof(fl64));
 
   switch (proj_type) {
     
@@ -1780,6 +1944,7 @@ void MdvxProj::_coord2ProjParams(Mdvx::projection_type_t proj_type,
     proj_params[0] = coord.proj_params.ps.tan_lon;
     proj_params[1] = coord.proj_params.ps.pole_type;
     proj_params[2] = coord.proj_params.ps.central_scale;
+    proj_params[3] = coord.proj_params.ps.lad;
     break;
   }
     
@@ -1818,7 +1983,7 @@ void MdvxProj::_coord2ProjParams(Mdvx::projection_type_t proj_type,
 
 ////////////////////////////////////////////////////////
 // copy proj_param info to coord struct
-// Proj params array should be at least length 8 = MDV_MAX_PROJ_PARAMS
+// Proj params array should be at least length MDV_MAX_PROJ_PARAMS
 
 void MdvxProj::_projParams2Coord(Mdvx::projection_type_t proj_type,
 				 const fl64 *proj_params,
@@ -1846,6 +2011,7 @@ void MdvxProj::_projParams2Coord(Mdvx::projection_type_t proj_type,
       coord.proj_params.ps.pole_type = 1;
     }
     coord.proj_params.ps.central_scale = proj_params[2];
+    coord.proj_params.ps.lad = proj_params[3];
     break;
 
   case Mdvx::PROJ_OBLIQUE_STEREO:

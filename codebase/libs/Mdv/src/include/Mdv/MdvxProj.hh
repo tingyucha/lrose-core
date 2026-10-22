@@ -137,6 +137,12 @@ public:
   void init(const Mdvx::coord_t &coord);
   
   ///////////////////////////////
+  // initialize from proj string
+  // i.e. proj 4 etc.
+
+  void initFromProjStr(const string &projStr);
+
+  ///////////////////////////////
   // initialize projections
   
   // initialize latlon projection
@@ -303,6 +309,13 @@ public:
   void setOffsetCoords(double false_northing,
                        double false_easting);
   
+  ///////////////////////////////////////
+  // set origin lat/lon
+  // can be used to correct for errors
+  
+  void setOriginLat(double origin_lat);
+  void setOriginLon(double origin_lon);
+
   ////////////////////////////////////////////////////////
   // Coordinate transformation functions.
   // Convert from XY to Lat/Lon and vice versa.
@@ -355,7 +368,7 @@ public:
   // returns 0 on success, -1 on failure (data outside grid)
 
   int latlon2arrayIndex(double lat, double lon,
-			int &array_index,
+			int64_t &array_index,
 			bool wrap_lon = false,
                         double z = -9999.0) const;
 
@@ -419,11 +432,14 @@ public:
   void getGridOrigin(double &lat, double &lon) const;
 
   // Get the maximum and minimum lat, lon by going
-  // around the edge of the grid. Computationally expensive
-  // in some cases.
+  // around the edge of the grid.
+  // Optionally set the extra margin around in the grid, in grid indices.
+  // Setting margin > 0 enlarges the resulting region.
+  // Computationally expensive in some cases.
 
   void getEdgeExtrema(double &minLat, double &minLon,
-		      double &maxLat, double &maxLon) const;
+		      double &maxLat, double &maxLon,
+                      int margin = 0) const;
   
   // Synchronize master and field header with info from
   // this object.

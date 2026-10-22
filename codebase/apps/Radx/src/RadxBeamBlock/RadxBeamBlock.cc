@@ -295,7 +295,8 @@ int RadxBeamBlock::Write(void)
 
 
 //////////////////////////////////////////
-// create a terrain grid in Cart corrds
+// create a terrain grid in Cart coords
+
 int RadxBeamBlock::_createCartTerrainGrid(double minLat, double minLon,
                                           double maxLat, double maxLon)
 
@@ -475,7 +476,7 @@ void RadxBeamBlock::_addTerrainMdvField(DsMdvx &mdv,
       alon.set_degrees(lonDeg);
       latlon loc(alat, alon);
       double ht = _dem.getElevation(loc);
-      if (!isfinite(ht)) {
+      if (!std::isfinite(ht)) {
         ht = missingVal;
       }
       height[ii] = ht;

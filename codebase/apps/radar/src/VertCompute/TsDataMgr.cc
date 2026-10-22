@@ -38,22 +38,19 @@
 #include "TsDataMgr.hh"
 #include <toolsa/toolsa_macros.h>
 #include <toolsa/TaArray.hh>
+#include <Radx/RadxTime.hh>
 
 using namespace std;
 
 // Constructor
 
 TsDataMgr::TsDataMgr(const string &prog_name,
-		     const Params &params,
-		     const vector<string> &input_file_list,
-		     StatsMgr &statsMgr) :
-  _progName(prog_name),
-  _params(params),
-  _inputFileList(input_file_list),
-  _statsMgr(statsMgr)
-  
+                     const Args &args,
+		     const Params &params) :
+        StatsMgr::StatsMgr(prog_name, args, params)
+    
 {
-  
+
   _pulseSeqNum = 0;
   _totalPulseCount = 0;
   _reader = NULL;
@@ -70,19 +67,6 @@ TsDataMgr::TsDataMgr(const string &prog_name,
   double startHt = _params.start_height;
   double deltaHt = _params.delta_height;
   _maxHt = startHt + (nLayers + 1) * deltaHt;
-
-  // create reader
-
-  IwrfDebug_t iwrfDebug = IWRF_DEBUG_OFF;
-  if (_params.debug) {
-    iwrfDebug = IWRF_DEBUG_NORM;
-  }
-  if (_params.input_mode == Params::TS_FILE_INPUT) {
-    _reader = new IwrfTsReaderFile(_inputFileList, iwrfDebug);
-  } else {
-    _reader = new IwrfTsReaderFmq(_params.input_fmq_name, iwrfDebug,
-				   _params.seek_to_start_of_input);
-  }
 
   switch (_params.xmit_rcv_mode) {
     
@@ -149,6 +133,64 @@ int TsDataMgr::run ()
     return -1;
   }
 
+  // create reader
+
+  IwrfDebug_t iwrfDebug = IWRF_DEBUG_OFF;
+  if (_params.debug) {
+    iwrfDebug = IWRF_DEBUG_NORM;
+  }
+  
+  if (_params.input_mode == Params::TS_FILE_INPUT) {
+    
+    // check if start and end times are set
+    
+    bool startTimeSet = true;
+    time_t startTime = RadxTime::parseDateTime(_params.start_time);
+    if (startTime == RadxTime::NEVER || startTime < 1) {
+      startTimeSet = false;
+    }
+    
+    bool endTimeSet = true;
+    time_t endTime = RadxTime::parseDateTime(_params.end_time);
+    if (endTime == RadxTime::NEVER || endTime < 1) {
+      endTimeSet = false;
+    }
+    
+    cerr << "  Input dir: " << _params.input_dir << endl;
+    cerr << "  Start time: " << RadxTime::strm(startTime) << endl;
+    cerr << "  End time: " << RadxTime::strm(endTime) << endl;
+    
+    vector<string> paths = _args.inputFileList;
+    if (paths.size() == 0) {
+      if (startTimeSet && endTimeSet) {
+        if (_params.debug) {
+          cerr << "  Input dir: " << _params.input_dir << endl;
+          cerr << "  Start time: " << RadxTime::strm(startTime) << endl;
+          cerr << "  End time: " << RadxTime::strm(endTime) << endl;
+        }
+        DsInputPath dsInput(_progName, _params.debug >= Params::DEBUG_VERBOSE,
+                            _params.input_dir,
+                            startTime, endTime);
+        paths = dsInput.getPathList();
+      } // if (startTimeSet && endTimeSet)
+      
+    }
+    
+    if (paths.size() < 1) {
+      cerr << "ERROR - VertCompute::RadxDataMgr::run()" << endl;
+      cerr << "  No files found, dir: " << _params.input_dir << endl;
+      return -1;
+    }
+
+    _reader = new IwrfTsReaderFile(paths, iwrfDebug);
+    
+  } else {
+
+    _reader = new IwrfTsReaderFmq(_params.input_fmq_name, iwrfDebug,
+				   _params.seek_to_start_of_input);
+
+  }
+
   int iret = 0;
 
   while (true) {
@@ -179,21 +221,25 @@ void TsDataMgr::_processPulse(const IwrfTsPulse *pulse)
   // at start, print headers
 
   if (_totalPulseCount == 0) {
-    _statsMgr.setStartTime(pulse->getFTime());
+    setStartTime(pulse->getFTime());
   }
-  _statsMgr.setEndTime(pulse->getFTime());
+  setEndTime(pulse->getFTime());
 
   // check that we start with a horizontal pulse
-  
-  if (_pulseQueue.size() == 0 && !pulse->isHoriz()) {
-    return;
+
+  if (_xmitRcvMode == IWRF_ALT_HV_CO_ONLY ||
+      _xmitRcvMode == IWRF_ALT_HV_CO_CROSS ||
+      _xmitRcvMode == IWRF_ALT_HV_FIXED_HV) {
+    if (_pulseQueue.size() == 0 && !pulse->isHoriz()) {
+      return;
+    }
   }
 
   // add the pulse to the queue
   
   _addPulseToQueue(pulse);
   _totalPulseCount++;
-  
+
   // do we have a full pulse queue?
 
   if ((int) _pulseQueue.size() < _nSamples) {
@@ -224,9 +270,9 @@ void TsDataMgr::_processPulse(const IwrfTsPulse *pulse)
   
   int midIndex = _nSamples / 2;
   const IwrfTsPulse *midPulse = _pulseQueue[midIndex];
-  _statsMgr.setPrt(midPulse->getPrt());
-  _statsMgr.setEl(midPulse->getEl());
-  _statsMgr.setAz(midPulse->getAz());
+  setPrt(midPulse->getPrt());
+  setEl(midPulse->getEl());
+  setAz(midPulse->getAz());
 
   // transmitter power
 
@@ -239,7 +285,7 @@ void TsDataMgr::_processPulse(const IwrfTsPulse *pulse)
 
   // if we have done a full rotation, process the data
 
-  _statsMgr.checkCompute();
+  checkCompute();
 
   // clear time series data queue
 
@@ -304,14 +350,19 @@ void TsDataMgr::_addPulseToQueue(const IwrfTsPulse *pulse)
   }
   _pulseSeqNum = pulse->getSeqNum();
 
-  // check number of gates is constant
+  // set _nGates to min number found so far
+  // for staggered PRT we want to use the shorter number of gates
 
   qSize = (int) _pulseQueue.size();
-  _nGates = _pulseQueue[0]->getNGates();
+  if (qSize < 1) {
+    return;
+  }
+  if (_nGates == 0) {
+    _nGates = _pulseQueue[0]->getNGates();
+  }
   for (int ii = 1; ii < qSize; ii++) {
-    if (_pulseQueue[ii]->getNGates() != _nGates) {
-      _clearPulseQueue();
-      return;
+    if (_pulseQueue[ii]->getNGates() < _nGates) {
+      _nGates = _pulseQueue[ii]->getNGates();
     }
   }
 
@@ -389,7 +440,7 @@ void TsDataMgr::_computeMoments()
     mdata.ldrv = flds.ldrv;
     mdata.phidp = flds.phidp;
     mdata.rhohv = flds.rhohv;
-    _statsMgr.addDataPoint(range, mdata);
+    addDataPoint(range, mdata);
   } // igate
 
 }

@@ -44,6 +44,7 @@
 #include <toolsa/Tty.hh>
 #include <toolsa/TaStr.hh>
 #include <toolsa/DateTime.hh>
+#include <physics/physics.h>
 #include "EsdAcIngest.hh"
 using namespace std;
 
@@ -168,20 +169,10 @@ int EsdAcIngest::Run ()
 
     int iret = 0;
     ac_posn_wmod_t posn;
-    MEM_zero(posn);
-    posn.lat = AC_POSN_MISSING_FLOAT;
-    posn.lon = AC_POSN_MISSING_FLOAT;
-    posn.alt = AC_POSN_MISSING_FLOAT;
-    posn.tas = AC_POSN_MISSING_FLOAT;
-    posn.gs = AC_POSN_MISSING_FLOAT;
-    posn.temp = AC_POSN_MISSING_FLOAT;
-    posn.dew_pt = AC_POSN_MISSING_FLOAT;
-    posn.lw = AC_POSN_MISSING_FLOAT;
-    posn.fssp = AC_POSN_MISSING_FLOAT;
-    posn.rosemount = AC_POSN_MISSING_FLOAT;
-
+    ac_posn_wmod_init(&posn);
+ 
     time_t validTime;
-
+    
     switch (_params.input_format) {
 
       case Params::AUTOMATIC_FORMAT :
@@ -236,18 +227,45 @@ int EsdAcIngest::Run ()
     if (iret == 0) {
 
       // check callsign
-
+      
       if (!_acceptCallsign(posn)) {
 	continue;
       }
+
+      // check for valid speeds
       
+      if (_params.check_ground_speed) {
+        if (posn.gs < _params.min_valid_ground_speed) {
+          continue;
+        }
+      }
+      
+      if (_params.check_air_speed) {
+        if (posn.tas < _params.min_valid_air_speed) {
+          continue;
+        }
+      }
+      
+      // compute dew point or rh if applicable
+
+      if (posn.temp != AC_POSN_MISSING_FLOAT) {
+        if (posn.dew_pt == AC_POSN_MISSING_FLOAT &&
+            posn.rh != AC_POSN_MISSING_FLOAT) {
+          _computeDewPoint(posn);
+        } else if (posn.rh == AC_POSN_MISSING_FLOAT &&
+                   posn.dew_pt != AC_POSN_MISSING_FLOAT) {
+          _computeRh(posn);
+        }
+        
+      }
+
       // success
 
       // compute the flare count
 
       _computeEjectFlares(posn, ejectMap);
       _computeBipFlares(validTime, posn, bipMap, burnDeq);
-
+      
       if (_params.debug) {
 	cerr << "----> Data at time: " << DateTime::str(validTime) << endl;
 	ac_posn_wmod_print(stderr, "  ", &posn);
@@ -420,8 +438,20 @@ int EsdAcIngest::_decodeCommaDelimited(const char *line,
       case Params::DEW_PT:
         posn.dew_pt = atof(tokens[ii].c_str());
         break;
+      case Params::RH:
+        posn.rh = atof(tokens[ii].c_str());
+        break;
       case Params::LW:
         posn.lw = atof(tokens[ii].c_str());
+        break;
+      case Params::FSSP_CONC:
+        posn.fssp = atof(tokens[ii].c_str());
+        break;
+      case Params::HEADING_DEG:
+        posn.headingDeg = atof(tokens[ii].c_str());
+        break;
+      case Params::VERT_VEL_MPS:
+        posn.vertVelMps = atof(tokens[ii].c_str());
         break;
       case Params::ERROR_FLAGS: {}
         break;
@@ -1248,6 +1278,28 @@ void EsdAcIngest::_computeBipFlares(time_t validTime,
 
   posn.n_burn_in_place = count;
 
+}
+
+///////////////////////////////////////////////////////////////
+// Compute dew point from temp and rh if available
+
+void EsdAcIngest::_computeDewPoint(ac_posn_wmod_t &ac_posn)
+{
+  if (ac_posn.temp != AC_POSN_MISSING_FLOAT &&
+      ac_posn.rh != AC_POSN_MISSING_FLOAT) {
+    ac_posn.dew_pt = PHYrhdp(ac_posn.temp, ac_posn.rh);
+  }
+}
+
+///////////////////////////////////////////////////////////////
+// Compute rh from temp and dew point if available
+
+void EsdAcIngest::_computeRh(ac_posn_wmod_t &ac_posn)
+{
+  if (ac_posn.temp != AC_POSN_MISSING_FLOAT &&
+      ac_posn.dew_pt != AC_POSN_MISSING_FLOAT) {
+    ac_posn.rh = PHYrelh(ac_posn.temp, ac_posn.dew_pt);
+  }
 }
 
 #ifdef JUNK

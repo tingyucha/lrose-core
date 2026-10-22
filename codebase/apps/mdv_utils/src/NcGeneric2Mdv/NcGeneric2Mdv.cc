@@ -37,11 +37,13 @@
 //
 ////////////////////////////////////////////////////////////////
 
+#include <cmath>
 #include <toolsa/toolsa_macros.h>
 #include <toolsa/umisc.h>
 #include <toolsa/pmu.h>
 #include <toolsa/DateTime.hh>
 #include <toolsa/Path.hh>
+#include <toolsa/TaArray.hh>
 #include <Mdv/MdvxField.hh>
 #include <dsserver/DsLdataInfo.hh>
 #include "NcGeneric2Mdv.hh"
@@ -428,11 +430,16 @@ int NcGeneric2Mdv::_loadMetaData()
 
   _timeDim = _ncFile->get_dim(_params.netcdf_dim_time);
   if (_timeDim == NULL) {
-    cerr << "ERROR - NcGeneric2Mdv::_loadMetaData" << endl;
-    cerr << "  time dimension missing: " << _params.netcdf_dim_time << endl;
-    return -1;
+    if (strcmp(_params.netcdf_dim_time, "none") == 0) {
+      _nTimes = 1;
+    } else {
+      cerr << "ERROR - NcGeneric2Mdv::_loadMetaData" << endl;
+      cerr << "  time dimension missing: " << _params.netcdf_dim_time << endl;
+      return -1;
+    }
+  } else {
+    _nTimes = _timeDim->size();
   }
-  _nTimes = _timeDim->size();
 
   if (strcmp(_params.netcdf_dim_z, "none") == 0) {
     _zDim = NULL;
@@ -702,7 +709,58 @@ int NcGeneric2Mdv::_loadMetaData()
   
   _initInputProjection();
 
+  _readGlobals();
+
   return 0;
+
+}
+
+/////////////////////////////////////////////
+// read the global attributes as requested
+
+void NcGeneric2Mdv::_readGlobals()
+
+{
+
+  // date/time
+
+  _globalTime.set(time(NULL)); // initialize to now
+
+  if (_params.get_date_and_time_from_global_attributes) {
+
+    for (int ii = 0; ii < _ncFile->num_atts(); ii++) {
+      Nc3Att* att = _ncFile->get_att(ii);
+      if (att == NULL) {
+        continue;
+      }
+      if (!strcmp(att->name(), "year")) {
+        _globalTime.setYear(att->as_int(0));
+      } else if (!strcmp(att->name(), "month")) {
+        _globalTime.setMonth(att->as_int(0));
+      } else if (!strcmp(att->name(), "day")) {
+        _globalTime.setDay(att->as_int(0));
+      } else if (!strcmp(att->name(), "hour")) {
+        _globalTime.setHour(att->as_int(0));
+      } else if (!strcmp(att->name(), "minute")) {
+        _globalTime.setMin(att->as_int(0));
+      } else if (!strcmp(att->name(), "second")) {
+        _globalTime.setSec(att->as_int(0));
+      }
+      delete att;
+    } // ii
+
+  } // if (_params.get_date_and_time_from_global_attributes) {
+  
+  // missing value
+
+  _globalMissing = _missingFloat;
+  if (_params.get_missing_value_from_global_attributes) {
+    Nc3Att *att = _ncFile->get_att("missing_value");
+    if (att != NULL) {
+      _globalMissing = att->as_float(0);
+      delete att;
+    }
+  } // if (_params.get_missing_value_from_global_attributes) {
 
 }
 
@@ -719,12 +777,14 @@ int NcGeneric2Mdv::_setMasterHeader(DsMdvx &mdvx, int itime)
 
   // time
 
-  time_t baseTimeUtc = 0;
-  if (_baseTimeVar) {
-    baseTimeUtc = _baseTimeVar->as_int(0);
-  } else {
-    DateTime btime(_params.base_time_string);
-    baseTimeUtc = btime.utime();
+  time_t baseTimeUtc = _globalTime.utime();
+  if (!_params.get_date_and_time_from_global_attributes) {
+    if (_baseTimeVar) {
+      baseTimeUtc = _baseTimeVar->as_int(0);
+    } else {
+      DateTime btime(_params.base_time_string);
+      baseTimeUtc = btime.utime();
+    }
   }
 
   // check time units
@@ -788,33 +848,39 @@ int NcGeneric2Mdv::_addDataFields(DsMdvx &mdvx, int itime)
   for (int ivar = 0; ivar < _ncFile->num_vars(); ivar++) {
 
     Nc3Var *var = _ncFile->get_var(ivar);
-    
-    if (var->get_dim(0) != _timeDim) {
-      continue;
-    }
 
+    int dimStart = 0;
+    if (_timeDim == NULL) {
+      dimStart = 0;
+    } else {
+      if (var->get_dim(0) != _timeDim) {
+        continue;
+      }
+      dimStart = 1;
+    }
+    
     bool xySwapped = false;
     if (_zDim) {
-      if (var->num_dims() < 4) {
+      if (var->num_dims() < dimStart+3) {
         continue;
       }
-      if (var->get_dim(1) != _zDim) {
+      if (var->get_dim(dimStart) != _zDim) {
         continue;
       }
-      if (var->get_dim(2) == _yDim && var->get_dim(3) == _xDim) {
+      if (var->get_dim(dimStart+1) == _yDim && var->get_dim(dimStart+2) == _xDim) {
         xySwapped = false;
-      } else if (var->get_dim(3) == _yDim && var->get_dim(2) == _xDim) {
+      } else if (var->get_dim(dimStart+2) == _yDim && var->get_dim(dimStart+1) == _xDim) {
         xySwapped = true;
       } else {
         continue;
       }
     } else {
-      if (var->num_dims() < 3) {
+      if (var->num_dims() < dimStart+2) {
         continue;
       }
-      if (var->get_dim(1) == _yDim && var->get_dim(2) == _xDim) {
+      if (var->get_dim(dimStart) == _yDim && var->get_dim(dimStart+1) == _xDim) {
         xySwapped = false;
-      } else if (var->get_dim(2) == _yDim && var->get_dim(1) == _xDim) {
+      } else if (var->get_dim(dimStart+1) == _yDim && var->get_dim(dimStart) == _xDim) {
         xySwapped = true;
       } else {
         continue;
@@ -826,14 +892,33 @@ int NcGeneric2Mdv::_addDataFields(DsMdvx &mdvx, int itime)
       cerr << "  Name: " << var->name() << endl;
       cerr << "  Is valid: " << var->is_valid() << endl;
       cerr << "  N dims: " << var->num_dims() << endl;
+      cerr << "  xySwapped: " << (xySwapped?"Y":"N") << endl;
     }
 
-    _addDataField(var, mdvx, itime, xySwapped);
+    // check if field is needed
+    
+    bool useField = false;
+    Params::output_field_t *ofld = NULL;
+    if (_params.specify_output_fields) {
+      for (int ii = 0; ii < _params.output_fields_n; ii++) {
+        if (strcmp(var->name(), _params._output_fields[ii].input_field_name) == 0) {
+          useField = true;
+          ofld = _params._output_fields + ii;
+          break;
+        }
+      }
+    } else {
+      useField = true;
+    }
+    
+    if (useField) {
+      _addDataField(var, mdvx, itime, xySwapped, ofld);
+    }
 
   } // ivar
   
   return 0;
-
+  
 }
 
 /////////////////////////////////////////////////
@@ -842,18 +927,19 @@ int NcGeneric2Mdv::_addDataFields(DsMdvx &mdvx, int itime)
 // Returns 0 on success, -1 on failure
 
 int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
-                                 int itime, bool xySwapped)
+                                 int itime, bool xySwapped,
+                                 Params::output_field_t *ofld)
 
 {
 
   Nc3Att *missingAtt = var->get_att("missing_value");
   if (missingAtt == NULL) {
     missingAtt = var->get_att("_FillValue");
-    if (missingAtt == NULL) {
-      cerr << "ERROR - NcGeneric2Mdv::_addDataField" << endl;
+    if (missingAtt == NULL && _params.debug >= Params::DEBUG_VERBOSE) {
+      cerr << "WARNING - NcGeneric2Mdv::_addDataField" << endl;
       cerr << "  Cannot find missing_value of _FillValue attribute" << endl;
       cerr << "  field name: " << var->name() << endl;
-      return -1;
+      cerr << "  Setting missing to -9999" << endl;
     }
   }
 
@@ -880,19 +966,35 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
     // read data
 
     int iret = 0;
-    if (_zDim) {
-      if (xySwapped) {
-        iret = var->get(fvals, 1, _nz, _nx, _ny);
+    if (_timeDim) {
+      if (_zDim) {
+        if (xySwapped) {
+          iret = var->get(fvals, 1, _nz, _nx, _ny);
+        } else {
+          iret = var->get(fvals, 1, _nz, _ny, _nx);
+        }
       } else {
-        iret = var->get(fvals, 1, _nz, _ny, _nx);
-      }
+        if (xySwapped) {
+          iret = var->get(fvals, 1, _nx, _ny);
+      } else {
+          iret = var->get(fvals, 1, _ny, _nx);
+        }
+      } // _zDim
     } else {
-      if (xySwapped) {
-        iret = var->get(fvals, 1, _nx, _ny);
+      if (_zDim) {
+        if (xySwapped) {
+          iret = var->get(fvals, _nz, _nx, _ny);
+        } else {
+          iret = var->get(fvals, _nz, _ny, _nx);
+        }
       } else {
-        iret = var->get(fvals, 1, _ny, _nx);
-      }
-    }
+        if (xySwapped) {
+          iret = var->get(fvals, _nx, _ny);
+      } else {
+          iret = var->get(fvals, _ny, _nx);
+        }
+      } // _zDim
+    } // _timeDim
 
     if (iret == 0) {
       cerr << "ERROR - NcGeneric2Mdv::_addDataField" << endl;
@@ -904,9 +1006,12 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
 
     // save data
     
-    float missing = missingAtt->as_float(0);
+    float missing = _globalMissing;
+    if (missingAtt != NULL) {
+      missing = missingAtt->as_float(0);
+    }
     for (int ii = 0; ii < npts; ii++) {
-      if (isnan(fvals[ii]) || fvals[ii] == missing) {
+      if (std::isnan(fvals[ii]) || fvals[ii] == missing) {
         vals[ii] = _missingFloat;
       } else {
         vals[ii] = fvals[ii];
@@ -921,19 +1026,36 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
     // read data
 
     int iret = 0;
-    if (_zDim) {
-      if (xySwapped) {
-        iret = var->get(dvals, 1, _nz, _nx, _ny);
+    if (_timeDim) {
+      if (_zDim) {
+        if (xySwapped) {
+          iret = var->get(dvals, 1, _nz, _nx, _ny);
+        } else {
+          iret = var->get(dvals, 1, _nz, _ny, _nx);
+        }
       } else {
-        iret = var->get(dvals, 1, _nz, _ny, _nx);
-      }
+        if (xySwapped) {
+          iret = var->get(dvals, 1, _nx, _ny);
+      } else {
+          iret = var->get(dvals, 1, _ny, _nx);
+        }
+      } // _zDim
     } else {
-      if (xySwapped) {
-        iret = var->get(dvals, 1, _nx, _ny);
+      if (_zDim) {
+        if (xySwapped) {
+          iret = var->get(dvals, _nz, _nx, _ny);
+        } else {
+          iret = var->get(dvals, _nz, _ny, _nx);
+        }
       } else {
-        iret = var->get(dvals, 1, _ny, _nx);
-      }
-    }
+        if (xySwapped) {
+          iret = var->get(dvals, _nx, _ny);
+      } else {
+          iret = var->get(dvals, _ny, _nx);
+        }
+      } // _zDim
+    } // _timeDim
+
     if (iret == 0) {
       cerr << "ERROR - NcGeneric2Mdv::_addDataField" << endl;
       cerr << "  Cannot get data from input netcdf variable" << endl;
@@ -944,9 +1066,12 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
 
     // save data
     
-    double missing = missingAtt->as_double(0);
+    double missing = _globalMissing;
+    if (missingAtt != NULL) {
+      missing = missingAtt->as_double(0);
+    }
     for (int ii = 0; ii < npts; ii++) {
-      if (isnan(dvals[ii]) || dvals[ii] == missing) {
+      if (std::isnan(dvals[ii]) || dvals[ii] == missing) {
         vals[ii] = _missingFloat;
       } else {
         vals[ii] = dvals[ii];
@@ -994,19 +1119,36 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
       // read data
       
       int iret = 0;
-      if (_zDim) {
-        if (xySwapped) {
-          iret = var->get(ivals, 1, _nz, _nx, _ny);
+      if (_timeDim) {
+        if (_zDim) {
+          if (xySwapped) {
+            iret = var->get(ivals, 1, _nz, _nx, _ny);
+          } else {
+            iret = var->get(ivals, 1, _nz, _ny, _nx);
+          }
         } else {
-          iret = var->get(ivals, 1, _nz, _ny, _nx);
-        }
+          if (xySwapped) {
+            iret = var->get(ivals, 1, _nx, _ny);
+          } else {
+            iret = var->get(ivals, 1, _ny, _nx);
+          }
+        } // _zDim
       } else {
-        if (xySwapped) {
-          iret = var->get(ivals, 1, _nx, _ny);
+        if (_zDim) {
+          if (xySwapped) {
+            iret = var->get(ivals, _nz, _nx, _ny);
+          } else {
+            iret = var->get(ivals, _nz, _ny, _nx);
+          }
         } else {
-          iret = var->get(ivals, 1, _ny, _nx);
-        }
-      }
+          if (xySwapped) {
+            iret = var->get(ivals, _nx, _ny);
+          } else {
+            iret = var->get(ivals, _ny, _nx);
+          }
+        } // _zDim
+      } // _timeDim
+
       if (iret == 0) {
         cerr << "ERROR - NcGeneric2Mdv::_addDataField" << endl;
         cerr << "  Cannot get data from input netcdf variable" << endl;
@@ -1017,7 +1159,10 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
 
       // save data
 
-      int missing = missingAtt->as_int(0);
+      int missing = (int) _globalMissing;
+      if (missingAtt != NULL) {
+        missing = missingAtt->as_int(0);
+      }
       for (int ii = 0; ii < npts; ii++) {
         if (ivals[ii] == missing) {
           vals[ii] = _missingFloat;
@@ -1034,19 +1179,36 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
       // read data
       
       int iret = 0;
-      if (_zDim) {
-        if (xySwapped) {
-          iret = var->get(svals, 1, _nz, _nx, _ny);
+      if (_timeDim) {
+        if (_zDim) {
+          if (xySwapped) {
+            iret = var->get(svals, 1, _nz, _nx, _ny);
+          } else {
+            iret = var->get(svals, 1, _nz, _ny, _nx);
+          }
         } else {
-          iret = var->get(svals, 1, _nz, _ny, _nx);
-        }
+          if (xySwapped) {
+            iret = var->get(svals, 1, _nx, _ny);
+          } else {
+            iret = var->get(svals, 1, _ny, _nx);
+          }
+        } // _zDim
       } else {
-        if (xySwapped) {
-          iret = var->get(svals, 1, _nx, _ny);
+        if (_zDim) {
+          if (xySwapped) {
+            iret = var->get(svals, _nz, _nx, _ny);
+          } else {
+            iret = var->get(svals, _nz, _ny, _nx);
+          }
         } else {
-          iret = var->get(svals, 1, _ny, _nx);
-        }
-      }
+          if (xySwapped) {
+            iret = var->get(svals, _nx, _ny);
+          } else {
+            iret = var->get(svals, _ny, _nx);
+          }
+        } // _zDim
+      } // _timeDim
+      
       if (iret == 0) {
         cerr << "ERROR - NcGeneric2Mdv::_addDataField" << endl;
         cerr << "  Cannot get data from input netcdf variable" << endl;
@@ -1057,7 +1219,10 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
 
       // save data
 
-      short missing = missingAtt->as_short(0);
+      short missing = (short) _globalMissing;
+      if (missingAtt != NULL) {
+        missing = missingAtt->as_short(0);
+      }
       for (int ii = 0; ii < npts; ii++) {
         if (svals[ii] == missing) {
           vals[ii] = _missingFloat;
@@ -1077,19 +1242,35 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
       // read data
       
       int iret = 0;
-      if (_zDim) {
-        if (xySwapped) {
-          iret = var->get(bvals, 1, _nz, _nx, _ny);
+      if (_timeDim) {
+        if (_zDim) {
+          if (xySwapped) {
+            iret = var->get(bvals, 1, _nz, _nx, _ny);
+          } else {
+            iret = var->get(bvals, 1, _nz, _ny, _nx);
+          }
         } else {
-          iret = var->get(bvals, 1, _nz, _ny, _nx);
-        }
+          if (xySwapped) {
+            iret = var->get(bvals, 1, _nx, _ny);
+          } else {
+            iret = var->get(bvals, 1, _ny, _nx);
+          }
+        } // _zDim
       } else {
-        if (xySwapped) {
-          iret = var->get(bvals, 1, _nx, _ny);
+        if (_zDim) {
+          if (xySwapped) {
+            iret = var->get(bvals, _nz, _nx, _ny);
+          } else {
+            iret = var->get(bvals, _nz, _ny, _nx);
+          }
         } else {
-          iret = var->get(bvals, 1, _ny, _nx);
-        }
-      }
+          if (xySwapped) {
+            iret = var->get(bvals, _nx, _ny);
+          } else {
+            iret = var->get(bvals, _ny, _nx);
+          }
+        } // _zDim
+      } // _timeDim
       if (iret == 0) {
         cerr << "ERROR - NcGeneric2Mdv::_addDataField" << endl;
         cerr << "  Cannot get data from input netcdf variable" << endl;
@@ -1101,7 +1282,10 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
 
       // save data
       
-      ncbyte missing = missingAtt->as_ncbyte(0);
+      ncbyte missing = -128;
+      if (missingAtt != NULL) {
+        missing = missingAtt->as_ncbyte(0);
+      }
       for (int ii = 0; ii < npts; ii++) {
         if (bvals[ii] == missing) {
           vals[ii] = _missingFloat;
@@ -1186,28 +1370,57 @@ int NcGeneric2Mdv::_addDataField(Nc3Var *var, DsMdvx &mdvx,
     delete longNameAtt;
   }
 
+  if (ofld != NULL) {
+    if (strlen(ofld->output_field_name) != 0) {
+      fieldName = ofld->output_field_name;
+    }
+    if (strlen(ofld->long_field_name) != 0) {
+      longName = ofld->long_field_name;
+    }
+    if (strlen(ofld->output_units) != 0) {
+      units = ofld->output_units;
+    }
+  }
+
   // create fields and add to mdvx object
 
   if (_params.input_xy_is_latlon &&
       _params.resample_latlon_onto_regular_grid &&
       (!_dxIsConstant || !_dyIsConstant)) {
     
-    // create the field from the remapped
+    // create the field from the remapped grid
     
     MdvxField *field =
       _createRegularLatlonField(fieldName, longName, units, vals);
+
+    // transform the field if required
+
+    if (_params.apply_linear_transforms) {
+      _transformField(field);
+    }
+
     // add to Mdvx, which takes over ownership
+
     mdvx.addField(field);
     
   } else {
   
     // create the field from the netcdf array
+
     MdvxField *field = _createMdvxField(fieldName, longName, units,
                                         _nx, _ny, _nz,
                                         _minx, _miny, _minz,
                                         _dx, _dy, _dz,
                                         vals);
+
+    // transform the field if required
+    
+    if (_params.apply_linear_transforms) {
+      _transformField(field);
+    }
+
     // add to Mdvx, which takes over ownership
+
     mdvx.addField(field);
     
   }
@@ -1295,6 +1508,37 @@ MdvxField *NcGeneric2Mdv::_createMdvxField
   field->setTransform("");
 
   return field;
+
+}
+
+/////////////////////////////////////////////////////////
+// Apply a linear transform to the field if specified
+
+void NcGeneric2Mdv::_transformField(MdvxField *field)
+  
+{
+  
+  if (!_params.apply_linear_transforms) {
+    return;
+  }
+
+  bool doTransform = false;
+  Params::transform_field_t transform;
+  for (int itf = 0; itf < _params.transform_fields_n; itf++) {
+    if (strcmp(_params._transform_fields[itf].input_field_name,
+               field->getFieldName()) == 0) {
+      doTransform = true;
+      transform = _params._transform_fields[itf];
+      break;
+    }
+  }
+
+  if (!doTransform) {
+    return;
+  }
+  
+  field->applyLinearTransform(transform.scale, transform.offset,
+                              transform.output_field_name, transform.output_units);
 
 }
   
@@ -1511,7 +1755,8 @@ void NcGeneric2Mdv::_printFile(Nc3File &ncf)
     cout << "  Name: " << vars[ivar]->name() << endl;
     cout << "  Is valid: " << vars[ivar]->is_valid() << endl;
     cout << "  N dims: " << vars[ivar]->num_dims();
-    Nc3Dim *vdims[vars[ivar]->num_dims()];
+    TaArray<Nc3Dim *> vdims_;
+    Nc3Dim **vdims = vdims_.alloc(vars[ivar]->num_dims());
     if (vars[ivar]->num_dims() > 0) {
       cout << ": (";
       for (int ii = 0; ii < vars[ivar]->num_dims(); ii++) {
@@ -1573,8 +1818,9 @@ void NcGeneric2Mdv::_printAtt(Nc3Att *att)
   
   case nc3Char: {
     cout << "CHAR: ";
-    char vals[att->num_vals() + 1];
-    MEM_zero(vals);
+    TaArray<char> vals_;
+    char *vals = vals_.alloc(att->num_vals() + 1);
+    memset(vals, 0, att->num_vals() + 1);
     memcpy(vals, values->base(), att->num_vals());
     cout << vals;
   }
@@ -1660,8 +1906,9 @@ void NcGeneric2Mdv::_printVarVals(Nc3Var *var)
   
   case nc3Char: {
     cout << "(char)";
-    char str[nprint + 1];
-    MEM_zero(str);
+    TaArray<char> str_;
+    char *str = str_.alloc(nprint + 1);
+    memset(str, 0, nprint + 1);
     memcpy(str, values->base(), nprint);
     cout << " " << str;
   }
@@ -1749,10 +1996,10 @@ void NcGeneric2Mdv::_correctForSunAngle(MdvxField *field)
   fl32 *data = (fl32 *) field->getVol();
 
   // correct for each location
-
+  
   double minVal = _params.corrected_field_min_value;
   double maxVal = _params.corrected_field_max_value;
-
+  
   int pos = 0;
   for (int iy = 0; iy < fhdr.ny; iy++) {
     for (int ix = 0; ix < fhdr.nx; ix++, pos++) {

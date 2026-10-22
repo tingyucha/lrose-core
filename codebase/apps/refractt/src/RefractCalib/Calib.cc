@@ -34,7 +34,7 @@
  */
 
 #include "Calib.hh"
-#include <Refract/RefractInput.hh>
+#include "Reader.hh"
 #include <Refract/RefractConstants.hh>
 #include <Mdv/DsMdvx.hh>
 #include <Mdv/MdvxField.hh>
@@ -45,21 +45,49 @@ using std::string;
 using std::vector;
 
 const size_t Calib::MINIMUM_TARGET_LIST_FILES = 2;
+const string Calib::CALIB_STRENGTH_FIELD_NAME = "strength";
+const string Calib::CALIB_AV_I_FIELD_NAME = "av_i";
+const string Calib::CALIB_AV_Q_FIELD_NAME = "av_q";
+const string Calib::CALIB_PHASE_ER_FIELD_NAME = "phase_er";
+const string Calib::CALIB_QUALITY_FIELD_NAME = "quality";
 
-//-----------------------------------------------------------------------
-Calib::Calib() :
-  _inputHandler(0),
-  _numAzim(0),
-  _numRangeBins(0),
-  _rMin(0),
-  _beamWidth(0.0),
-  _sideLobePower(0.0),
-  _refFilePath(""),
-  _fluctSnr(0),
-  _pixelCount(0),
-  _writeDebugMdvFiles(false),
-  _debugMdvUrl("")
+Calib::Calib(const Params &params) :
+        _params(params),
+        _inputHandler(_params),
+        _numAzim(0),
+        _numRangeBins(0),
+        _rMin(_params.r_min),
+        _beamWidth(_params.beam_width),
+        _sideLobePower(_params.side_lobe_pow),
+        _refFilePath(_params.output_file_path),
+        _refUrl(_params.output_dir),
+        _fluctSnr(0),
+        _pixelCount(0),
+        _writeDebugMdvFiles(false),
+        _debugMdvUrl("")
 {
+
+  
+  if (_params.write_debug_mdv_files) {
+    setDebugMdvUrl(_params.debug_mdv_url);
+  }
+  
+  switch (_params.entry_type){
+    case Params::ENTER_P_T_TD :
+      _nValue = RefractUtil::deriveNValue(_params.calib_pressure,
+                                          _params.calib_temperature,
+                                          _params.calib_dewpoint_temperature);
+      break;
+    case Params::ENTER_N :
+    default:
+      _nValue = _params.calib_n;
+      break;
+  }
+
+  if (_params.debug) {
+    cerr << "---> Setting N value to " << _nValue << endl;
+  }
+  
 }
 
 //-----------------------------------------------------------------------
@@ -71,44 +99,6 @@ Calib::~Calib()
     delete [] _fluctSnr;
   if (_pixelCount != NULL)
     delete [] _pixelCount;
-  if (_inputHandler != NULL)
-    delete _inputHandler;
-}
-
-//-----------------------------------------------------------------------
-bool Calib::init(const Params &params, const RefParms &refparms,
-		     RefractInput *input_handler)
-{
-  // Set global members
-  _inputHandler = input_handler;
-  _numAzim = 0;   // refparms.num_azim;
-  _numRangeBins = 0; //refparms.num_range_bins;
-  _rMin = params.r_min;
-  _beamWidth = params.beam_width;
-  _sideLobePower = params.side_lobe_pow;
-  _refFilePath = params.ref_file_path;
-  _refUrl = params.ref_url;
-  
-  if (params.write_debug_mdv_files)
-  {
-    setDebugMdvUrl(params.debug_mdv_url);
-  }
-  
-  switch (params.entry_type)
-  {
-  case Params::ENTER_P_T_TD :
-    _nValue = RefractUtil::deriveNValue(params.calib_pressure,
-					params.calib_temperature,
-					params.calib_dewpoint_temperature);
-    break;
-  case Params::ENTER_N :
-  default:
-    _nValue = params.calib_n;
-    break;
-  }
-  
-  LOG(FORCE) << "---> Setting N value to " << _nValue;
-  return true;
 }
 
 //-----------------------------------------------------------------------
@@ -125,8 +115,7 @@ bool Calib::init(const Params &params, const RefParms &refparms,
  */
 
 bool Calib::findReliableTargets(const std::vector< std::string > &file_list,
-				    const std::string &host,
-				    double &gate_spacing)
+                                double &gate_spacing)
 {
   // Check for the minimum number of files that can be included in the
   // file list.
@@ -140,7 +129,7 @@ bool Calib::findReliableTargets(const std::vector< std::string > &file_list,
   }
   
   // Process all of the files
-
+  
   vector< string >::const_iterator file_iter;
   bool first_file = true;
   int file_num = 1;
@@ -148,11 +137,11 @@ bool Calib::findReliableTargets(const std::vector< std::string > &file_list,
   LOG(DEBUG) << "Going through all the files:";
 
   FieldDataPair *av_iq_field=NULL, *dif_from_ref_iq_field=NULL;
-
+  
   for (file_iter = file_list.begin(); file_iter != file_list.end();
        ++file_iter, ++file_num)
   {
-    if (!_findReliableTargetsOneFile(file_num, *file_iter, host,
+    if (!_findReliableTargetsOneFile(file_num, *file_iter,
 				     gate_spacing, first_file,
 				     &av_iq_field, &dif_from_ref_iq_field))
     {
@@ -168,7 +157,7 @@ bool Calib::findReliableTargets(const std::vector< std::string > &file_list,
 
   // debugging
   vector<double> phase_targ = av_iq_field->createDebugPhaseVector();
-  if (!phase_targ.empty())
+  if (_params.debug >= Params::DEBUG_VERBOSE && !phase_targ.empty())
   {
     _writeDebugPhaseCalibFiles(phase_targ, num_azim, num_gates);
   }
@@ -226,14 +215,13 @@ bool Calib::findReliableTargets(const std::vector< std::string > &file_list,
 
 //-----------------------------------------------------------------------
 bool Calib::calibTargets(const std::vector< std::string > &file_list,
-			 const std::string &host,
 			 const double required_gate_spacing)
 {
   // Initialize some variables
   LOG(DEBUG) << "Calibrating ground targets for N = " << _nValue << "...";
   
   _sumABField.setAllZero();
-
+  
   _numAzim = _sumABField.numAzim();
   _numRangeBins = _sumABField.numGates();
   int scan_size = _sumABField.scanSize();
@@ -250,7 +238,7 @@ bool Calib::calibTargets(const std::vector< std::string > &file_list,
   for (file_iter = file_list.begin(); file_iter != file_list.end();
        ++file_iter, ++file_num)
   {
-    if (!_calibTargetsOneFile(file_num, *file_iter, host, last_data_time))
+    if (!_calibTargetsOneFile(file_num, *file_iter, last_data_time))
     {
       return false;
     }
@@ -295,18 +283,17 @@ bool Calib::calibTargets(const std::vector< std::string > &file_list,
 
 //-----------------------------------------------------------------------
 bool
-Calib::_findReliableTargetsOneFile(int file_num, const std::string &filename,
-				   const std::string &host, 
-				   double &gate_spacing, bool &first_file,
-				   FieldDataPair **av_iq_field,
-				   FieldDataPair **dif_from_ref_iq_field)
+  Calib::_findReliableTargetsOneFile(int file_num, const std::string &filename,
+                                     double &gate_spacing, bool &first_file,
+                                     FieldDataPair **av_iq_field,
+                                     FieldDataPair **dif_from_ref_iq_field)
 {
   LOG(DEBUG) << "   " << file_num << " - " << filename;
 
   // Read in the data from the file
   DsMdvx input_file;
     
-  if (!_inputHandler->getNextScan(filename, host, input_file))
+  if (!_inputHandler.getNextScan(filename, input_file))
   {
     LOG(ERROR) << "reading input file:" << filename;
     return false;
@@ -328,7 +315,7 @@ Calib::_findReliableTargetsOneFile(int file_num, const std::string &filename,
   if (first_file)
   {
     if (!_findReliableTargetsFirstFile(input_file, iq, SNR, gate_spacing,
-					av_iq_field, dif_from_ref_iq_field))
+                                       av_iq_field, dif_from_ref_iq_field))
     {
       return false;
     }
@@ -355,12 +342,12 @@ Calib::_findReliableTargetsOneFile(int file_num, const std::string &filename,
 
 //-----------------------------------------------------------------------
 bool Calib::_calibTargetsOneFile(int file_num, const std::string &fileName,
-				 const std::string &host,
 				 time_t &last_data_time)
 {
+
   LOG(DEBUG) << "   " << file_num << " - " << fileName;
   DsMdvx mdvx;
-  if (!_inputHandler->getNextScan(fileName, host, mdvx))
+  if (!_inputHandler.getNextScan(fileName, mdvx))
   {
     LOG(ERROR) << "reading input file:" << fileName;
     return false;
@@ -385,12 +372,12 @@ bool Calib::_calibTargetsOneFile(int file_num, const std::string &fileName,
 
 //-----------------------------------------------------------------------
 bool
-Calib::_findReliableTargetsFirstFile(const DsMdvx &input_file,
-				     const FieldDataPair &iq,
-				     const FieldWithData &SNR,
-				     double &gate_spacing, 
-				     FieldDataPair **av_iq_field,
-				     FieldDataPair **dif_from_ref_iq_field)
+  Calib::_findReliableTargetsFirstFile(const DsMdvx &input_file,
+                                       const FieldDataPair &iq,
+                                       const FieldWithData &SNR,
+                                       double &gate_spacing, 
+                                       FieldDataPair **av_iq_field,
+                                       FieldDataPair **dif_from_ref_iq_field)
 {  
   // Save the gate spacing value so we can make sure it doesn't change
   // between scans.
@@ -405,7 +392,7 @@ Calib::_findReliableTargetsFirstFile(const DsMdvx &input_file,
       
   // Allocate space for local fields
 
-  *av_iq_field = new FieldDataPair(iq, "av_i", "none", "av_q", "none");
+  *av_iq_field = new FieldDataPair(iq, CALIB_AV_I_FIELD_NAME, "none", CALIB_AV_Q_FIELD_NAME, "none");
   *dif_from_ref_iq_field = new FieldDataPair(iq, "dif_from_ref_i", "none",
 					     "dif_from_ref_q", "none");
       
@@ -436,12 +423,12 @@ Calib::_findReliableTargetsFirstFile(const DsMdvx &input_file,
 
 //-----------------------------------------------------------------------
 bool
-Calib::_findReliableTargetsNonFirstFile(const DsMdvx &input_file,
-					const FieldDataPair &iq,
-					const FieldWithData &SNR,
-					double gate_spacing,
-					FieldDataPair &av_iq_field,
-					FieldDataPair &dif_from_ref_iq_field)
+  Calib::_findReliableTargetsNonFirstFile(const DsMdvx &input_file,
+                                          const FieldDataPair &iq,
+                                          const FieldWithData &SNR,
+                                          double gate_spacing,
+                                          FieldDataPair &av_iq_field,
+                                          FieldDataPair &dif_from_ref_iq_field)
 {
   // Make sure the gate spacing hasn't changed between scans
   if (iq.wrongGateSpacing(gate_spacing))
@@ -531,7 +518,7 @@ bool Calib::_allocateGlobalFields(const FieldDataPair &IQ)
 
   _meanSnrField = IQ.createFromI("mean_snr", "dB", 0.0);
   
- _pixelCount = new int[scan_size];
+  _pixelCount = new int[scan_size];
   memset(_pixelCount, 0, scan_size * sizeof(int));
 
   _sumABField = FieldDataPair(IQ, "sum_a", "none", 0.0,
@@ -540,13 +527,13 @@ bool Calib::_allocateGlobalFields(const FieldDataPair &IQ)
   _sumPField = IQ.createFromI("sum_p", "none", 0.0);
 
   _difPrevScanIQField = FieldDataPair(IQ, "dif_prev_scan_i", "none",
-				     "dif_prev_scan_q", "none");
+                                      "dif_prev_scan_q", "none");
 
-  _calibStrengthField = IQ.createFromI("strength", "none", 0.0);
-  _calibAvIQField = FieldDataPair(IQ, "av_i", "none", 0.0,
-				  "av_q", "none", 0.0);
-  _calibPhaseErField = IQ.createFromI("phase_er", "none", refract::VERY_LARGE);
-  _calibQualityField = IQ.createFromI("quality", "none", 0.0);
+  _calibStrengthField = IQ.createFromI(CALIB_STRENGTH_FIELD_NAME, "none", 0.0);
+  _calibAvIQField = FieldDataPair(IQ, CALIB_AV_I_FIELD_NAME, "none", 0.0,
+				  CALIB_AV_Q_FIELD_NAME, "none", 0.0);
+  _calibPhaseErField = IQ.createFromI(CALIB_PHASE_ER_FIELD_NAME, "none", refract::VERY_LARGE);
+  _calibQualityField = IQ.createFromI(CALIB_QUALITY_FIELD_NAME, "none", 0.0);
   _calibNcpField = IQ.createFromI("ncp", "none", 0.0);
   return true;
 }
@@ -636,7 +623,7 @@ bool Calib::_writeCalibrationFile(const DateTime &data_time) const
   Mdvx::master_header_t master_hdr;
   memset(&master_hdr, 0, sizeof(master_hdr));
   
-  master_hdr.time_gen = time(0);
+  master_hdr.time_gen = data_time.utime();
   master_hdr.time_begin = data_time.utime();
   master_hdr.time_end = data_time.utime();
   master_hdr.time_centroid = data_time.utime();
@@ -664,24 +651,25 @@ bool Calib::_writeCalibrationFile(const DateTime &data_time) const
   calib_file.addField(_calibPhaseErField.fieldCopy());
   calib_file.addField(_calibQualityField.fieldCopy());
   calib_file.addField(_calibNcpField.fieldCopy());
+
+  // write refract file to specified path
   
-  if (calib_file.writeToPath(_refFilePath.c_str()) != 0)
-  {
+  if (calib_file.writeToPath(_refFilePath.c_str()) != 0) {
     LOG(ERROR) << "Error writing calibration MDV file to path: "
 	       << _refFilePath;
     LOG(ERROR) << calib_file.getErrStr();
     return false;
   }
-  LOG(DEBUG) << "Wrote reference calibration file: " << calib_file.getPathInUse();
+  LOG(DEBUG) << "Wrote reference calibration file: " << _refFilePath;
   
-  if (calib_file.writeToDir(_refUrl.c_str()) != 0)
-  {
+  // write refract time-stamped file to specified dir
+  
+  if (calib_file.writeToDir(_refUrl.c_str()) != 0) {
     LOG(ERROR) << "Error writing calibration MDV file to URL: "
 	       << _refUrl;
     LOG(ERROR) << calib_file.getErrStr();
     return false;
   }
-  
   LOG(DEBUG) << "Wrote time-stamped calibration file: " << calib_file.getPathInUse();
 
   return true;
@@ -711,20 +699,25 @@ void Calib::_writeDebugPhaseCalibFiles(const std::vector<double> &phase_targ,
   
   // Write the image file
 
+  string phasecalib_path;
+  phasecalib_path = _params.output_dir;
+  phasecalib_path += PATH_DELIM;
+  phasecalib_path += "debug_phasecalib.ppm";
+
+  if (ta_makedir_recurse(_params.output_dir)) {
+    LOG(ERROR) << "Cannot make dir: " << _params.output_dir;
+    return;
+  }
+  
   FILE *debug_phasecalib_ppm_fp;
 
-  if ((debug_phasecalib_ppm_fp = fopen("debug_phasecalib.ppm", "wb")) == 0)
-  {
-    LOG(ERROR) << "Error opening debug_phasecalib.ppm file for writing";
-  }
-  else
-  {
+  if ((debug_phasecalib_ppm_fp = fopen(phasecalib_path.c_str(), "wb")) == 0) {
+    LOG(ERROR) << "Error opening " << phasecalib_path << " file for writing";
+  } else {
     fprintf(debug_phasecalib_ppm_fp, "P5 %d %d 255 ",
 	    (int)num_gates, (int)num_azim);
-    for (int index = 0; index < scan_size; ++index)
-    {
+    for (int index = 0; index < scan_size; ++index) {
       char c;
-    
       if (phase_targ[index] == refract::INVALID)
 	c = 0;
       else
@@ -739,8 +732,8 @@ void Calib::_writeDebugPhaseCalibFiles(const std::vector<double> &phase_targ,
 bool Calib::_setupInputs(DsMdvx &input_file, FieldDataPair &iq,
 			 FieldWithData &SNR) const
 {
-  FieldWithData I = _inputHandler->getI(input_file);
-  FieldWithData Q = _inputHandler->getQ(input_file);
+  FieldWithData I = _inputHandler.getI(input_file);
+  FieldWithData Q = _inputHandler.getQ(input_file);
 
   // Make sure the gate spacing is the same for the fields.
   if (I.gateSpacing() != Q.gateSpacing())
@@ -751,6 +744,6 @@ bool Calib::_setupInputs(DsMdvx &input_file, FieldDataPair &iq,
     return false;
   }
   iq = FieldDataPair(I, Q);
-  SNR = _inputHandler->getSNR(input_file);
+  SNR = _inputHandler.getSNR(input_file);
   return true;
 }

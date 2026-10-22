@@ -49,6 +49,10 @@ public:
 
   void init();
 
+  // set values to zero
+  
+  void initToZero();
+
 public:
 
   // public data
@@ -155,13 +159,13 @@ public:
   double rhohv_nnc; // no noise correction
   double phidp0; // uncorrected phidp
   double phidp;
-  double phidp_cond; // phidp conditioned for kdp
+  double phidp_sc; // phidp conditioned for kdp
   double phidp_filt; // phidp filtered for kdp
   double phidp_sdev_4kdp; // phidp sdev when computing kdp
   double phidp_jitter_4kdp; // phidp jitter when computing kdp
   double zdr_sdev_4kdp; // ZDR standard deviation when computing kdp
   double kdp;
-  double psob; // phase shift on backscatter
+  double delta; // phase shift on backscatter
   double kdp_hb; // kdp from hubbert bringi method
 
   // co-cross correlations
@@ -187,7 +191,7 @@ public:
   double cpd;    // cumulative phase difference
   double tclut;  // max of tpt and cpd
   double ozsnr;  // SNR away from 0 DC
-  
+
   double tdbz;
   double spin;
   double max_tdbz_spin;
@@ -201,18 +205,26 @@ public:
   double cmd;
   double cmd_flag;
   
+  double rhohv_test_unfilt;
+  double rhohv_test_filt;
+  double rhohv_test_improv;
+  double rhohv_test_flag;
+  
   double tdbz_interest;
   double spin_interest;
   double cpa_interest;
   double zdr_sdev_interest;
   double phidp_sdev_interest;
-
+  
   // clutter power and noise residue
 
   double clut; // total clut power, after corrections for noise floor
   double clut_2_wx_ratio; // as computed by the filter
   double spectral_noise; // dBm power for skirts in spectrum
   double spectral_snr; // SNR for skirts in spectrum
+
+  double regr_filt_poly_order;
+  double regr_filt_cnr_db;
 
   // refractivity fields
 
@@ -355,16 +367,18 @@ public:
   // identifying noise
 
   double dbm_for_noise;
-  double dbm_sdev;
-  double ncp_mean;
+  double noise_dbm_sdev;
+  double noise_ncp_mean;
   RadarComplex_t phase_for_noise;
-  double accum_phase_change;
-  double phase_change_error;
+  double noise_accum_phase_change;
+  double noise_phase_change_error;
 
   // flag to indicate noise/signal is present at a gate
 
   double noise_flag;
+  double noise_interest;
   double signal_flag;
+  double signal_interest;
 
   // noise_bias relative to calibrated noise
   // these will be constant for all gates in a ray
@@ -383,11 +397,16 @@ public:
 
   // for testing
 
-  mutable double test;
+  mutable double test0;
+  mutable double test1;
   mutable double test2;
   mutable double test3;
   mutable double test4;
   mutable double test5;
+  mutable double test6;
+  mutable double test7;
+  mutable double test8;
+  mutable double test9;
   
   static const double missingDouble;
 

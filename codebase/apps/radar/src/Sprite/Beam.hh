@@ -41,6 +41,7 @@
 #include <vector>
 #include <deque>
 #include <cstdio>
+#include <toolsa/DateTime.hh>
 #include <radar/RadarMoments.hh>
 #include <radar/RadarComplex.hh>
 #include <radar/IwrfTsInfo.hh>
@@ -48,6 +49,8 @@
 #include <radar/GateData.hh>
 #include <radar/MomentsFields.hh>
 #include <radar/KdpFilt.hh>
+#include <radar/KdpFiltParams.hh>
+#include <radar/DwellSpectra.hh>
 
 #include "Params.hh"
 
@@ -63,7 +66,8 @@ public:
   // Constructor
   
   Beam(const string &progName,
-       const Params &params);
+       const Params &params,
+       const KdpFiltParams &kdpParams);
   
   // copy constructor
   
@@ -94,7 +98,8 @@ public:
 
   // compute moments
   
-  int computeMoments();
+  int computeMoments(Params::fft_window_t windowType
+                     = Params::FFT_WINDOW_VONHANN);
 
   // set methods
 
@@ -122,7 +127,7 @@ public:
   
   time_t getTimeSecs() const { return _timeSecs; }
   time_t getNanoSecs() const { return _nanoSecs; }
-  double getTimeDouble() const { return _timeDouble; }
+  const DateTime &getTime() const { return _time; }
   
   int getScanMode() const;
   int getSweepNumber() const { return _sweepNum; }
@@ -140,7 +145,7 @@ public:
 
   int getGateNum(double range) const;
   double getRange(int gateNum) const;
-  double getClosestRange(double range) const;
+  double getClosestRange(double range, int &gateNum) const;
   double getMaxRange() const;
 
   double getStartRangeKm() const { return _startRangeKm; }
@@ -166,6 +171,20 @@ public:
   inline const fl32* *getIqChan0() const { return _iqChan0; }
   inline const fl32* *getIqChan1() const { return _iqChan1; }
 
+  const RadarMoments *getMoments() { return _mom; }
+
+  double getAntennaRate();
+  int getRegrOrder();
+
+  const vector<RadarComplex_t> &getDelta12() const { return _txDelta12; }
+  const vector<double> &getPhaseDiffs() const { return _phaseDiffs; }
+  const vector<IwrfTsPulse::burst_phase_t> &getBurstPhases() const
+  {
+    return  _burstPhases;
+  }
+
+  void loadDwellSpectra(DwellSpectra &spectra);
+  
 protected:
   
 private:
@@ -174,7 +193,8 @@ private:
 
   string _progName;
   const Params &_params;
-
+  const KdpFiltParams &_kdpParams;
+  
   // pulse vector
 
   deque<const IwrfTsPulse *> _pulses;
@@ -199,7 +219,7 @@ private:
 
   time_t _timeSecs;
   int _nanoSecs;
-  double _timeDouble;
+  DateTime _time;
 
   double _el;
   double _az;
@@ -266,22 +286,15 @@ private:
 
   IwrfCalib _calib;
 
-  // status XML
-
-  // string _statusXml;
-
   // Moments computations
   
   RadarMoments *_mom;
-  // PhaseCoding _pcode;
-
-  bool _applyFiltering;
 
   // window
 
+  Params::fft_window_t _fftWindowType;
   double *_window;
   double *_windowHalf;
-  double *_windowVonHann;
   
   // R values, at various lags, for the windows
   // used to correct R values used in width computations
@@ -349,12 +362,27 @@ private:
   
   // regression clutter filtering
 
-  RegressionFilter *_regr;
-  RegressionFilter *_regrHalf;
+  ForsytheRegrFilter *_regr;
+  ForsytheRegrFilter *_regrHalf;
 
   // regression clutter filtering - staggered prt
 
-  RegressionFilter *_regrStag;
+  ForsytheRegrFilter *_regrStag;
+
+  // antenna rate
+
+  double _beamAzRate;
+  double _beamElRate;
+
+  // sz 864 phase code support
+
+  vector<RadarComplex_t> _txDelta12;
+  vector<double> _phaseDiffs;
+  vector<IwrfTsPulse::burst_phase_t> _burstPhases;
+
+  // spectra in range for dwell
+
+  DwellSpectra _spectra;
 
   // private functions
 
@@ -380,8 +408,8 @@ private:
   void _filterSpH();
   void _filterSpV();
   void _filterSpStagPrt();
-  void _filterRegrSpStagPrt();
   void _filterAdapSpStagPrt();
+  void _filterRegrSpStagPrt();
   void _filterDpAltHvCoCross();
   void _filterDpAltHvCoOnly();
   void _filterDpSimHvFixedPrt();
@@ -417,6 +445,12 @@ private:
   
   double _computeClutPower(const MomentsFields &unfiltered,
                            const MomentsFields &filtered);
+
+  void _computeBeamAzRate();
+  void _computeBeamElRate();
+  
+  void _computePhaseDiffs
+    (const deque<const IwrfTsPulse *> &pulseQueue, int maxTrips);
 
   // copy method for assignment and copy constructor
 

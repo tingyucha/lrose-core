@@ -41,6 +41,7 @@
 #include <toolsa/TaXml.hh>
 #include <toolsa/TaStr.hh>
 #include <toolsa/TaArray.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <dataport/bigend.h>
 #include <didss/LdataInfo.hh>
 #include <didss/RapDataDir.hh>
@@ -79,6 +80,15 @@ void Mdvx::writeToXmlBuffer(string &hdr, MemBuf &buf,
     // if it is compressed, convert the compression type to GZIP_VOL
     // since that is the only compression supported in XML
 
+    // first check requested compression
+    
+    if (fhdr.requested_compression != COMPRESSION_NONE &&
+        fhdr.compression_type != COMPRESSION_GZIP_VOL) {
+      field.compress(COMPRESSION_GZIP_VOL);
+    }
+
+    // then check compression type in header
+    
     if (fhdr.compression_type != COMPRESSION_NONE &&
         fhdr.compression_type != COMPRESSION_GZIP_VOL) {
       field.compress(COMPRESSION_GZIP_VOL);
@@ -152,6 +162,11 @@ int Mdvx::_writeAsXml(const string &output_path) const
 
   string xmlPathStr = outPathStr + ".xml";
   string bufPathStr = outPathStr + ".buf";
+  Path opath(outPathStr);
+  if (opath.getExt() == "xml") {
+    xmlPathStr = outPathStr;
+    bufPathStr = opath.getDirectory() + opath.getDelimeter() + opath.getBase() + ".buf";
+  }
   
   _pathInUse = xmlPathStr;
 
@@ -321,7 +336,7 @@ void Mdvx::_writeToXmlMasterHdr(string &hdr) const
   for (int ii = 0; ii < 8; ii++) {
     if (_mhdr.user_data_si32[ii] != NOT_SET) {
       char tag[32];
-      sprintf(tag, "user-int-%d", ii);
+      safe_snprintf(tag, "user-int-%d", ii);
       hdr += TaXml::writeInt(tag, 2, _mhdr.user_data_si32[ii]);
     }
   }
@@ -329,7 +344,7 @@ void Mdvx::_writeToXmlMasterHdr(string &hdr) const
   for (int ii = 0; ii < 6; ii++) {
     if (_mhdr.user_data_fl32[ii] != NOT_SET) {
       char tag[32];
-      sprintf(tag, "user-float-%d", ii);
+      safe_snprintf(tag, "user-float-%d", ii);
       hdr += TaXml::writeDouble(tag, 2, _mhdr.user_data_fl32[ii]);
     }
   }
@@ -480,7 +495,7 @@ void Mdvx::_writeToXmlFieldHdr(string &hdr, int fieldNum) const
   for (int ii = 0; ii < 10; ii++) {
     if (fhdr.user_data_si32[ii] != NOT_SET) {
       char tag[32];
-      sprintf(tag, "user-int-%d", ii);
+      safe_snprintf(tag, "user-int-%d", ii);
       hdr += TaXml::writeInt(tag, 2, fhdr.user_data_si32[ii]);
     }
   }
@@ -488,7 +503,7 @@ void Mdvx::_writeToXmlFieldHdr(string &hdr, int fieldNum) const
   for (int ii = 0; ii < 4; ii++) {
     if (fhdr.user_data_fl32[ii] != NOT_SET) {
       char tag[32];
-      sprintf(tag, "user-float-%d", ii);
+      safe_snprintf(tag, "user-float-%d", ii);
       hdr += TaXml::writeDouble(tag, 2, fhdr.user_data_fl32[ii]);
     }
   }
@@ -734,12 +749,12 @@ int Mdvx::_readVolumeXml(bool fill_missing,
     MdvxField *field = _fields[ii];
     if (field->_apply_read_constraints(*this, fill_missing,
                                        do_decimate, do_final_convert,
-                                       remapLut, is_vsection,
+                                       remapLut, is_vsection, false,
                                        vsection_min_lon, vsection_max_lon)) {
       _errStr += "ERROR - Mdvx::_readVolumeXml.\n";
-      char errstr[128];
-      sprintf(errstr, "  Converting field: %s\n",
-              field->getFieldHeader().field_name);
+      char errstr[2048];
+      snprintf(errstr, 2047, "  Converting field: %s\n",
+               field->getFieldHeader().field_name);
       _errStr += errstr;
       _errStr += field->getErrStr();
       return -1;
@@ -899,7 +914,7 @@ int Mdvx::_readXmlToMasterHdr(const string &xml,
 
   for (int ii = 0; ii < 8; ii++) {
     char tag[32];
-    sprintf(tag, "user-int-%d", ii);
+    safe_snprintf(tag, "user-int-%d", ii);
     if (TaXml::readInt(xml, tag, ival) == 0) {
       _mhdr.user_data_si32[ii] = ival;
     }
@@ -907,7 +922,7 @@ int Mdvx::_readXmlToMasterHdr(const string &xml,
 
   for (int ii = 0; ii < 6; ii++) {
     char tag[32];
-    sprintf(tag, "user-float-%d", ii);
+    safe_snprintf(tag, "user-float-%d", ii);
     if (TaXml::readDouble(xml, tag, dval) == 0) {
       _mhdr.user_data_fl32[ii] = dval;
     }
@@ -1374,7 +1389,7 @@ int Mdvx::_readXmlToFieldHeaders(const string &xml,
 
   for (int ii = 0; ii < 10; ii++) {
     char tag[32];
-    sprintf(tag, "user-int-%d", ii);
+    safe_snprintf(tag, "user-int-%d", ii);
     if (TaXml::readInt(xml, tag, ival) == 0) {
       fhdr.user_data_si32[ii] = ival;
     }
@@ -1382,7 +1397,7 @@ int Mdvx::_readXmlToFieldHeaders(const string &xml,
 
   for (int ii = 0; ii < 4; ii++) {
     char tag[32];
-    sprintf(tag, "user-float-%d", ii);
+    safe_snprintf(tag, "user-float-%d", ii);
     if (TaXml::readDouble(xml, tag, dval) == 0) {
       fhdr.user_data_fl32[ii] = dval;
     }
@@ -2249,4 +2264,3 @@ int Mdvx::_xmlTransformType2Int(const string &transform_type)
   return DATA_TRANSFORM_NONE;
 
 }
-

@@ -441,6 +441,18 @@ void BscanWidget::addBeam(const RadxRay *ray,
                           const std::vector< DisplayField* > &fields)
 {
 
+  // check if time went backwards, and if so clear the beam vector
+
+  if (_beams.size() > 0) {
+    const Beam *prevBeam = _beams[_beams.size() - 1];
+    const RadxRay *prevRay = prevBeam->getRay();
+    RadxTime prevTime = prevRay->getRadxTime();
+    RadxTime thisTime = ray->getRadxTime();
+    if (thisTime < prevTime) {
+      clear();
+    }
+  }
+  
   // Create the new beam, to keep track of the display information.
   // Beam start and stop angles are adjusted here so that they always 
   // increase clockwise. Likewise, if a beam crosses the 0 degree boundary,
@@ -533,12 +545,18 @@ QPixmap* BscanWidget::getPixmap()
 void BscanWidget::mousePressEvent(QMouseEvent *e)
 {
 
-  _rubberBand->setGeometry(QRect(e->pos(), QSize()));
+#if QT_VERSION >= 0x060000
+  QPointF pos(e->position());
+#else
+  QPointF pos(e->pos());
+#endif
+
+  _rubberBand->setGeometry(pos.x(), pos.y(), 0, 0);
   _rubberBand->show();
-
-  _mousePressX = e->x();
-  _mousePressY = e->y();
-
+  
+  _mousePressX = pos.x();
+  _mousePressY = pos.y();
+  
   _worldPressX = _zoomWorld.getXWorld(_mousePressX);
   _worldPressY = _zoomWorld.getYWorld(_mousePressY);
 
@@ -553,8 +571,15 @@ void BscanWidget::mouseMoveEvent(QMouseEvent * e)
 {
   // Zooming with the mouse
 
-  int x = e->x();
-  int y = e->y();
+#if QT_VERSION >= 0x060000
+  QPointF pos(e->position());
+#else
+  QPointF pos(e->pos());
+#endif
+
+  int x = pos.x();
+  int y = pos.y();
+  
   int deltaX = x - _mousePressX;
   int deltaY = y - _mousePressY;
 
@@ -580,10 +605,14 @@ void BscanWidget::mouseReleaseEvent(QMouseEvent *e)
   // If the mouse hasn't moved much, assume we are clicking rather than
   // zooming
 
-  QPointF clickPos(e->pos());
-  
-  _mouseReleaseX = clickPos.x();
-  _mouseReleaseY = clickPos.y();
+#if QT_VERSION >= 0x060000
+  QPointF pos(e->position());
+#else
+  QPointF pos(e->pos());
+#endif
+
+  _mouseReleaseX = pos.x();
+  _mouseReleaseY = pos.y();
 
   // get click location in world coords
 
@@ -934,7 +963,8 @@ void BscanWidget::_drawOverlays(QPainter &painter)
 
   const DisplayField &field = _manager.getSelectedField();
   _zoomWorld.drawColorScale(field.getColorMap(), painter,
-                            _params.bscan_axis_label_font_size);
+                            _params.bscan_axis_label_font_size,
+                            _params.text_color);
   
   return;
   

@@ -65,7 +65,7 @@ Run the following ruby script:
 ```
   brew install pkg-config
   brew install szip
-  brew install hdf5 --enable-cxx
+  brew install hdf5
   brew install netcdf
   brew install udunits
   brew install fftw
@@ -148,7 +148,7 @@ Note: if there are errors related to Qt, try setting this variable
 You can choose to build manually from the command line, or you
 can use the python script provided.
 
-The script ```build_lrose_manual.py``` is in ```lrose-core/build```.
+The script ```build_lrose_manual.py``` is in ```lrose-core/build/scripts```.
 
 The usage is:
 ```
@@ -189,6 +189,13 @@ For the **samurai** distribtion, run the following:
 ```
   cd $LROSE_CORE_DIR
   ./build/scripts/installPackageMakefiles.py --package samurai
+```
+
+For the **lrose-radx** distribtion, run the following:
+
+```
+  cd $LROSE_CORE_DIR
+  ./build/scripts/installPackageMakefiles.py --package lrose-radx
 ```
 
 To re-install the **lrose-core** standard package Makefiles, perform the following:

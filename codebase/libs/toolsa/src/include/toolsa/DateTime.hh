@@ -48,18 +48,48 @@ class DateTime {
 
 public:
 
+  /// missing time - i.e. not initialized
+ 
+
   static const time_t NEVER;
 
+  // default constructor
+
   DateTime();
+
+  // construct with a time_t
+
   DateTime(time_t when);
+
+  // construct with time_t and sub seconds
+
   DateTime(time_t when, bool setSubSec, double subSec);
+
+  // construct with lead seconds for forecast data
+
   DateTime(time_t when, size_t leadSec);
+
+  // construct with string
+  // Support setting time using a string of the format: "YYYY-MM-DD-HH-MM-SS"
+  // where: "-" represents a valid delimeter [/_: ]
+  // e.g. "1958/12/28 10:57:00"
+  // e.g. "19581228105700"
+  
   DateTime(const char *when);
   DateTime(const string &when);
+
+  // construct with date and time, plus optional subsec
+  
   DateTime(int year, int month, int day,
            int hour = 0, int min = 0, int sec = 0,
            double subSec = 0.0);
+
+  // copy constructor
+
   DateTime(const DateTime & orig);
+
+  // destructor
+  
   ~DateTime();
 
   ///////////////////////////////////////////////////////////////////////////
@@ -74,11 +104,15 @@ public:
 
   void setToNow(); // sets to subsec precision, using getTimeOfDay()
 
+  void setToNever(); // sets to invalid
+
+  void setToZero(); // sets to 0 = 1970/01/01_00:00:00
+
   void set(time_t when);
  
-  void set(time_t when, double subSec);
+  void set(time_t when, double subSec); // specify sub seconds
 
-  void set(time_t when, size_t leadSecs);
+  void set(time_t when, size_t leadSecs); // specify lead seconds for forecast time
 
   time_t set(const char *when);
 
@@ -167,8 +201,11 @@ public:
   // Universal Time Convention (UTC) locale. Setting UTC to TRUE is highly recommended (it
   // defaults to FALSE for backward compatibility). Niles Oien July 2011.
 
-  static time_t strpTime(const char* format, const char* time_str, bool add_seconds = false, bool UTC=false);
-  static time_t strpTime(const string& format, const string& time_str, bool add_seconds = false, bool UTC=false);
+  static time_t strpTime(const char* format, const char* time_str,
+                         bool add_seconds = false, bool UTC=false);
+
+  static time_t strpTime(const string& format, const string& time_str,
+                         bool add_seconds = false, bool UTC=false);
 
   // stdC library string 
   // Returns string of format: "Day Mon DD HH:MM:SS YYYY\n"
@@ -249,6 +286,13 @@ public:
   // If mytime == 0, returns "===== NOT SET ====="
 
   static string strm(const time_t mytime);
+
+  // Given a time, returns string with underscore instead of space.
+  // of format: "YYYY/MM/DD_HH:MM:SS"
+  // e.g. "1958/12/28 10:57:00"
+  // If mytime == 0, returns "=====_NOT_SET_====="
+
+  static string stru(const time_t mytime);
 
   // Given a time, returns string with one space between fields of format:
   //  "YYYY MM DD HH MM SS"

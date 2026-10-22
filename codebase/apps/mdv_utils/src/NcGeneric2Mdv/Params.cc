@@ -753,33 +753,9 @@
     tt->ptype = STRING_TYPE;
     tt->param_name = tdrpStrDup("netcdf_dim_time");
     tt->descr = tdrpStrDup("name for netCDF dimension for time.");
-    tt->help = tdrpStrDup("");
+    tt->help = tdrpStrDup("Specify 'none' if there is no time dimension.");
     tt->val_offset = (char *) &netcdf_dim_time - &_start_;
     tt->single_val.s = tdrpStrDup("time");
-    tt++;
-    
-    // Parameter 'netcdf_dim_x'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("netcdf_dim_x");
-    tt->descr = tdrpStrDup("netCDF dimension name for grid points in longitude.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &netcdf_dim_x - &_start_;
-    tt->single_val.s = tdrpStrDup("longitude");
-    tt++;
-    
-    // Parameter 'netcdf_dim_y'
-    // ctype is 'char*'
-    
-    memset(tt, 0, sizeof(TDRPtable));
-    tt->ptype = STRING_TYPE;
-    tt->param_name = tdrpStrDup("netcdf_dim_y");
-    tt->descr = tdrpStrDup("netCDF dimension name for grid points in latitude.");
-    tt->help = tdrpStrDup("");
-    tt->val_offset = (char *) &netcdf_dim_y - &_start_;
-    tt->single_val.s = tdrpStrDup("latitude");
     tt++;
     
     // Parameter 'netcdf_dim_z'
@@ -792,6 +768,30 @@
     tt->help = tdrpStrDup("");
     tt->val_offset = (char *) &netcdf_dim_z - &_start_;
     tt->single_val.s = tdrpStrDup("altitude");
+    tt++;
+    
+    // Parameter 'netcdf_dim_y'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("netcdf_dim_y");
+    tt->descr = tdrpStrDup("netCDF dimension name for grid points in latitude or y.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &netcdf_dim_y - &_start_;
+    tt->single_val.s = tdrpStrDup("latitude");
+    tt++;
+    
+    // Parameter 'netcdf_dim_x'
+    // ctype is 'char*'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRING_TYPE;
+    tt->param_name = tdrpStrDup("netcdf_dim_x");
+    tt->descr = tdrpStrDup("netCDF dimension name for grid points in longitude or x.");
+    tt->help = tdrpStrDup("");
+    tt->val_offset = (char *) &netcdf_dim_x - &_start_;
+    tt->single_val.s = tdrpStrDup("longitude");
     tt++;
     
     // Parameter 'Comment 4'
@@ -1393,6 +1393,190 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
     tt->param_name = tdrpStrDup("Comment 8");
+    tt->comment_hdr = tdrpStrDup("OPTIONS TO GET METADATA FROM GLOBAL ATTRIBUTES.");
+    tt->comment_text = tdrpStrDup("");
+    tt++;
+    
+    // Parameter 'get_date_and_time_from_global_attributes'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("get_date_and_time_from_global_attributes");
+    tt->descr = tdrpStrDup("Get the date and time from the global attributes.");
+    tt->help = tdrpStrDup("If true, we read year, month, day, hour, minute, second from global attributes.");
+    tt->val_offset = (char *) &get_date_and_time_from_global_attributes - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'get_missing_value_from_global_attributes'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("get_missing_value_from_global_attributes");
+    tt->descr = tdrpStrDup("Get the missing value from the global attributes.");
+    tt->help = tdrpStrDup("If true, we read missing_value from global attributes. Otherwise we get that from the field attributes.");
+    tt->val_offset = (char *) &get_missing_value_from_global_attributes - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'Comment 9'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 9");
+    tt->comment_hdr = tdrpStrDup("OPTION TO SELECT SPECIFIC FIELDS TO PROCESS.");
+    tt->comment_text = tdrpStrDup("Use this to select fields to include, and the rest will be excluded.");
+    tt++;
+    
+    // Parameter 'specify_output_fields'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("specify_output_fields");
+    tt->descr = tdrpStrDup("Option to specify output fields.");
+    tt->help = tdrpStrDup("If true, only the specified fields will be included in the output files.");
+    tt->val_offset = (char *) &specify_output_fields - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'output_fields'
+    // ctype is '_output_field_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("output_fields");
+    tt->descr = tdrpStrDup("Fields to be included in the output files.");
+    tt->help = tdrpStrDup("The input_field_name must be specified. If the output_field_name is empty, the input field name will be used unchanged. If the long_field_name is empty, the long name from the input file will be used unchanged. If output_units is empty, the units from the input file will be used.");
+    tt->array_offset = (char *) &_output_fields - &_start_;
+    tt->array_n_offset = (char *) &output_fields_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(output_field_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("output_field_t");
+    tt->struct_def.nfields = 4;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[0].fname = tdrpStrDup("input_field_name");
+      tt->struct_def.fields[0].ptype = STRING_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_output_fields->input_field_name - (char *) _output_fields;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[1].fname = tdrpStrDup("output_field_name");
+      tt->struct_def.fields[1].ptype = STRING_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_output_fields->output_field_name - (char *) _output_fields;
+      tt->struct_def.fields[2].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[2].fname = tdrpStrDup("long_field_name");
+      tt->struct_def.fields[2].ptype = STRING_TYPE;
+      tt->struct_def.fields[2].rel_offset = 
+        (char *) &_output_fields->long_field_name - (char *) _output_fields;
+      tt->struct_def.fields[3].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[3].fname = tdrpStrDup("output_units");
+      tt->struct_def.fields[3].ptype = STRING_TYPE;
+      tt->struct_def.fields[3].rel_offset = 
+        (char *) &_output_fields->output_units - (char *) _output_fields;
+    tt->n_struct_vals = 8;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].s = tdrpStrDup("dbz");
+      tt->struct_vals[1].s = tdrpStrDup("");
+      tt->struct_vals[2].s = tdrpStrDup("reflectivity");
+      tt->struct_vals[3].s = tdrpStrDup("");
+      tt->struct_vals[4].s = tdrpStrDup("vel");
+      tt->struct_vals[5].s = tdrpStrDup("vel");
+      tt->struct_vals[6].s = tdrpStrDup("radial velocity");
+      tt->struct_vals[7].s = tdrpStrDup("m/s");
+    tt++;
+    
+    // Parameter 'Comment 10'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 10");
+    tt->comment_hdr = tdrpStrDup("OPTION TO APPLY LINEAR TRANSFORM TO SPECIFIED FIELDS.");
+    tt->comment_text = tdrpStrDup("These transforms are fixed. The same transform is applied to all files.");
+    tt++;
+    
+    // Parameter 'apply_linear_transforms'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("apply_linear_transforms");
+    tt->descr = tdrpStrDup("Apply linear transform to specified fields.");
+    tt->help = tdrpStrDup("If true, we will apply a linear transform to selected fields.");
+    tt->val_offset = (char *) &apply_linear_transforms - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'transform_fields'
+    // ctype is '_transform_field_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = STRUCT_TYPE;
+    tt->param_name = tdrpStrDup("transform_fields");
+    tt->descr = tdrpStrDup("Transform field details.");
+    tt->help = tdrpStrDup("Set the field name, scale and offset to be applied to the selected fields. Also set the ouptut field name and units");
+    tt->array_offset = (char *) &_transform_fields - &_start_;
+    tt->array_n_offset = (char *) &transform_fields_n - &_start_;
+    tt->is_array = TRUE;
+    tt->array_len_fixed = FALSE;
+    tt->array_elem_size = sizeof(transform_field_t);
+    tt->array_n = 2;
+    tt->struct_def.name = tdrpStrDup("transform_field_t");
+    tt->struct_def.nfields = 5;
+    tt->struct_def.fields = (struct_field_t *)
+        tdrpMalloc(tt->struct_def.nfields * sizeof(struct_field_t));
+      tt->struct_def.fields[0].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[0].fname = tdrpStrDup("input_field_name");
+      tt->struct_def.fields[0].ptype = STRING_TYPE;
+      tt->struct_def.fields[0].rel_offset = 
+        (char *) &_transform_fields->input_field_name - (char *) _transform_fields;
+      tt->struct_def.fields[1].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[1].fname = tdrpStrDup("scale");
+      tt->struct_def.fields[1].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[1].rel_offset = 
+        (char *) &_transform_fields->scale - (char *) _transform_fields;
+      tt->struct_def.fields[2].ftype = tdrpStrDup("double");
+      tt->struct_def.fields[2].fname = tdrpStrDup("offset");
+      tt->struct_def.fields[2].ptype = DOUBLE_TYPE;
+      tt->struct_def.fields[2].rel_offset = 
+        (char *) &_transform_fields->offset - (char *) _transform_fields;
+      tt->struct_def.fields[3].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[3].fname = tdrpStrDup("output_field_name");
+      tt->struct_def.fields[3].ptype = STRING_TYPE;
+      tt->struct_def.fields[3].rel_offset = 
+        (char *) &_transform_fields->output_field_name - (char *) _transform_fields;
+      tt->struct_def.fields[4].ftype = tdrpStrDup("string");
+      tt->struct_def.fields[4].fname = tdrpStrDup("output_units");
+      tt->struct_def.fields[4].ptype = STRING_TYPE;
+      tt->struct_def.fields[4].rel_offset = 
+        (char *) &_transform_fields->output_units - (char *) _transform_fields;
+    tt->n_struct_vals = 10;
+    tt->struct_vals = (tdrpVal_t *)
+        tdrpMalloc(tt->n_struct_vals * sizeof(tdrpVal_t));
+      tt->struct_vals[0].s = tdrpStrDup("albedo");
+      tt->struct_vals[1].d = 100;
+      tt->struct_vals[2].d = 0;
+      tt->struct_vals[3].s = tdrpStrDup("albedo");
+      tt->struct_vals[4].s = tdrpStrDup("%");
+      tt->struct_vals[5].s = tdrpStrDup("tbb");
+      tt->struct_vals[6].d = 1;
+      tt->struct_vals[7].d = 273;
+      tt->struct_vals[8].s = tdrpStrDup("TempC");
+      tt->struct_vals[9].s = tdrpStrDup("C");
+    tt++;
+    
+    // Parameter 'Comment 11'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = COMMENT_TYPE;
+    tt->param_name = tdrpStrDup("Comment 11");
     tt->comment_hdr = tdrpStrDup("SUN ANGLE CORRECTION");
     tt->comment_text = tdrpStrDup("Applies only to satellite visible fields.");
     tt++;
@@ -1416,7 +1600,7 @@
     tt->ptype = STRING_TYPE;
     tt->param_name = tdrpStrDup("sun_correction_fields");
     tt->descr = tdrpStrDup("Fields to which sun angle correction will be applied.");
-    tt->help = tdrpStrDup("See 'perform_sun_angle_correction'.");
+    tt->help = tdrpStrDup("The field name is used AFTER the linear transform step. See 'perform_sun_angle_correction'.");
     tt->array_offset = (char *) &_sun_correction_fields - &_start_;
     tt->array_n_offset = (char *) &sun_correction_fields_n - &_start_;
     tt->is_array = TRUE;
@@ -1452,11 +1636,11 @@
     tt->single_val.d = 1e+12;
     tt++;
     
-    // Parameter 'Comment 9'
+    // Parameter 'Comment 12'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 9");
+    tt->param_name = tdrpStrDup("Comment 12");
     tt->comment_hdr = tdrpStrDup("OUTPUT LOCATION");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1473,11 +1657,11 @@
     tt->single_val.s = tdrpStrDup("mdvp:://localhost::/tmp/mdv/from_netcdf");
     tt++;
     
-    // Parameter 'Comment 10'
+    // Parameter 'Comment 13'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 10");
+    tt->param_name = tdrpStrDup("Comment 13");
     tt->comment_hdr = tdrpStrDup("OUTPUT ENCODING AND COMPRESSION");
     tt->comment_text = tdrpStrDup("");
     tt++;
@@ -1534,11 +1718,11 @@
     tt->single_val.e = COMPRESSION_GZIP;
     tt++;
     
-    // Parameter 'Comment 11'
+    // Parameter 'Comment 14'
     
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = COMMENT_TYPE;
-    tt->param_name = tdrpStrDup("Comment 11");
+    tt->param_name = tdrpStrDup("Comment 14");
     tt->comment_hdr = tdrpStrDup("OUTPUT METADATA STRINGS");
     tt->comment_text = tdrpStrDup("These will be used if the file does not contain suitable information.");
     tt++;

@@ -36,6 +36,8 @@
 ///////////////////////////////////////////////////////////////
 
 #include <Radx/Cf2RadxFile.hh>
+#include <Radx/ZarrRadxFile.hh>
+#include <Radx/Fm301RadxFile.hh>
 #include <Radx/CfarrNcRadxFile.hh>
 #include <Radx/D3rNcRadxFile.hh>
 #include <Radx/DoeNcRadxFile.hh>
@@ -43,11 +45,12 @@
 #include <Radx/EdgeNcRadxFile.hh>
 #include <Radx/ForayNcRadxFile.hh>
 #include <Radx/GamicHdf5RadxFile.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <Radx/GemRadxFile.hh>
 #include <Radx/HrdRadxFile.hh>
 #include <Radx/LeoRadxFile.hh>
 #include <Radx/LeoCf2RadxFile.hh>
-#include <Radx/NcxxRadxFile.hh>
+#include <Radx/HaloRadxFile.hh>
 #include <Radx/NcfRadxFile.hh>
 #include <Radx/NexradCmdRadxFile.hh>
 #include <Radx/NexradRadxFile.hh>
@@ -57,6 +60,7 @@
 #include <Radx/NsslMrdRadxFile.hh>
 #include <Radx/OdimHdf5RadxFile.hh>
 #include <Radx/RapicRadxFile.hh>
+#include <Radx/RaxpolNcRadxFile.hh>
 #include <Radx/SigmetRadxFile.hh>
 #include <Radx/TdwrRadxFile.hh>
 #include <Radx/TwolfRadxFile.hh>
@@ -85,6 +89,7 @@ RadxFile::RadxFile()
   _debug = false;
   _verbose = false;
   _fileFormat = FILE_FORMAT_CFRADIAL;
+  _ncFormat = NETCDF4;
   clearRead();
   clearWrite();
 }
@@ -167,10 +172,10 @@ bool RadxFile::_isSupportedNetCDF(const string &path)
     }
   }
   
-  // try CFXX radial
+  // try FM301
   {
-    NcxxRadxFile file;
-    if (file.isCfRadialXx(path)) {
+    Fm301RadxFile file;
+    if (file.isFm301(path)) {
       return true;
     }
   }
@@ -203,6 +208,14 @@ bool RadxFile::_isSupportedNetCDF(const string &path)
   {
     NoxpNcRadxFile file;
     if (file.isNoxpNc(path)) {
+      return true;
+    }
+  }
+  
+  // try RAXPOL netcdf
+  {
+    RaxpolNcRadxFile file;
+    if (file.isRaxpolNc(path)) {
       return true;
     }
   }
@@ -327,6 +340,14 @@ bool RadxFile::_isSupportedOther(const string &path)
     }
   }
 
+  // try Halo Photonics LIDAR
+  {
+    HaloRadxFile file;
+    if (file.isHaloPhotonics(path)) {
+      return true;
+    }
+  }
+
   // try Rapic
   {
     RapicRadxFile file;
@@ -443,7 +464,12 @@ void RadxFile::clearWrite()
   _writeSiteNameInFileName = false;
   _writeSubsecsInFileName = true; 
   _writeScanTypeInFileName = true;
+  _writeScanIdInFileName = false;
+  _writeScanNameInFileName = false;
+  _writeRangeResolutionInFileName = false;
   _writeVolNumInFileName = false;
+  _writeFixedAngleInFileName = false;
+  _writeFixedAngleInFileName = false;
   _writeHyphenInDateTime = false; 
   _writeNativeByteOrder = false;
   _writeForceNgatesVary = false;
@@ -467,7 +493,11 @@ void RadxFile::copyWriteDirectives(const RadxFile &other)
   _writeSiteNameInFileName = other._writeSiteNameInFileName;
   _writeSubsecsInFileName = other._writeSubsecsInFileName; 
   _writeScanTypeInFileName = other._writeScanTypeInFileName; 
+  _writeScanIdInFileName = other._writeScanIdInFileName; 
+  _writeScanNameInFileName = other._writeScanNameInFileName; 
+  _writeRangeResolutionInFileName = other._writeRangeResolutionInFileName; 
   _writeVolNumInFileName = other._writeVolNumInFileName; 
+  _writeFixedAngleInFileName = other._writeFixedAngleInFileName;
   _writeHyphenInDateTime = other._writeHyphenInDateTime; 
   _writeCompressed = other._writeCompressed;
   _compressionLevel = other._compressionLevel;
@@ -503,6 +533,7 @@ void RadxFile::copyReadDirectives(const RadxFile &other)
   _readMaxRangeKm = other._readMaxRangeKm;
   _readRemoveLongRange = other._readRemoveLongRange;
   _readPreserveSweeps = other._readPreserveSweeps;
+  _readPreserveRays = other._readPreserveRays;
   _readComputeSweepAnglesFromVcpTables = other._readComputeSweepAnglesFromVcpTables;
   _readRemoveShortRange = other._readRemoveShortRange;
   _readMetadataOnly = other._readMetadataOnly;
@@ -559,6 +590,7 @@ int RadxFile::writeToDir(const RadxVol &vol,
       _fileFormat == FILE_FORMAT_SIGMET_RAW ||
       _fileFormat == FILE_FORMAT_DOE_NC ||
       _fileFormat == FILE_FORMAT_NOXP_NC ||
+      _fileFormat == FILE_FORMAT_RAXPOL_NC ||
       _fileFormat == FILE_FORMAT_D3R_NC ||
       _fileFormat == FILE_FORMAT_NOAA_FSL ||
       _fileFormat == FILE_FORMAT_NEXRAD_CMD ||
@@ -621,16 +653,16 @@ int RadxFile::writeToDir(const RadxVol &vol,
       }
     }
 
-  } else if (_fileFormat == FILE_FORMAT_NCXX) {
+  } else if (_fileFormat == FILE_FORMAT_FM301) {
 
-    // CfRadial using Ncxx interface
+    // FM301
     
     if (_debug) {
       cerr << "INFO: RadxFile::writeToDir" << endl;
-      cerr << "  Writing Ncxx file to dir: " << dir << endl;
+      cerr << "  Writing FM301 file to dir: " << dir << endl;
     }
 
-    NcxxRadxFile file;
+    Fm301RadxFile file;
     file.copyWriteDirectives(*this);
     iret = file.writeToDir(vol, dir, addDaySubDir, addYearSubDir);
     _errStr = file.getErrStr();
@@ -645,7 +677,7 @@ int RadxFile::writeToDir(const RadxVol &vol,
         cerr << file.getErrStr() << endl;
       } else {
         cerr << "INFO: RadxFile::writeToDir" << endl;
-        cerr << "  Wrote Ncxx file to path: " << _pathInUse << endl;
+        cerr << "  Wrote FM301 file to path: " << _pathInUse << endl;
       }
     }
 
@@ -855,6 +887,7 @@ int RadxFile::writeToPath(const RadxVol &vol,
       _fileFormat == FILE_FORMAT_SIGMET_RAW ||
       _fileFormat == FILE_FORMAT_DOE_NC ||
       _fileFormat == FILE_FORMAT_NOXP_NC ||
+      _fileFormat == FILE_FORMAT_RAXPOL_NC ||
       _fileFormat == FILE_FORMAT_D3R_NC ||
       _fileFormat == FILE_FORMAT_NOAA_FSL ||
       _fileFormat == FILE_FORMAT_NEXRAD_CMD ||
@@ -917,16 +950,16 @@ int RadxFile::writeToPath(const RadxVol &vol,
       }
     }
 
-  } else if (_fileFormat == FILE_FORMAT_NCXX) {
+  } else if (_fileFormat == FILE_FORMAT_FM301) {
 
-    // CfRadial using Ncxx interface
+    // FM301
     
     if (_debug) {
       cerr << "INFO: RadxFile::writeToPath" << endl;
-      cerr << "  Writing Ncxx file to path: " << path << endl;
+      cerr << "  Writing FM301 file to path: " << path << endl;
     }
 
-    NcxxRadxFile file;
+    Fm301RadxFile file;
     file.copyWriteDirectives(*this);
     iret = file.writeToPath(vol, path);
     _errStr = file.getErrStr();
@@ -941,7 +974,7 @@ int RadxFile::writeToPath(const RadxVol &vol,
         cerr << file.getErrStr() << endl;
       } else {
         cerr << "INFO: RadxFile::writeToPath" << endl;
-        cerr << "  Wrote Ncxx file to path: " << _pathInUse << endl;
+        cerr << "  Wrote FM301 file to path: " << _pathInUse << endl;
       }
     }
 
@@ -1082,6 +1115,25 @@ int RadxFile::readFromPath(const string &path,
 
   clearErrStr();
 
+  // Zarr stores are directories, not NetCDF or HDF5 files.
+
+  if (ZarrRadxFile::isZarr(path)) {
+    ZarrRadxFile file;
+    file.copyReadDirectives(*this);
+    int iret = file.readFromPath(path, vol);
+    _errStr = file.getErrStr();
+    _pathInUse = path;
+    vol.setPathInUse(path);
+    if (iret == 0) {
+      _fileFormat = FILE_FORMAT_ZARR;
+      if (_debug) {
+        cerr << "INFO: RadxFile::readFromPath" << endl;
+        cerr << "  Read Zarr store, path: " << path << endl;
+      }
+    }
+    return iret;
+  }
+
   // check for HDF5
   
   if (isHdf5(path)) {
@@ -1181,6 +1233,29 @@ int RadxFile::_readFromPathNetCDF(const string &path,
     }
   }
 
+  // try FM301 next
+
+  {
+    Fm301RadxFile file;
+    file.copyReadDirectives(*this);
+    if (file.isFm301(path)) {
+      int iret = file.readFromPath(path, vol);
+      if (_verbose) file.print(cerr);
+      _errStr = file.getErrStr();
+      _dirInUse = file.getDirInUse();
+      _pathInUse = file.getPathInUse();
+      vol.setPathInUse(_pathInUse);
+      _readPaths = file.getReadPaths();
+      if (iret == 0) {
+        if (_debug) {
+          cerr << "INFO: RadxFile::readFromPath" << endl;
+          cerr << "  Read FM301 file, path: " << _pathInUse << endl;
+        }
+      }
+      return iret;
+    }
+  }
+
   // -----
   // try Leosphere CFRadial2 next
 
@@ -1199,32 +1274,6 @@ int RadxFile::_readFromPathNetCDF(const string &path,
         if (_debug) {
           cerr << "INFO: RadxFile::readFromPath" << endl;
           cerr << "  Read CfRadial2 LEOSPHERE file, path: " << _pathInUse << endl;
-        }
-      }
-      return iret;
-    }
-  }
-
-  // -----
-
-
-  // try CF Ncxx next
-
-  {
-    NcxxRadxFile file;
-    file.copyReadDirectives(*this);
-    if (file.isCfRadialXx(path)) {
-      int iret = file.readFromPath(path, vol);
-      if (_verbose) file.print(cerr);
-      _errStr = file.getErrStr();
-      _dirInUse = file.getDirInUse();
-      _pathInUse = file.getPathInUse();
-      vol.setPathInUse(_pathInUse);
-      _readPaths = file.getReadPaths();
-      if (iret == 0) {
-        if (_debug) {
-          cerr << "INFO: RadxFile::readFromPath" << endl;
-          cerr << "  Read Ncxx file, path: " << _pathInUse << endl;
         }
       }
       return iret;
@@ -1294,6 +1343,29 @@ int RadxFile::_readFromPathNetCDF(const string &path,
         if (_debug) {
           cerr << "INFO: RadxFile::readFromPath" << endl;
           cerr << "  Read NOXP NC file, path: " << _pathInUse << endl;
+        }
+      }
+      return iret;
+    }
+  }
+
+  // try RAXPOL netcdf next
+
+  {
+    RaxpolNcRadxFile file;
+    file.copyReadDirectives(*this);
+    if (file.isRaxpolNc(path)) {
+      int iret = file.readFromPath(path, vol);
+      if (_verbose) file.print(cerr);
+      _errStr = file.getErrStr();
+      _dirInUse = file.getDirInUse();
+      _pathInUse = file.getPathInUse();
+      vol.setPathInUse(_pathInUse);
+      _readPaths = file.getReadPaths();
+      if (iret == 0) {
+        if (_debug) {
+          cerr << "INFO: RadxFile::readFromPath" << endl;
+          cerr << "  Read RAXPOL NC file, path: " << _pathInUse << endl;
         }
       }
       return iret;
@@ -1631,6 +1703,29 @@ int RadxFile::_readFromPathOther(const string &path,
       return iret;
     }
   }
+
+  // try Halo Photonics next
+
+  {
+    HaloRadxFile file;
+    file.copyReadDirectives(*this);
+    if (file.isHaloPhotonics(path)) {
+      int iret = file.readFromPath(path, vol);
+      if (_verbose) file.print(cerr);
+      _errStr = file.getErrStr();
+      _dirInUse = file.getDirInUse();
+      _pathInUse = file.getPathInUse();
+      vol.setPathInUse(_pathInUse);
+      _readPaths = file.getReadPaths();
+      if (iret == 0) {
+        if (_debug) {
+          cerr << "INFO: RadxFile::readFromPath" << endl;
+          cerr << "  Read Halo Photonics file, path: " << _pathInUse << endl;
+        }
+      }
+      return iret;
+    }
+  }  
 
   // try RAPIC next
 
@@ -2088,8 +2183,8 @@ string RadxFile::tmpPathFromDir(const string &dir,
     tmpPath += tmpFileName;
   } else {
     char tmpName[1024];
-    sprintf(tmpName, "tmp.%d.%ld.%ld.tmp", getpid(),
-            (long) now.tv_sec, (long) now.tv_usec);
+    safe_snprintf(tmpName, "tmp.%d.%ld.%ld.tmp", getpid(),
+                  (long) now.tv_sec, (long) now.tv_usec);
     tmpPath += tmpName;
   }
 
@@ -2150,6 +2245,7 @@ void RadxFile::clearRead()
   _readMaxRangeKm = Radx::missingMetaDouble;
   _readRemoveLongRange = false;
   _readPreserveSweeps = false;
+  _readPreserveRays = false;
   _readComputeSweepAnglesFromVcpTables = false;
   _readRemoveShortRange = false;
   _readMetadataOnly = false;
@@ -2354,6 +2450,21 @@ void RadxFile::setReadPreserveSweeps(bool val)
 
 {
   _readPreserveSweeps = val;
+}
+
+/////////////////////////////////////////////////////////////////
+/// Set flag to indicate that we want to preserve the
+/// ray details in the file we read in.
+/// This generally applies to SIGMET data - by default the
+/// rays are ordered by time.
+/// If this flag is true, the ray order in the
+/// the raw data file is unchanged.
+/// Defaults to false.
+
+void RadxFile::setReadPreserveRays(bool val)
+
+{
+  _readPreserveRays = val;
 }
 
 /////////////////////////////////////////////////////////////////
@@ -2582,6 +2693,12 @@ void RadxFile::printWriteRequest(ostream &out) const
       << (_writeSubsecsInFileName?"Y":"N") << endl;
   out << "  writeScanTypeInFileName: "
       << (_writeScanTypeInFileName?"Y":"N") << endl;
+  out << "  writeScanIdInFileName: "
+      << (_writeScanIdInFileName?"Y":"N") << endl;
+  out << "  writeScanNameInFileName: "
+      << (_writeScanNameInFileName?"Y":"N") << endl;
+  out << "  writeRangeResolutionInFileName: "
+      << (_writeRangeResolutionInFileName?"Y":"N") << endl;
   out << "  writeVolNumInFileName: "
       << (_writeVolNumInFileName?"Y":"N") << endl;
   out << "  writeHyphenInDateTime: "
@@ -2605,10 +2722,10 @@ string RadxFile::getFileFormatAsString() const
   
   if (_fileFormat == FILE_FORMAT_CFRADIAL) {
     return "CFRADIAL";
-  } else if (_fileFormat == FILE_FORMAT_NCXX) {
-    return "NCXX";
   } else if (_fileFormat == FILE_FORMAT_CFRADIAL2) {
     return "CFRADIAL2";
+  } else if (_fileFormat == FILE_FORMAT_FM301) {
+    return "FM301";
   } else if (_fileFormat == FILE_FORMAT_DORADE) {
     return "DORADE";
   } else if (_fileFormat == FILE_FORMAT_UF) {
@@ -2651,6 +2768,10 @@ string RadxFile::getFileFormatAsString() const
     return "NOAA_FSL";
   } else if (_fileFormat == FILE_FORMAT_NOXP_NC) {
     return "NOXP_NC";
+  } else if (_fileFormat == FILE_FORMAT_RAXPOL_NC) {
+    return "RAXPOL_NC";
+  } else if (_fileFormat == FILE_FORMAT_ZARR) {
+    return "ZARR";
   } else if (_fileFormat == FILE_FORMAT_CFARR) {
     return "CFARR";
   } else if (_fileFormat == FILE_FORMAT_NIMROD) {
@@ -2761,6 +2882,19 @@ int RadxFile::_printNativeNetCDF(const string &path, ostream &out,
     NoxpNcRadxFile file;
     file.copyReadDirectives(*this);
     if (file.isNoxpNc(path)) {
+      int iret = file.printNative(path, out, printRays, printData);
+      if (iret) {
+        _errStr = file.getErrStr();
+      }
+      return iret;
+    }
+  }
+  
+  // try RAXPOL netcdf next
+  {
+    RaxpolNcRadxFile file;
+    file.copyReadDirectives(*this);
+    if (file.isRaxpolNc(path)) {
       int iret = file.printNative(path, out, printRays, printData);
       if (iret) {
         _errStr = file.getErrStr();
@@ -3162,4 +3296,3 @@ int RadxFile::_doReadRaysInInterval(const string &dir,
   return 0;
 
 }
-

@@ -7,8 +7,8 @@
 
 commentdef
 {
-  p_header = "Algorithm Parameters";
-  p_text = "Parameters used to run the Algorithm class";
+  p_header = "Common Algorithm Parameters";
+  p_text = "Parameters that are common to many radar apps";
 };
 
 paramdef string
@@ -41,19 +41,4 @@ paramdef int
   p_help = "Threading is done on sweeps. (More than one sweep processed by individual threads).  Set to 1 or 0 for no threading";
   p_default = 3;
 } num_threads;
-
-paramdef string
-{
-  p_descr = "Inputs to the algorithm";
-  p_help = "Names of the fields that are inputs to the algorithm";
-  p_default = {};
-} input[];
-
-paramdef string 
-{
-  p_descr = "Fields/values to export from the algorithm";
-  p_help = "";
-  p_default = {};
-} output[];
-
 

@@ -174,16 +174,16 @@ vector<float> *SpreadSheetModel::getData(string fieldName)
   // Radx::fl32 *data = field->getDataFl32();
   // how may gates?
   size_t nPoints = field->getNPoints();
-  LOG(DEBUG) << "nGates = " << nPoints;
+  LOG(DEBUG_VERBOSE) << "nGates = " << nPoints;
   float *data = (float *) field->getDataFl32();
-  LOG(DEBUG) << data << ", " << data+1 << ", " << data +2;
+  LOG(DEBUG_VERBOSE) << data << ", " << data+1 << ", " << data +2;
   vector<float> *dataVector = new vector<float>(data, data + nPoints);
-  //  LOG(DEBUG) << dataVector.at[0] << ", " << dataVector.at[1] << ", " << dataVector.at[2];
+  //  LOG(DEBUG_VERBOSE) << dataVector.at[0] << ", " << dataVector.at[1] << ", " << dataVector.at[2];
 
   //vector<float> *dataVectorPtr = &dataVector;
   for (int i=0; i<3; i++) {
     float value = dataVector->at(i);
-    LOG(DEBUG) << value;
+    LOG(DEBUG_VERBOSE) << value;
   }
 
   return dataVector;
@@ -210,13 +210,7 @@ RadxVol SpreadSheetModel::getVolume() {
 // set data values for the field in the Volume 
 void SpreadSheetModel::setData(string fieldName, vector<float> *data)
 {
-  LOG(DEBUG) << "fieldName=" << fieldName;
-
-  //const RadxField *field;
-  //  field = _vol.getFieldFromRay(fieldName);  // <--- Why is this returning NULL
-  // because the type is 
-  // from debugger:  *((vol.getFieldFromRay("VEL"))->getDataSi16()+1)
-  //field = _closestRay->getField(fieldName);
+  LOG(DEBUG_VERBOSE) << "fieldName=" << fieldName;
 
   // addField just modifies the name if there is a duplicate name,
   // so we can always add the field; we don't need to modify
@@ -234,45 +228,27 @@ void SpreadSheetModel::setData(string fieldName, vector<float> *data)
     throw std::invalid_argument("no RadxField found ");
   } 
 
-  //RadxField *fieldCopy = new RadxField(*field);
-
-    vector<float> deref = *data;
-    const Radx::fl32 *radxData = &deref[0];
-    bool isLocal = true;  //?? not sure about this 
-    field->setDataFl32(nGates, radxData, isLocal);
+  vector<float> deref = *data;
+  const Radx::fl32 *radxData = &deref[0];
+  bool isLocal = true;  //?? not sure about this 
+  field->setDataFl32(nGates, radxData, isLocal);
   
-    // make sure the new data are there ...
-    field->printWithData(cout);
+  // make sure the new data are there ...
+  field->printWithData(cout);
+  
+  // data should be copied, so free the memory
+  // delete data;
+  
+  // again, make sure the data are there
+  _closestRay->printWithFieldData(cout);
+  
+  _vol->loadRaysFromFields();
+  
+  std::ofstream outfile("/tmp/voldebug.txt");
 
-    //cerr << "replacing data in field " <<  endl;
-    //int result = _closestRay->replaceField(fieldCopy); 
-    //if (result == -1)
-    //  throw "Error replacing Field";
-    //    _closestRay->addField("WIDTH", units, nGates, missingValue, radxData, isLocal);
-    //} else {
-    // replace the data values in the existing field
-  // Radx::fl32 *data = field->getDataFl32();
-  // how may gates?
-  //  size_t nPoints = field->getNPoints();
-  //  field->addDataFl64(nGates, &data[0]);
-  //}
+  // finally, make sure the data are there
+  _vol->printWithFieldData(outfile);
+  
+  outfile << "_vol = " << _vol << endl;
 
-    // data should be copied, so free the memory
-    // delete data;
-
-    // again, make sure the data are there
-    _closestRay->printWithFieldData(cout);
-
-    //    _vol.addRay(_closestRay);
-
-
-    _vol->loadRaysFromFields();
-    //_vol->loadFieldsFromRays();
-    //_vol->loadSweepInfoFromRays();
-
-    std::ofstream outfile("/tmp/voldebug.txt");
-    // finally, make sure the data are there
-    _vol->printWithFieldData(outfile);
-
-    outfile << "_vol = " << _vol << endl;
 }

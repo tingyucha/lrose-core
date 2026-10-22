@@ -79,22 +79,8 @@ public:
     REALTIME_TCP_MODE = 1,
     ARCHIVE_TIME_MODE = 2,
     FILE_LIST_MODE = 3,
-    FOLLOW_MOMENTS_MODE = 4
+    FOLLOW_DISPLAY_MODE = 4
   } input_mode_t;
-
-  typedef enum {
-    SPECTRUM = 0,
-    TIME_SERIES = 1,
-    I_VS_Q = 2,
-    PHASOR = 3
-  } iqplot_type_t;
-
-  typedef enum {
-    LEGEND_TOP_LEFT = 0,
-    LEGEND_TOP_RIGHT = 1,
-    LEGEND_BOTTOM_LEFT = 2,
-    LEGEND_BOTTOM_RIGHT = 3
-  } legend_pos_t;
 
   typedef enum {
     DBZ = 0,
@@ -111,30 +97,84 @@ public:
   } moment_type_t;
 
   typedef enum {
+    FFT_WINDOW_RECT = 0,
+    FFT_WINDOW_VONHANN = 1,
+    FFT_WINDOW_BLACKMAN = 2,
+    FFT_WINDOW_BLACKMAN_NUTTALL = 3,
+    FFT_WINDOW_TUKEY_10 = 4,
+    FFT_WINDOW_TUKEY_20 = 5,
+    FFT_WINDOW_TUKEY_30 = 6,
+    FFT_WINDOW_TUKEY_50 = 7
+  } fft_window_t;
+
+  typedef enum {
+    INTERP_METHOD_NONE = 0,
+    INTERP_METHOD_LINEAR = 1,
+    INTERP_METHOD_GAUSSIAN = 2
+  } notch_interp_method_t;
+
+  typedef enum {
+    CLUTTER_FILTER_ADAPTIVE = 0,
+    CLUTTER_FILTER_REGRESSION = 1,
+    CLUTTER_FILTER_NOTCH = 2,
+    CLUTTER_FILTER_TSR = 3,
+    CLUTTER_FILTER_NONE = 4
+  } clutter_filter_type_t;
+
+  typedef enum {
+    WATERFALL_HC = 0,
+    WATERFALL_VC = 1,
+    WATERFALL_HX = 2,
+    WATERFALL_VX = 3,
+    WATERFALL_DBZ = 4,
+    WATERFALL_SNR = 5,
+    WATERFALL_ZDR = 6,
+    WATERFALL_PHIDP = 7,
+    WATERFALL_RHOHV = 8,
+    WATERFALL_TDBZ = 9,
+    WATERFALL_SDEV_ZDR = 10,
+    WATERFALL_SDEV_PHIDP = 11,
+    WATERFALL_TDBZ_INT = 12,
+    WATERFALL_SDEV_ZDR_INT = 13,
+    WATERFALL_SDEV_PHIDP_INT = 14,
+    WATERFALL_CMD = 15,
+    WATERFALL_CMD_MEAN = 16
+  } waterfall_type_t;
+
+  typedef enum {
+    SPECTRAL_POWER = 0,
+    SPECTRAL_PHASE = 1,
+    SPECTRAL_ZDR = 2,
+    SPECTRAL_PHIDP = 3,
+    SPECTRAL_RHOHV = 4,
+    SPECTRAL_SZ864 = 5,
+    TS_POWER = 6,
+    TS_PHASE = 7,
+    I_VALS = 8,
+    Q_VALS = 9,
+    I_VS_Q = 10,
+    PHASOR = 11
+  } iq_plot_type_t;
+
+  typedef enum {
+    CHANNEL_HC = 0,
+    CHANNEL_VC = 1,
+    CHANNEL_HX = 2,
+    CHANNEL_VX = 3
+  } rx_channel_t;
+
+  typedef enum {
+    LEGEND_TOP_LEFT = 0,
+    LEGEND_TOP_RIGHT = 1,
+    LEGEND_BOTTOM_LEFT = 2,
+    LEGEND_BOTTOM_RIGHT = 3
+  } legend_pos_t;
+
+  typedef enum {
     WIDTH_METHOD_R0R1 = 0,
     WIDTH_METHOD_R1R2 = 1,
     WIDTH_METHOD_HYBRID = 2
   } spectrum_width_method_t;
-
-  typedef enum {
-    FIR_LEN_125 = 0,
-    FIR_LEN_60 = 1,
-    FIR_LEN_40 = 2,
-    FIR_LEN_30 = 3,
-    FIR_LEN_20 = 4,
-    FIR_LEN_10 = 5
-  } fir_filter_len_t;
-
-  typedef enum {
-    WINDOW_RECT = 0,
-    WINDOW_VONHANN = 1,
-    WINDOW_BLACKMAN = 2,
-    WINDOW_BLACKMAN_NUTTALL = 3,
-    WINDOW_TUKEY_10 = 4,
-    WINDOW_TUKEY_20 = 5,
-    WINDOW_TUKEY_30 = 6,
-    WINDOW_TUKEY_50 = 7
-  } window_t;
 
   // struct typedefs
 
@@ -165,6 +205,41 @@ public:
     tdrp_bool_t sun_azimuth;
   } show_status_t;
 
+  typedef struct {
+    waterfall_type_t plot_type;
+    fft_window_t fft_window;
+    int median_filter_len;
+    clutter_filter_type_t clutter_filter_type;
+    double clutter_model_width_mps;
+    tdrp_bool_t use_regression_filter;
+    int regression_order;
+    notch_interp_method_t regression_filter_notch_interp_method;
+  } waterfall_plot_t;
+
+  typedef struct {
+    iq_plot_type_t plot_type;
+    rx_channel_t rx_channel;
+    fft_window_t fft_window;
+    int median_filter_len;
+    clutter_filter_type_t clutter_filter_type;
+    tdrp_bool_t plot_clutter_model;
+    double clutter_model_width_mps;
+    int regression_order;
+    notch_interp_method_t regression_filter_notch_interp_method;
+    tdrp_bool_t compute_plot_range_dynamically;
+  } iq_plot_t;
+
+  typedef struct {
+    iq_plot_type_t plot_type;
+    double min_val;
+    double max_val;
+  } iq_plot_static_range_t;
+
+  typedef struct {
+    double value;
+    double interest;
+  } interest_map_point_t;
+
   ///////////////////////////
   // Member functions
   //
@@ -185,7 +260,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -267,6 +342,15 @@ public:
   //
 
   static bool isArgValid(const char *arg);
+
+  ////////////////////////////////////////////
+  // isArgValid()
+  // 
+  // Check if a command line arg is a valid TDRP arg.
+  // return number of args consumed.
+  //
+
+  static int isArgValidN(const char *arg);
 
   ////////////////////////////////////////////
   // load()
@@ -476,13 +560,17 @@ public:
 
   double min_secs_between_rendering;
 
-  int moments_shmem_key;
+  double start_elevation;
 
-  double moments_max_search_angle_error;
+  double start_azimuth;
 
-  double selected_range_km;
+  double start_range_km;
 
   show_status_t show_status_in_gui;
+
+  tdrp_bool_t set_max_range;
+
+  double max_range_km;
 
   int main_window_width;
 
@@ -506,16 +594,159 @@ public:
 
   char* main_window_panel_divider_color;
 
-  int main_color_scale_width;
-
   int click_cross_size;
+
+  tdrp_bool_t x_grid_lines_on;
+
+  tdrp_bool_t y_grid_lines_on;
+
+  tdrp_bool_t legends_on;
+
+  int ascope_n_panels;
+
+  moment_type_t *_ascope_moments;
+  int ascope_moments_n;
+
+  int ascope_width;
+
+  int ascope_title_font_size;
+
+  int ascope_axis_label_font_size;
+
+  int ascope_tick_values_font_size;
+
+  int ascope_legend_font_size;
+
+  int ascope_title_text_margin;
+
+  int ascope_legend_text_margin;
+
+  int ascope_axis_text_margin;
+
+  int ascope_axis_tick_len;
+
+  int ascope_n_ticks_ideal;
+
+  int ascope_left_margin;
+
+  int ascope_bottom_margin;
+
+  char* ascope_axis_label_color;
+
+  char* ascope_axes_color;
+
+  char* ascope_grid_color;
+
+  char* ascope_line_color;
+
+  char* ascope_selected_range_color;
+
+  char* ascope_fill_color;
+
+  char* ascope_title_color;
+
+  tdrp_bool_t ascope_x_axis_labels_inside;
+
+  tdrp_bool_t ascope_y_axis_labels_inside;
+
+  int waterfall_n_panels;
+
+  waterfall_plot_t *_waterfall_plots;
+  int waterfall_plots_n;
+
+  int waterfall_width;
+
+  int waterfall_color_scale_width;
+
+  int waterfall_tdbz_kernel_ngates;
+
+  int waterfall_tdbz_kernel_nsamples;
+
+  int waterfall_sdev_zdr_kernel_ngates;
+
+  int waterfall_sdev_zdr_kernel_nsamples;
+
+  int waterfall_sdev_phidp_kernel_ngates;
+
+  int waterfall_sdev_phidp_kernel_nsamples;
+
+  char* color_scale_dir;
+
+  char* waterfall_dbz_color_scale_name;
+
+  char* waterfall_snr_color_scale_name;
+
+  char* waterfall_dbm_color_scale_name;
+
+  char* waterfall_zdr_color_scale_name;
+
+  char* waterfall_phidp_color_scale_name;
+
+  char* waterfall_rhohv_color_scale_name;
+
+  char* waterfall_tdbz_color_scale_name;
+
+  char* waterfall_sdev_zdr_color_scale_name;
+
+  char* waterfall_sdev_phidp_color_scale_name;
+
+  char* waterfall_interest_color_scale_name;
+
+  char* waterfall_cmd_color_scale_name;
+
+  char* waterfall_cmd_mean_color_scale_name;
+
+  int waterfall_title_font_size;
+
+  int waterfall_axis_label_font_size;
+
+  int waterfall_tick_values_font_size;
+
+  int waterfall_legend_font_size;
+
+  int waterfall_color_scale_font_size;
+
+  int waterfall_title_text_margin;
+
+  int waterfall_legend_text_margin;
+
+  int waterfall_axis_text_margin;
+
+  int waterfall_axis_tick_len;
+
+  int waterfall_n_ticks_ideal;
+
+  int waterfall_left_margin;
+
+  int waterfall_bottom_margin;
+
+  char* waterfall_axis_label_color;
+
+  char* waterfall_axes_color;
+
+  char* waterfall_grid_color;
+
+  char* waterfall_line_color;
+
+  char* waterfall_selected_range_color;
+
+  char* waterfall_fill_color;
+
+  char* waterfall_title_color;
+
+  tdrp_bool_t waterfall_x_axis_labels_inside;
+
+  tdrp_bool_t waterfall_y_axis_labels_inside;
 
   int iqplots_n_rows;
 
   int iqplots_n_columns;
 
-  iqplot_type_t *_iqplot_types;
-  int iqplot_types_n;
+  iq_plot_t *_iq_plots;
+  int iq_plots_n;
+
+  iq_plot_static_range_t *_iq_plot_static_ranges;
+  int iq_plot_static_ranges_n;
 
   int iqplot_top_margin;
 
@@ -555,9 +786,25 @@ public:
 
   char* iqplot_labels_color;
 
-  tdrp_bool_t iqplot_y_grid_lines_on;
+  char* iqplot_line_color;
 
-  tdrp_bool_t iqplot_x_grid_lines_on;
+  int iqplot_line_width;
+
+  char* iqplot_adaptive_filtered_color;
+
+  char* iqplot_tsr_unfiltered_color;
+
+  char* iqplot_tsr_filtered_color;
+
+  char* iqplot_clutter_model_color;
+
+  char* iqplot_regression_filtered_color;
+
+  char* iqplot_polynomial_fit_color;
+
+  char* iqplot_polynomial_residual_color;
+
+  int iqplot_polynomial_line_width;
 
   tdrp_bool_t iqplot_draw_instrument_height_line;
 
@@ -575,66 +822,21 @@ public:
 
   tdrp_bool_t iqplot_plot_legend2;
 
-  int ascope_n_panels_in_spectra_window;
-
-  moment_type_t *_ascope_moments;
-  int ascope_moments_n;
-
-  int ascope_width_in_spectra_window;
-
-  int ascope_title_font_size;
-
-  int ascope_axis_label_font_size;
-
-  int ascope_tick_values_font_size;
-
-  int ascope_legend_font_size;
-
-  int ascope_title_text_margin;
-
-  int ascope_legend_text_margin;
-
-  int ascope_axis_text_margin;
-
-  int ascope_axis_tick_len;
-
-  int ascope_n_ticks_ideal;
-
-  int ascope_left_margin;
-
-  int ascope_bottom_margin;
-
-  tdrp_bool_t ascope_x_grid_lines_on;
-
-  tdrp_bool_t ascope_y_grid_lines_on;
-
-  char* ascope_axis_label_color;
-
-  char* ascope_axes_color;
-
-  char* ascope_grid_color;
-
-  char* ascope_line_color;
-
-  char* ascope_selected_range_color;
-
-  char* ascope_fill_color;
-
-  char* ascope_title_color;
-
-  tdrp_bool_t ascope_x_axis_labels_inside;
-
-  tdrp_bool_t ascope_y_axis_labels_inside;
+  clutter_filter_type_t ascope_clutter_filter_type;
 
   tdrp_bool_t apply_residue_correction_in_adaptive_filter;
 
   double min_snr_db_for_residue_correction;
 
-  tdrp_bool_t use_polynomial_regression_clutter_filter;
+  tdrp_bool_t regression_filter_determine_order_from_cnr;
 
-  int regression_filter_polynomial_order;
+  int regression_filter_specified_polynomial_order;
 
-  tdrp_bool_t regression_filter_interp_across_notch;
+  double regression_filter_clutter_width_factor;
+
+  double regression_filter_cnr_exponent;
+
+  double regression_filter_min_cnr_db;
 
   tdrp_bool_t use_simple_notch_clutter_filter;
 
@@ -644,37 +846,7 @@ public:
 
   spectrum_width_method_t spectrum_width_method;
 
-  fir_filter_len_t KDP_fir_filter_len;
-
-  int KDP_n_filt_iterations_unfolded;
-
-  int KDP_n_filt_iterations_conditioned;
-
-  tdrp_bool_t KDP_use_iterative_filtering;
-
-  double KDP_phidp_difference_threshold;
-
-  int KDP_ngates_for_stats;
-
-  double KDP_phidp_sdev_max;
-
-  double KDP_phidp_jitter_max;
-
-  tdrp_bool_t KDP_check_snr;
-
-  double KDP_snr_threshold;
-
-  tdrp_bool_t KDP_check_rhohv;
-
-  double KDP_rhohv_threshold;
-
-  tdrp_bool_t KDP_check_zdr_sdev;
-
-  double KDP_zdr_sdev_max;
-
-  double KDP_min_valid_abs_kdp;
-
-  tdrp_bool_t KDP_debug;
+  char* KDP_params_file_path;
 
   int n_samples;
 
@@ -714,11 +886,41 @@ public:
 
   double radar_wavelength_cm;
 
-  window_t window;
+  fft_window_t fft_window;
+
+  interest_map_point_t *_snr_interest_map;
+  int snr_interest_map_n;
+
+  double snr_interest_weight;
+
+  interest_map_point_t *_tdbz_interest_map;
+  int tdbz_interest_map_n;
+
+  double tdbz_interest_weight;
+
+  interest_map_point_t *_zdr_sdev_interest_map;
+  int zdr_sdev_interest_map_n;
+
+  double zdr_sdev_interest_weight;
+
+  interest_map_point_t *_phidp_sdev_interest_map;
+  int phidp_sdev_interest_map_n;
+
+  double phidp_sdev_interest_weight;
+
+  double cmd_threshold_for_detection;
+
+  double cmd_threshold_for_moments;
 
   char* cal_file_path;
 
   tdrp_bool_t use_cal_from_time_series;
+
+  char* click_point_fmq_url;
+
+  double click_point_search_angle_error;
+
+  double click_point_delta_azimuth_deg;
 
   char _end_; // end of data region
               // needed for zeroing out data
@@ -727,7 +929,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[153];
+  mutable TDRPtable _table[212];
 
   const char *_className;
 

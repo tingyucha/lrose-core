@@ -9,7 +9,7 @@
 #include "FlowLayout.hh"
 //#include "ParameterColorDialog.hh"
 #include "ColorMapTemplates.hh"
-#include "ColorMap.hh"
+#include <qtplot/ColorMap.hh>
 #include "ColorBar.hh"
 
 class DialogOptionsWidget;
@@ -21,7 +21,7 @@ class ParameterColorView : public QDialog
 public:
 
   ParameterColorView(QWidget *parent = 0); // , ColorMap colorMap);
-  ~ParameterColorView();
+  virtual ~ParameterColorView();
   void updateEvent(vector<string> fieldNames, string selectedField);
   bool getChanges();
 

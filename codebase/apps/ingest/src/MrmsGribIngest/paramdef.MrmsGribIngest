@@ -63,13 +63,13 @@ commentdef {
 }
 
 typedef enum {
-  REALTIME, FILELIST
+  REALTIME, ARCHIVE, FILELIST
 } mode_t;
 
 paramdef enum mode_t {
   p_default = REALTIME;
   p_descr = "Operating mode for reading in data";
-  p_help = "In REALTIME mode, the program waits for a new input file. We can either scan an input directory for new files, or monitor the latest_data_info. In FILELIST mode, the list of files to be read are provided on the command line.";
+  p_help = "In REALTIME mode, the program waits for a new input file. We can either scan an input directory for new files, or monitor the latest_data_info. In ARCHIVE mode, the files in the input_dir are read for times between te start and end times. In FILELIST mode, the list of files to be read are provided on the command line.";
 } mode;
 
 paramdef string {
@@ -164,6 +164,34 @@ paramdef struct field_rename_t {
 } field_rename[];
 
 commentdef {
+  p_header = "ADD COVERAGE FLAG";
+  p_text = "Option to add a field indicating the coverage";
+}
+
+paramdef boolean {             
+  p_default = FALSE;
+  p_descr = "If TRUE, determine the coverage field using a special value in an input field.";
+} add_coverage_flag;
+
+paramdef string {
+  p_default = "DBZ";
+  p_descr = "Name of the input field used to detect coverage.";
+  p_help = "As an example, the radar reflectivity input field may contain a special value to indicate valid radar coverage. The input field name is specified as that AFTER renaming (see above).";
+} name_of_field_encoding_coverage;
+
+paramdef double {
+  p_default = -99;
+  p_descr = "The value of the field used to indicate coverage.";
+  p_help = "Note: this is separate from the missing_data_value, which indicates poor data. The coverage flag indicates that a measurement was taken at the grid location.As an example, the reflectivity field may contain a special value to indicate coverage. The field name specified is after renaming (see above).";
+} input_field_value_for_coverage;
+
+paramdef string {
+  p_default = "Coverage";
+  p_descr = "Name of the output coverage flag field.";
+  p_help = "This is added to the output volume.";
+} name_of_coverage_flag_output_field;
+
+commentdef {
   p_header = "DATA OUTPUT";
 }
 
@@ -226,6 +254,16 @@ paramdef int {
   p_descr = "Min time between output files (secs).";
   p_help = "If data arrives faster than this rate, data sets will be discarded until the minimum time has elapsed.";
 } min_time_between_output_files_in_secs;
+
+commentdef {
+  p_header = "CONVERT TO COLUMN-MAX VALUES";
+}
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to compute the column max (composite) DBZ product.";
+  p_help = "If true, for each grid point we compute the maximum value in the column, before writing the output files.";
+} convert_to_column_max;
 
 commentdef {
   p_header = "REMAPPING GRID PROJECTION ON OUTPUT";

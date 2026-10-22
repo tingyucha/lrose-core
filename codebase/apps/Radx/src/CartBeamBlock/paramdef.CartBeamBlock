@@ -1,0 +1,284 @@
+////////////////////////////////////////////////////////////
+//
+// parameter definitions for CartBeamBlock
+//
+/////////////////////////////////////////////////////////////
+//
+// CartBeamBlock computes beam blockage for a specific
+// radar and a Cartesian grid associated with thar radar.
+//
+// Mike Dixon, EOL, NCAR, April 2026
+/////////////////////////////////////////////////////////////
+
+commentdef {
+  p_header = "CartBeamBlock application";
+  p_text = "CartBeamBlock computes beam blockage for a specific radar and a 3D Cartesian grid associated with that radar. The terrain height data is read in from a digital terrain map. The Cartesian grid details are determined by reading in a Cartesian file in CF-NetCDF MDV format. Generally that Cart file will have been produced by RadxCartDP or Radx2Grid. CartBeamBlock computes the cumulative beam blockage fraction for each voxel in the 3D grid. It also writes out a 2D grid containing the terrain height.";
+}
+
+commentdef {
+  p_header = "DEBUGGING AND PROCESS CONTROL";
+}
+
+typedef enum {
+  DEBUG_OFF, DEBUG_NORM, DEBUG_VERBOSE, DEBUG_EXTRA
+} debug_t;
+  
+paramdef enum debug_t {
+  p_default = DEBUG_OFF;
+  p_descr = "Debug option";
+  p_help = "If set, debug messages will be printed appropriately";
+} debug;
+
+paramdef int {
+  p_descr = "Number of threads to be used for the main computations..";
+  p_help = "This splits the load between CPU cores and speeds up the processing. I recommend using 2 * number of cores.";
+  p_default = 16;
+} n_compute_threads;
+
+commentdef {
+  p_header = "CARTESIAN GRID TEMPLATE";
+  p_text = "We read in a 3D Cartesian file which we use as a template to determine the 3D grid details.";
+}
+
+paramdef string {
+  p_default = "$(HOME)/data/pecan/mdv/radarCart/kftg/template";
+  p_descr = "Directory for grid template file.";
+  p_help = "This is the directory containing the MDV file with the grid template.\n\nThese files must have been previously created by running RadxCartDP -create_grid_template.";
+} grid_template_dir;
+
+paramdef string {
+  p_default = "template3D";
+  p_descr = "Field name for 3D Cartesian input data.";
+  p_help = "This should be a 3D field in the template Cartesian file created by running 'RadxCartDP -create_grid_template'.";
+} template_3d_field_name;
+
+commentdef {
+  p_header = "DIGITAL ELEVATION DATA";
+}
+
+paramdef string {
+  p_descr = "DEM data directory path";
+  p_help = "The directory containing the digital elevation model data.";
+  p_default = "/tmp/data/srtm3";
+} dem_dir;
+
+typedef enum {
+  SHUTTLE_RADAR_TOPOGRAPHY,
+  ESRI_I65,
+  ESRI_ANS,
+  ESRI_CLARKE1858,
+  ESRI_GRS80,
+  ESRI_WGS84,
+  ESRI_WGS72,
+  INTERNATIONAL1924,
+  AUSTRALIAN_NATIONAL
+} DigitalElevationModel_t;
+
+paramdef enum DigitalElevationModel_t {
+  p_descr = "format of input digital elevation model data";
+  p_help = "supported digital elevation models:\n"
+  "  Shuttle Radar Topography Mission (3 arc-second resolution)\n"
+  "          format: srtm3 (data found here:\n"
+  "   	     http://dds.cr.usgs.gov/srtm/version2_1/SRTM3\n"
+  "  ESRI grid data (spheroid), with the various standard spheroids\n";
+  p_default = SHUTTLE_RADAR_TOPOGRAPHY;
+} dem_data_format;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to copy the DEM tiles that are used to specified directory.";
+  p_help = "This is useful if you want to create a data set containing only the required tiles.";
+} copy_dem_tiles_used;
+
+paramdef string {
+  p_descr = "Directory for the copied DEM data files";
+  p_help = "The tiles that are used will be copied to this directory.";
+  p_default = "/tmp/data/srtm3_copy";
+} dem_copy_dir;
+
+commentdef {
+  p_header = "SETTING THE PSEUDO EARTH RADIUS RATIO FOR HEIGHT COMPUTATIONS";
+}
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to override the standard 4/3 earth radius model for refraction.";
+  p_help = "If true, the standard 4/3 earth radius will be overridden. The US NWS NEXRAD system uses 1.21 instead of 1.333.";
+} override_standard_pseudo_earth_radius;
+
+paramdef double {
+  p_default = 1.33333333;
+  p_descr = "Ratio for computing the pseudo earth radius for beam height computations.";
+  p_help = "For standard refraction this is 4/3. For super refraction it will be less than 4.3, and for sub-refraction it will be greater. NEXRAD uses 1.21.";
+} pseudo_earth_radius_ratio;
+
+commentdef {
+  p_header = "BLOCKAGE SAMPLING GEOMETRY";
+  p_text = "We compute blockage using a micro-grid, within the radar elevation, azimuth and range geometry. This allows us to compute the effective blockage more accurately."; 
+}
+
+paramdef int
+{
+  p_descr = "Number of pattern subsamples in the vertical.";
+  p_help = "We compute beam power at this number of points in a vertical slice of the beam. An uneven number gives us symmetrical sampling.";
+  p_default = 31;
+} n_pattern_vert;
+
+paramdef int
+{
+  p_descr = "Number of pattern subsamples in the horizontal.";
+  p_help = "We compute beam power at this number of points in a horizontal section across the beam. An uneven number gives us symmetrical sampling.";
+  p_default = 31;
+} n_pattern_horiz;
+
+paramdef double
+{
+  p_descr = "Range resolution for height and blockage sampling computations (m)";
+  p_help = "We sample the beam at this range resolution, and accumulate the extinction in range.";
+  p_default = 100.0;
+} range_res_m;
+
+commentdef {
+  p_header = "RADAR PARAMETERS";
+}
+
+paramdef string {
+  p_default = "";
+  p_descr = "Name of radar";
+  p_help = "If empty, the radar name from the data is used.";
+} radar_name;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to override the radar spatial location.";
+  p_help = "If FALSE we use the radar location from the template file. If TRUE, we specify the location in the parameter file.";
+} override_radar_location;
+
+typedef struct {
+  double latitudeDeg;
+  double longitudeDeg;
+  double heightKm;
+} radar_location_t;
+
+paramdef struct radar_location_t {
+  p_default = { 0.0, 0.0, 0.0 };
+  p_descr = "Radar location";
+  p_help = "The radar location if override_radar_location is true. Altitude is in km MSL.";
+} radar_location;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to override the radar wavelength.";
+  p_help = "If FALSE we use the frequency from the radar params in the template file. If TRUE, we use the value in the parameter file.";
+} override_radar_wavelength;
+
+paramdef double {
+  p_default = 5.4;
+  p_descr = "Radar wavelength, cm.";
+  p_help = "The radar wavelength if override_radar_wavelength is true.";
+} radar_wavelength_cm;
+
+paramdef boolean {
+  p_default = FALSE;
+  p_descr = "Option to override the radar beam width.";
+  p_help = "If FALSE we use the beam width from the radar params in the template file. If TRUE, we use the values in the parameter file.";
+} override_radar_beamwidth;
+
+paramdef double {
+  p_default = 1.0;
+  p_descr = "Radar horizontal beam (deg).";
+  p_help = "Used if override_radar_beamwidth is true.";
+} horiz_beam_width_deg;
+
+paramdef double {
+  p_default = 1.0;
+  p_descr = "Radar vertical beam (deg).";
+  p_help = "Used if override_radar_beamwidth is true.";
+} vert_beam_width_deg;
+
+commentdef {
+  p_header = "DATA SET INFORMATION";
+  p_text = "Will be stored in CfRadial files, and other formats to the extent supported by the format.";
+}
+
+paramdef string {
+  p_default = "Radar beam blockage computed from digital elevation data.";
+  p_descr = "Title string for netCDF file.";
+} title;
+
+paramdef string {
+  p_default = "EOL/NCAR";
+  p_descr = "Institution string for netCDF file.";
+} institution;
+
+paramdef string {
+  p_default = "Created by LROSE app CartBeamBlock";
+  p_descr = "References string for netCDF file.";
+} references;
+
+commentdef {
+  p_header = "OUTPUT DETAILS";
+}
+
+paramdef string {
+  p_default = "/tmp/CartBeamBlock";
+  p_descr = "Output directory path.";
+  p_help = "Output file will be written to this directory.";
+} output_dir;
+
+paramdef string {
+  p_default = "SRTM3";
+  p_descr = "Description of data set source.";
+  p_help = "This will be written to the MDV master header.";
+} data_set_source;
+
+paramdef boolean {
+  p_default = false;
+  p_descr = "Option to add the radar name to the output path.";
+  p_help = "If true, the output dir will be 'output_dir/radar_name'.";
+} append_radar_name_to_output_dir;
+
+typedef struct {
+  int year;
+  int month;
+  int day;
+  int hour;
+  int min;
+  int sec;
+} datetime_t;
+
+paramdef struct datetime_t {
+  p_default = {2000, 01, 01, 00, 00, 00};
+  p_descr = "Time stamp for output files";
+  p_help = "We need to set a time so that the output files can be correctly named. SRTM shuttle mission 99 occurred in early 2000.";
+} output_time_stamp;
+
+paramdef string {
+  p_default = "extinction";
+  p_descr = "Name of beam extinction field in MDV output file.";
+} extinction_field_name;
+
+paramdef string {
+  p_default = "elevation";
+  p_descr = "Name of elevation field in MDV output file.";
+  p_help = "If name string is empty, this field is not written.";
+} elev_field_name;
+
+paramdef string {
+  p_default = "terrain_ht";
+  p_descr = "Name of terrain height field in MDV output file.";
+  p_help = "If name string is empty, this field is not written.";
+} terrain_ht_field_name;
+
+paramdef string {
+  p_default = "terrain_hi_res";
+  p_descr = "Name of high resolution terrain height field in MDV output file.";
+  p_help = "If name string is empty, this field is not written.";
+} hi_res_terrain_ht_field_name;
+
+paramdef double {
+  p_default = 10.0;
+  p_descr = "Grid resolution increase for high-res terrain grid.";
+  p_help = "The high-resolution grid spacing will be reduced by this factor as compared to the main Cartesian grid. Correspondingly, the number of grid points will be increased by this factor.";
+} hi_res_factor;
+

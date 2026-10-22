@@ -26,7 +26,7 @@
 // Terri L. Betancourt RAP, NCAR, Boulder, CO, 80307, USA
 // January 1998
 //
-// $Id: Path.cc,v 1.32 2018/10/22 19:58:28 dave Exp $
+// $Id: Path.cc,v 1.33 2019/02/28 17:53:40 prestop Exp $
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +38,7 @@
 #include <sys/time.h>
 #include <toolsa/Path.hh>
 #include <toolsa/file_io.h>
+#include <toolsa/safe_snprintf.hh>
 #include <unistd.h> // Added by Niles for getpid() proto
 #include <stdlib.h>
 
@@ -217,7 +218,7 @@ void Path::setDirectory( const string &topDir,
 
    if ( !topDir.empty() ) {
       char dirName[10];
-      sprintf( dirName, "%4ld%02ld%02ld", year, month, day );
+      safe_snprintf(dirName, "%4ld%02ld%02ld", year, month, day);
       if ( topDir != dot) {
 	directory = topDir + delimiter + dirName;
       } else {
@@ -263,7 +264,7 @@ void Path::setFile( const time_t hour, const time_t min, const time_t sec, const
    file = EMPTY_STRING;
 
    char fileName[10];
-   sprintf( fileName, "%02ld%02ld%02ld", hour, min, sec );
+   safe_snprintf(fileName, "%02ld%02ld%02ld", hour, min, sec);
    file = fileName;
 
    if ( !ext.empty() )
@@ -283,8 +284,8 @@ void Path::setFile( const DateTime &file_time, const string &ext )
    file = EMPTY_STRING;
 
    char fileName[10];
-   sprintf( fileName, "%02d%02d%02d",
-	    file_time.getHour(), file_time.getMin(), file_time.getSec() );
+   safe_snprintf(fileName, "%02d%02d%02d",
+                 file_time.getHour(), file_time.getMin(), file_time.getSec());
    file = fileName;
 
    if ( !ext.empty() )
@@ -468,12 +469,12 @@ string Path::computeTmpPath(const char *tmp_name /* = NULL*/ )
   struct timeval tv;
   gettimeofday(&tv, NULL);
   char timeStr[128];
-  sprintf(timeStr, "%ld.%ld_", tv.tv_sec, (long) tv.tv_usec);
+  safe_snprintf(timeStr, "%ld.%ld_", tv.tv_sec, (long) tv.tv_usec);
 
   // get PID and make a string from it
   
   char pidStr[128];
-  sprintf(pidStr, "%d_", (int) getpid());
+  safe_snprintf(pidStr, "%d_", (int) getpid());
   
   // concatenate strings into tmp name
 
@@ -534,7 +535,7 @@ void Path::stripDir(const string &dir, const string &path, string &file)
       file = path;
     }
     
-  } catch (out_of_range err) {
+  } catch (out_of_range &err) {
 
     // delim longer than path
 
@@ -613,6 +614,49 @@ string Path::getExecPath()
 }
 
 #endif
+
+//////////////////////////////////////////////////////////////////
+// STATIC METHOD
+//
+// looks for a directory in the path that is all digits & 8 characters long.
+// if a dated dir cannot be found, pre, date, and post are set to empty strings.
+//
+// e.g. given path="/some/path/to/YYYYMMDD/more/stuff.file"
+// returns:
+//          pre="/some/path/to"
+//          date="YYYMMDD"
+//          post="more/stuff.file" 
+void
+Path::splitDatedDir(const string &path, string &pre, string &date,
+			    string &post)
+{
+
+  date="";
+  pre="";
+  post="";
+  
+  //tokenize
+  string delimiters = "/";
+  size_t current;
+  size_t next = -1;
+  string token;
+  do
+    {
+      current = next + 1;
+      next = path.find_first_of( delimiters, current );
+      token = path.substr( current, next - current );
+
+      //is it 8 characters long and all digits?
+      if ( (token.length() == 8) && (token.find_first_not_of("0123456789") == std::string::npos) ) {
+	date = token;
+	pre = path.substr(0,current);
+	post = path.substr(next);
+	return;
+      }
+    }
+  while (next != string::npos);
+
+}
 
 //////////////////////////////////////////////////////////////////
 // Get the path of a file relative to the

@@ -915,7 +915,7 @@
     memset(tt, 0, sizeof(TDRPtable));
     tt->ptype = ENUM_TYPE;
     tt->param_name = tdrpStrDup("primary_axis");
-    tt->descr = tdrpStrDup("Platform type.");
+    tt->descr = tdrpStrDup("Primary axis.");
     tt->help = tdrpStrDup("See override_primary_axis.");
     tt->val_offset = (char *) &primary_axis - &_start_;
     tt->enum_def.name = tdrpStrDup("primary_axis_t");
@@ -2473,6 +2473,18 @@
     tt->single_val.b = pTRUE;
     tt++;
     
+    // Parameter 'include_scan_name_in_file_name'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("include_scan_name_in_file_name");
+    tt->descr = tdrpStrDup("Option to include the scan name in the file name.");
+    tt->help = tdrpStrDup("Default is false. Only applies to CfRadial files. If true, the scan name will be included in the file name.");
+    tt->val_offset = (char *) &include_scan_name_in_file_name - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
     // Parameter 'include_vol_num_in_file_name'
     // ctype is 'tdrp_bool_t'
     
@@ -2482,6 +2494,18 @@
     tt->descr = tdrpStrDup("Option to include the volume number in the file name.");
     tt->help = tdrpStrDup("Default is false. Only applies to CfRadial files. If true, the volume number is included in the file name, preceded by '_v'.");
     tt->val_offset = (char *) &include_vol_num_in_file_name - &_start_;
+    tt->single_val.b = pFALSE;
+    tt++;
+    
+    // Parameter 'include_mean_fixed_angle_in_file_name'
+    // ctype is 'tdrp_bool_t'
+    
+    memset(tt, 0, sizeof(TDRPtable));
+    tt->ptype = BOOL_TYPE;
+    tt->param_name = tdrpStrDup("include_mean_fixed_angle_in_file_name");
+    tt->descr = tdrpStrDup("Option to include the mean fixed angle of the volume in the file name.");
+    tt->help = tdrpStrDup("Default is false. Only applies to CfRadial files. If true, the mean fixed angle is included in the file name, preceded by '_v'.");
+    tt->val_offset = (char *) &include_mean_fixed_angle_in_file_name - &_start_;
     tt->single_val.b = pFALSE;
     tt++;
     

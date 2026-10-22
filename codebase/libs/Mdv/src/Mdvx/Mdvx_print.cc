@@ -38,6 +38,7 @@
 #include <Mdv/MdvxChunk.hh>
 #include <Mdv/MdvxRadar.hh>
 #include <Mdv/MdvxTimeStamp.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <toolsa/umisc.h>
 #include <toolsa/str.h>
 #include <iomanip>
@@ -436,12 +437,17 @@ void Mdvx::printFieldHeader(const field_header_t &fhdr,
   out << "proj4_str:              " << fhdr.proj4_str << endl;
   out << "vert_reference:         " << fhdr.vert_reference << endl;
   out << endl;
+
+  streamsize original_precision = out.precision();
+  out.precision(8);
   out << "grid_dx:                " << fhdr.grid_dx << endl;
   out << "grid_dy:                " << fhdr.grid_dy << endl;
   out << "grid_dz:                " << fhdr.grid_dz << endl;
   out << "grid_minx:              " << fhdr.grid_minx << endl;
   out << "grid_miny:              " << fhdr.grid_miny << endl;
   out << "grid_minz:              " << fhdr.grid_minz << endl;
+  out.precision(original_precision);
+  
   out << "scale:                  " << fhdr.scale << endl;
   out << "bias:                   " << fhdr.bias << endl;
   out << "bad_data_value:         " << fhdr.bad_data_value << endl;
@@ -1382,7 +1388,7 @@ const char *Mdvx::_labelledInt(const char*label, int num)
   if (strlen(label) > _printStrLen - 32) {
     STRncopy(_printStr, label, _printStrLen);
   } else {
-    sprintf(_printStr, "%s: %d", label, num);
+    safe_snprintf(_printStr, "%s: %d", label, num);
   }
 
   return (_printStr);
@@ -2122,4 +2128,3 @@ void Mdvx::printTimeHeight(ostream &out,
   } // i
 
 }
-

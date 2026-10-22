@@ -63,7 +63,7 @@ static void write_comments_array_realloc(FILE *out);
 static void write_comments_array2D_realloc(FILE *out);
 static void write_comments_usage(FILE *out);
 static void write_comments_init(FILE *out);
-static void write_copyright(FILE *out);
+static void write_ncar_copyright(FILE *out);
 
 /***********************************************
  * write_hh_file()
@@ -78,8 +78,10 @@ int write_hh_file(const char *class_name,
 		  int n_defs,
                   const char *prog_name,
                   const char *lib_name,
-                  int singleton)
-
+                  const char *output_dir,
+                  int singleton,
+                  int add_ncar_copyright)
+  
 {
 
   char hname[4192];
@@ -91,7 +93,12 @@ int write_hh_file(const char *class_name,
    * open file
    */
   
-  sprintf(hname,"%s.hh", class_name);
+  if (strcmp(output_dir, ".")) {
+    sprintf(hname,"%s/%s.hh", output_dir, class_name);
+  } else {
+    sprintf(hname,"%s.hh", class_name);
+  }
+
   if ((hfile = fopen(hname, "w")) == NULL) {
     fprintf(stderr, "ERROR: tdrp_gen:write_hh_file, opening file\n");
     perror(hname);
@@ -102,14 +109,16 @@ int write_hh_file(const char *class_name,
    * copyright
    */
 
-  write_copyright(hfile);
+  if (add_ncar_copyright) {
+    write_ncar_copyright(hfile);
+  }
 
   /*
    * preamble
    */
 
   fprintf(hfile, "////////////////////////////////////////////\n");
-  fprintf(hfile, "// %s\n", hname);
+  fprintf(hfile, "// %s.hh\n", class_name);
   fprintf(hfile, "//\n");
   fprintf(hfile, "// TDRP header file for '%s' class.\n", class_name);
   fprintf(hfile, "//\n");
@@ -236,8 +245,10 @@ int write_hh_file(const char *class_name,
     
     fprintf(hfile, "  // Get singleton instance pointer\n\n");
     fprintf(hfile, "  static %s *Inst();\n\n", class_name);
+    fprintf(hfile, "  // Get singleton instance reference\n\n");
+    fprintf(hfile, "  static %s &Instance();\n\n", class_name);
     fprintf(hfile, "private:\n\n");
-    fprintf(hfile, "    // Singleton instance pointer is private\n");
+    fprintf(hfile, "    // Singleton instance is private\n");
     fprintf(hfile, "    static %s *_instance;\n\n", class_name);
     fprintf(hfile, "    // Constructor is private\n");
     fprintf(hfile, "    %s ();\n\n", class_name);
@@ -266,7 +277,7 @@ int write_hh_file(const char *class_name,
 
   write_comments_destructor(hfile);
   
-  fprintf(hfile, "  ~%s ();\n\n", class_name);
+  fprintf(hfile, "  virtual ~%s ();\n\n", class_name);
 
   /*
    * assignment
@@ -504,7 +515,9 @@ int write_cc_file(const char *class_name,
 		  int n_defs,
                   const char *prog_name,
                   const char *lib_name,
-                  int singleton)
+                  const char *output_dir,
+                  int singleton,
+                  int add_ncar_copyright)
   
 {
 
@@ -517,7 +530,11 @@ int write_cc_file(const char *class_name,
    * open file
    */
 
-  sprintf(cname,"%s.cc", class_name);
+  if (strcmp(output_dir, ".")) {
+    sprintf(cname,"%s/%s.cc", output_dir, class_name);
+  } else {
+    sprintf(cname,"%s.cc", class_name);
+  }
 
   if ((cfile = fopen(cname, "w")) == NULL) {
     fprintf(stderr, "ERROR: tdrp_gen:write_cc_file, opening file\n");
@@ -528,8 +545,10 @@ int write_cc_file(const char *class_name,
   /*
    * copyright
    */
-
-  write_copyright(cfile);
+  
+  if (add_ncar_copyright) {
+    write_ncar_copyright(cfile);
+  }
 
   /*
    * preamble
@@ -537,8 +556,8 @@ int write_cc_file(const char *class_name,
 
   fprintf(cfile,
 	  "////////////////////////////////////////////\n"
-	  "// %s\n"
-	  "//\n", cname);
+	  "// %s.cc\n"
+	  "//\n", class_name);
 
   fprintf(cfile, "// TDRP C++ code file for class '%s'.\n", class_name);
   fprintf(cfile, "//\n");
@@ -707,6 +726,14 @@ int write_cc_file(const char *class_name,
     fprintf(cfile, "      _instance = new %s;\n", class_name);
     fprintf(cfile, "    }\n");
     fprintf(cfile, "    return _instance;\n");
+    fprintf(cfile, "  }\n");
+    fprintf(cfile, "\n");
+    fprintf(cfile, "  %s &%s::Instance()\n", class_name, class_name);
+    fprintf(cfile, "  {\n");
+    fprintf(cfile, "    if (_instance == (%s *) NULL) {\n", class_name);
+    fprintf(cfile, "      _instance = new %s;\n", class_name);
+    fprintf(cfile, "    }\n");
+    fprintf(cfile, "    return *_instance;\n");
     fprintf(cfile, "  }\n");
     fprintf(cfile, "\n");
 
@@ -1940,7 +1967,7 @@ static void write_comments_init(FILE *out)
  * write_copyright()
  */
 
-static void write_copyright(FILE *out)
+static void write_ncar_copyright(FILE *out)
      
 {
 

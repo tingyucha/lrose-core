@@ -25,7 +25,8 @@
 //
 // RadxTime
 //
-// Utility class for manipulating date/time
+// Utility class for manipulating date/time.
+// Originally based on toolsa DateTime class.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +71,11 @@ public:
 
   RadxTime(time_t when, double subSec);
 
+  /// construct from double secs
+  /// Unused is a dummy, to disambiguate.
+
+  // RadxTime(double secs, bool unused);
+    
   /// construct from year, month, day, hour, min, sec, sub secs
   /// hour, min, secs and subSec are optional args, that default
   /// to 0.
@@ -108,6 +114,14 @@ public:
   /// Clear - set to Jan 1 1970
 
   void clear();
+  
+  /// sets to subsec precision, using getTimeOfDay()
+  
+  void setToNow();
+
+  /// set to invalid
+  
+  void setToNever();
 
   /// Set from time_t
 
@@ -144,6 +158,10 @@ public:
   /// Returns time in secs from 1 Jan 1970 UTC
 
   time_t set(const string &when);
+
+  /// Set from double
+  
+  time_t setFromDouble(double secs);
 
   /// Set year
   ///

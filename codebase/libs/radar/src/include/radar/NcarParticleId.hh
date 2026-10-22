@@ -422,6 +422,38 @@ public:
 
   void initializeArrays(int nGates);
 
+  /////////////////////////////////////////////////////////
+  // Prepare for computing PID
+  //
+  // Passed in:
+  // ---------
+  //   nGates: number of gates
+  //   cflag: censoring flag, pid only computed where this is false
+  //   dbz: reflectivity
+  //   zdr: differential reflectivity
+  //   kdp: phidp slope
+  //   ldr: linear depolarization ratio
+  //   rhohv: correlation coeff
+  //   phidp: phase difference
+  //
+  // Input fields at a gate should be set to _missingDouble
+  // if they are not valid for that gate.
+  //
+  // Temperature is not handled here.
+  //
+  // Results:
+  // --------
+  // Stored in local arrays on this class. Use get() methods to retieve them.
+  
+  void prepareForPid(int nGates,
+                     const double *snr,
+                     const double *dbz,
+                     const double *zdr,
+                     const double *kdp,
+                     const double *ldr,
+                     const double *rhohv,
+                     const double *phidp);
+  
   /**
    * Compute PID for a beam. Input fields at a gate should be set to 
    * _missingDouble if they are not valid for that gate. Results are
@@ -634,6 +666,7 @@ public:
    * @param[in] missing The missing data value to use
    */ 
   void setMissingDouble(double missing) { _missingDouble = missing; }
+  double getMissingDouble() { return _missingDouble; }
 
   /**
    * Fill a temperature array, for a radar beam elevation

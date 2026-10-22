@@ -99,7 +99,7 @@ public:
   
   // destructor
   
-  ~PolarManager();
+  virtual ~PolarManager();
 
   // run 
 
@@ -134,7 +134,6 @@ public:
 
 public slots:
 
-  //colorMapRedefineReceived(string, ColorMap)
   void colorMapRedefineReceived(string fieldName, ColorMap newColorMap,
 				QColor gridColor,
 				QColor emphasisColor,
@@ -306,7 +305,7 @@ private:
   // data retrieval
 
   void _handleRealtimeData(QTimerEvent * event);
-  void _handleArchiveData(QTimerEvent * event);
+  void _handleArchiveData(/* QTimerEvent * event */);
   int _getArchiveData();
   void _plotArchiveData();
   void _setupVolRead(RadxFile &file);

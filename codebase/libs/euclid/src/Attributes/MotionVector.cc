@@ -21,7 +21,7 @@
 // ** OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED      
 // ** WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.    
 // *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=* 
-#include <toolsa/copyright.h>
+#include <toolsa/safe_snprintf.hh>
 #include <euclid/MotionVector.hh>
 #include <rapmath/Math.hh>
 #include <toolsa/LogStream.hh>
@@ -103,7 +103,7 @@ void MotionVector::print(FILE *fp) const
 std::string MotionVector::sprint(void) const
 {
   char buf[100];
-  sprintf(buf, "v=(%.2f,%.2f)", _vx, _vy);
+  safe_snprintf(buf, "v=(%.2f,%.2f)", _vx, _vy);
   std::string ret = buf;
   return ret;
 }

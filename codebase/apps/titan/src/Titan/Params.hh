@@ -90,7 +90,8 @@ public:
 
   typedef enum {
     SPECIFY_SOUNDING = 0,
-    READ_SOUNDING_FROM_SPDB = 1
+    READ_SOUNDING_FROM_SPDB = 1,
+    READ_SOUNDING_FROM_MODEL = 2
   } sounding_mode_t;
 
   typedef enum {
@@ -168,7 +169,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -490,6 +491,36 @@ public:
 
   double tops_dbz_threshold;
 
+  tdrp_bool_t apply_convectivity_threshold;
+
+  char* convectivity_field_name;
+
+  double low_convectivity_threshold;
+
+  double high_convectivity_threshold;
+
+  tdrp_bool_t identify_convective_regions;
+
+  double convection_finder_min_valid_height;
+
+  double convection_finder_max_valid_height;
+
+  double convection_finder_min_valid_dbz;
+
+  double convection_finder_texture_radius_km;
+
+  double convection_finder_min_valid_fraction_for_texture;
+
+  double convection_finder_min_convectivity_for_convective;
+
+  double convection_finder_max_convectivity_for_stratiform;
+
+  int convection_finder_min_overlap_for_convective_clumps;
+
+  tdrp_bool_t convection_finder_write_debug_files;
+
+  char* convection_finder_output_url;
+
   tdrp_bool_t use_dual_threshold;
 
   dual_threshold_t dual_threshold;
@@ -515,28 +546,6 @@ public:
   double sectrip_horiz_aspect;
 
   double sectrip_orientation_error;
-
-  tdrp_bool_t identify_convective_regions;
-
-  double convection_finder_min_valid_height;
-
-  double convection_finder_max_valid_height;
-
-  double convection_finder_min_valid_dbz;
-
-  double dbz_threshold_for_definite_convection;
-
-  double convective_radius_km;
-
-  double convection_finder_texture_radius_km;
-
-  double convection_finder_min_valid_fraction_for_texture;
-
-  double convection_finder_min_texture_value;
-
-  tdrp_bool_t convection_finder_write_debug_files;
-
-  char* convection_finder_output_url;
 
   double hail_dbz_threshold;
 
@@ -574,6 +583,18 @@ public:
   sounding_data_range_t sounding_required_height_range_m;
 
   tdrp_bool_t sounding_check_pressure_monotonically_decreasing;
+
+  char* model_input_url;
+
+  int model_search_margin_secs;
+
+  char* model_temperature_field_name;
+
+  tdrp_bool_t model_convert_K_to_C;
+
+  tdrp_bool_t write_model_temp_files;
+
+  char* model_temp_output_url;
 
   hail_detection_mode_t hail_detection_mode;
 
@@ -691,7 +712,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[149];
+  mutable TDRPtable _table[161];
 
   const char *_className;
 

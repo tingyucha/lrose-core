@@ -188,7 +188,7 @@ private:
 
   void _computeSnrFromDbz();
 
-  void _censorNonPrecip(RadxField &field);
+  void _censorNonWeather(RadxField &field);
 
   void _loadOutputFields(RadxRay *inputRay,
                          RadxRay *derivedRay);
@@ -217,7 +217,7 @@ private:
                  const string &units,
                  const string &longName,
                  const string standardName,
-                 const bool *arrayBool);
+                 const int *arrayBool);
 
 
 };

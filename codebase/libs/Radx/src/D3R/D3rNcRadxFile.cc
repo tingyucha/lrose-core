@@ -45,6 +45,7 @@
 #include <Radx/RadxPath.hh>
 #include <Radx/RadxArray.hh>
 #include <Radx/RadxXml.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <cstring>
 #include <cstdio>
 #include <cmath>
@@ -772,9 +773,9 @@ void D3rNcRadxFile::_getVolumePaths(const string &path,
   if (refHour == 0) {
     RadxTime prevDate(refTime.utime() - RadxTime::RADX_SECS_IN_DAY);
     char prevDir[RadxPath::RADX_MAX_PATH_LEN];
-    sprintf(prevDir, "%s%s%.4d%.2d%.2d",
-            parentDir.c_str(), RadxPath::RADX_PATH_DELIM,
-            prevDate.getYear(), prevDate.getMonth(), prevDate.getDay());
+    safe_snprintf(prevDir, "%s%s%.4d%.2d%.2d",
+                  parentDir.c_str(), RadxPath::RADX_PATH_DELIM,
+                  prevDate.getYear(), prevDate.getMonth(), prevDate.getDay());
     _addToPathList(prevDir, refTime, pathList);
   }
 
@@ -783,9 +784,9 @@ void D3rNcRadxFile::_getVolumePaths(const string &path,
   if (refHour == 23) {
     RadxTime nextDate(refTime.utime() + RadxTime::RADX_SECS_IN_DAY);
     char nextDir[RadxPath::RADX_MAX_PATH_LEN];
-    sprintf(nextDir, "%s%s%.4d%.2d%.2d",
-            parentDir.c_str(), RadxPath::RADX_PATH_DELIM,
-            nextDate.getYear(), nextDate.getMonth(), nextDate.getDay());
+    safe_snprintf(nextDir, "%s%s%.4d%.2d%.2d",
+                  parentDir.c_str(), RadxPath::RADX_PATH_DELIM,
+                  nextDate.getYear(), nextDate.getMonth(), nextDate.getDay());
     _addToPathList(nextDir, refTime, pathList);
   }
   
@@ -1718,7 +1719,7 @@ int D3rNcRadxFile::_addFl64FieldToRays(Nc3Var* var,
     delete missingValueAtt;
   } else {
     for (size_t ii = 0; ii < nGatesTot; ii++) {
-      if (!isfinite(data[ii])) {
+      if (!std::isfinite(data[ii])) {
         data[ii] = missingVal;
       }
     }
@@ -1804,7 +1805,7 @@ int D3rNcRadxFile::_addFl32FieldToRays(Nc3Var* var,
     delete missingValueAtt;
   } else {
     for (size_t ii = 0; ii < nGatesTot; ii++) {
-      if (!isfinite(data[ii])) {
+      if (!std::isfinite(data[ii])) {
         data[ii] = missingVal;
       }
     }
@@ -2009,4 +2010,3 @@ void D3rNcRadxFile::_computeFixedAngles()
   _readVol->loadFixedAnglesFromSweepsToRays();
 
 }
-

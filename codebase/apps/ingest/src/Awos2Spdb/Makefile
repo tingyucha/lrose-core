@@ -38,15 +38,15 @@ TARGET_FILE = Awos2Spdb
 
 LOC_INCLUDES = $(NETCDF4_INCS)
 
-LOC_LIBS = -lSpdb -ldsserver -ldidss -lrapformats \
-	-leuclid -ltoolsa -lpthread -ldataport -ltdrp \
-	$(NETCDF4_LIBS) -lbz2 -lz -lm
+LOC_LIBS = \
+	-lSpdb -lrapformats -ldsserver -ldidss \
+	-leuclid -lrapmath -ltoolsa -ldataport \
+	-ltdrp -lphysics -lpthread $(NETCDF4_LIBS) \
+	-lbz2 -lz -lm
 
 LOC_LDFLAGS = $(NETCDF4_LDFLAGS)
 
 LOC_CFLAGS =
-
-MODULE_TYPE = progcpp
 
 HDRS = \
 	Params.hh \
@@ -60,24 +60,27 @@ CPPC_SRCS = \
 	Awos2Spdb.cc
 
 #
-# standard targets
+# tdrp macros
 #
 
-include $(LROSE_CORE_DIR)/build/make_include/lrose_make_targets
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_macros
 
 #
-# tdrp
+# standard C++ targets
 #
 
-Params.cc: paramdef.$(TARGET_FILE)
-	tdrp_gen -f paramdef.$(TARGET_FILE) -c++ -prog $(TARGET_FILE)
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_c++_targets
 
-clean_tdrp:
-	$(RM) Params.hh Params.cc
+#
+# tdrp targets
+#
+
+include $(LROSE_CORE_DIR)/build/make_include/lrose_make_tdrp_c++_targets
 
 #
 # local targets
 #
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
 

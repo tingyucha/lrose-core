@@ -207,6 +207,7 @@ protected:
 
   int _volumeNumber;
   int _vcpNum;
+  int _prevSweepNum;
   Radx::InstrumentType_t _instrumentType;
   Radx::PlatformType_t _platformType;
   NexradData::message_31_vol_t _vol;
@@ -430,6 +431,10 @@ protected:
 
   void _interp1kmGates(int nGates,
                        Radx::si16 *idata);
+
+  RadxField *_createPurpleHaze(const vector<Radx::ui08> &udata08,
+                               double startRangeKm,
+                               double gateSpacingKm);
 
 private:
 

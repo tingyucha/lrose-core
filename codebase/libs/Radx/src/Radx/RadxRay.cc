@@ -41,6 +41,7 @@
 #include <Radx/RadxRemap.hh>
 #include <Radx/RadxXml.hh>
 #include <Radx/ByteOrder.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <iostream>
 #include <cstring>
 #include <cstdio>
@@ -379,7 +380,7 @@ string RadxRay::_addToFieldNameMap(const string &name,
   while (true) {
 
     char numStr[128];
-    sprintf(numStr, "_%d", count);
+    safe_snprintf(numStr, "_%d", count);
 
     string modName(name);
     modName += numStr;
@@ -464,6 +465,7 @@ int RadxRay::replaceField(RadxField *newField)
     RadxField *fld = _fields[ii];
     if (fld->getName() == newName) {
       delete fld;
+      newField->remapRayGeom(_nGates, _startRangeKm, _gateSpacingKm, false);
       _fields[ii] = newField;
       loadFieldNameMap();
       return 0;
@@ -990,6 +992,7 @@ void RadxRay::remapRangeGeom(double newStartRangeKm,
   RadxRemap remap;
   if (remap.checkGeometryIsDifferent(_startRangeKm, _gateSpacingKm,
                                      newStartRangeKm, newGateSpacingKm)) {
+
     remap.prepareForInterp(_nGates,
                            _startRangeKm, _gateSpacingKm,
                            newStartRangeKm, newGateSpacingKm);
@@ -1247,16 +1250,19 @@ void RadxRay::setNGatesConstant()
 ///   y = x * scale + offset
 /// After operation, field type is unchanged.
 /// Nothing is done if field does not exist.
+/// If field folds, ensure the result is within the folding region.
 
 void RadxRay::applyLinearTransform(const string &name,
-                                   double scale, double offset)
+                                   double scale, double offset,
+                                   bool fieldFolds /* = false */,
+                                   double foldingValue /* = 0.0 */)
 
 {
   RadxField *field = getField(name);
   if (field == NULL) {
     return;
   }
-  field->applyLinearTransform(scale, offset);
+  field->applyLinearTransform(scale, offset, fieldFolds, foldingValue);
 }
   
 //////////////////////////////////////////////////////
@@ -1479,6 +1485,9 @@ void RadxRay::print(ostream &out) const
   if (_rayNum != Radx::missingMetaInt) {
     out << "  rayNum: " << _rayNum << endl;
   }
+  if (_scanName.size() > 0) {
+    out << "  scanName: " << _scanName << endl;
+  }
   out << "  volNum: " << _volNum << endl;
   out << "  sweepNum: " << _sweepNum << endl;
   out << "  calibIndex: " << _calibIndex << endl;
@@ -1494,9 +1503,9 @@ void RadxRay::print(ostream &out) const
     out << "  timeSecs: " << RadxTime::strm(_timeSecs) << ".0" << endl;
   } else {
     char text[128];
-    sprintf(text, "  timeSecs: %s.%.6d",
-            RadxTime::strm(_timeSecs).c_str(),
-            (int) ((_nanoSecs / 1000.0) + 0.5));
+    safe_snprintf(text, "  timeSecs: %s.%.6d",
+                  RadxTime::strm(_timeSecs).c_str(),
+                  (int) ((_nanoSecs / 1000.0) + 0.5));
     out << text << endl;
   }
   out << "  az: " << _az << endl;
@@ -1573,18 +1582,18 @@ void RadxRay::printSummary(ostream &out) const
   char trans[16];
 
   if (_antennaTransition) {
-    sprintf(trans, "*");
+    safe_snprintf(trans, "*");
   } else {
-    sprintf(trans, " ");
+    safe_snprintf(trans, " ");
   }
 
-  sprintf(line,
-          "Time el az mode prf ngates sweep# vol#: "
-          "%s.%.3d %6.2f %6.2f %s %4d %4d %2d %5d %s",
-          RadxTime::strm(_timeSecs).c_str(),
-          (int) (_nanoSecs / 1000000),
-          _elev,
-          _az,
+  safe_snprintf(line,
+                "Time el az mode prf ngates sweep# vol#: "
+                "%s.%.3d %6.2f %6.2f %s %4d %4d %2d %5d %s",
+                RadxTime::strm(_timeSecs).c_str(),
+                (int) (_nanoSecs / 1000000),
+                _elev,
+                _az,
           Radx::sweepModeToShortStr(_sweepMode).c_str(),
           (int) (1.0 / _prtSec + 0.5),
           (int) _nGates,
@@ -1698,8 +1707,8 @@ void RadxRay::setUtilityFlag(bool state)
 }
 
 /////////////////////////////////////////////////////////
-/// compute elevation and azimuth from the georeference
-/// data and correction factors.
+/// compute elevation and azimuth in earth coords
+/// from the georeference data and correction factors.
 ///
 /// If the georeference is null, no action is taken.
 /// If the correction factors is null, no corrections are
@@ -1733,6 +1742,7 @@ void RadxRay::applyGeoref(Radx::PrimaryAxis_t axis, bool force /* = true */)
   double headingRad = _georef->getHeading() * Radx::DegToRad;
   double tiltRad = _georef->getTilt() * Radx::DegToRad;
   double rotRad = _georef->getRotation() * Radx::DegToRad;
+  double driftRad = _georef->getDrift() * Radx::DegToRad;
 
   // apply corrections if appropriate
 
@@ -1742,33 +1752,36 @@ void RadxRay::applyGeoref(Radx::PrimaryAxis_t axis, bool force /* = true */)
     headingRad += _cfactors->getHeadingCorr() * Radx::DegToRad;
     tiltRad += _cfactors->getTiltCorr() * Radx::DegToRad;
     rotRad += _cfactors->getRotationCorr() * Radx::DegToRad;
+    driftRad += _cfactors->getDriftCorr() * Radx::DegToRad;
   }
 
   // compute m matrix
 
-  double cosR, sinR;
-  double cosP, sinP;
-  double cosH, sinH;
+  double cosRoll, sinRoll;
+  double cosPitch, sinPitch;
+  double cosHdg, sinHdg;
   double cosTilt, sinTilt;
   double cosRot, sinRot;
+  double cosDrift, sinDrift;
 
-  Radx::sincos(rollRad, sinR, cosR);
-  Radx::sincos(pitchRad, sinP, cosP);
-  Radx::sincos(headingRad, sinH, cosH);
+  Radx::sincos(rollRad, sinRoll, cosRoll);
+  Radx::sincos(pitchRad, sinPitch, cosPitch);
+  Radx::sincos(headingRad, sinHdg, cosHdg);
   Radx::sincos(tiltRad, sinTilt, cosTilt);
   Radx::sincos(rotRad, sinRot, cosRot);
+  Radx::sincos(driftRad, sinDrift, cosDrift);
 
-  double m11 = cosH * cosR + sinH * sinP * sinR;
-  double m12 = sinH * cosP;
-  double m13 = cosH * sinR - sinH * sinP * cosR;
+  double m11 = cosHdg * cosRoll + sinHdg * sinPitch * sinRoll;
+  double m12 = sinHdg * cosPitch;
+  double m13 = cosHdg * sinRoll - sinHdg * sinPitch * cosRoll;
 
-  double m21 = -sinH * cosR + cosH * sinP * sinR;
-  double m22 = cosH * cosP;
-  double m23 = -sinH * sinR - cosH * sinP * cosR;
+  double m21 = -sinHdg * cosRoll + cosHdg * sinPitch * sinRoll;
+  double m22 = cosHdg * cosPitch;
+  double m23 = -sinHdg * sinRoll - cosHdg * sinPitch * cosRoll;
   
-  double m31 = -cosP * sinR;
-  double m32 = sinP;
-  double m33 = cosP * cosR;
+  double m31 = -cosPitch * sinRoll;
+  double m32 = sinPitch;
+  double m33 = cosPitch * cosRoll;
 
   // compute x, y, z for a range of unity
 
@@ -1808,13 +1821,31 @@ void RadxRay::applyGeoref(Radx::PrimaryAxis_t axis, bool force /* = true */)
 
   }
 
+  // save intermediate values
+
+  _georef->setXX(xx);
+  _georef->setYY(yy);
+  _georef->setZZ(zz);
+
   // compute earth-referenced azimuth and elevation
   
   double azimuthDeg = atan2(xx, yy) * Radx::RadToDeg;
-  if (azimuthDeg < 0) {
-    azimuthDeg += 360.0;
-  }
+  azimuthDeg = Radx::conditionAz(azimuthDeg);
+
   double elevationDeg = asin(zz) * Radx::RadToDeg;
+
+  double tiltDeg = asin(yy) * Radx::RadToDeg;
+  if (tiltDeg < 0) {
+    tiltDeg += 360.0;
+  }
+
+  double rotDeg = _georef->getRotation();
+  if (zz != 0.0) {
+    rotDeg = atan(xx/zz) * Radx::RadToDeg;
+    if (rotDeg < 0) {
+      rotDeg += 360.0;
+    }
+  }
 
 #ifdef DEBUG_PRINT
   cerr << "====>> roll, pitch, hdg, tilt, rot: "
@@ -1824,18 +1855,76 @@ void RadxRay::applyGeoref(Radx::PrimaryAxis_t axis, bool force /* = true */)
        << _georef->getTilt() << ", "
        << _georef->getRotation() << endl;
 
-  cerr << "====>> xx, yy, zz, az, el: "
+  cerr << "====>> xx, yy, zz, az, el, tilt, rot: "
        << xx << ", "
        << yy << ", "
        << zz << ", "
        << azimuthDeg << ", "
-       << elevationDeg << endl;
+       << elevationDeg << ","
+       << tiltDeg << ","
+       << rotDeg << endl;
 #endif
 
+  // save az and el
+  
   _az = azimuthDeg;
   _elev = elevationDeg;
 
+  // compute track-relative quantities for Y-Prime radar, and save
+  
+  if (axis == Radx::PRIMARY_AXIS_Y_PRIME) {
+    _computeTrackRelAnglesYPrime(rollRad, rotRad, cosPitch, sinPitch,
+                                 cosTilt, sinTilt, cosDrift, sinDrift);
+  }
+
   _georefApplied = true;
+
+}
+
+/////////////////////////////////////////////////////////
+/// compute track-relative elevation, azimuth,
+/// rotation and tilt for a y-prime radarx
+
+void RadxRay::_computeTrackRelAnglesYPrime(double rollRad, double rotRad,
+                                           double cosPitch, double sinPitch,
+                                           double cosTilt, double sinTilt,
+                                           double cosDrift, double sinDrift)
+  
+{
+  
+
+  double earthRelRotRad = rollRad + rotRad; 
+  double sinEarthRelRot;
+  double cosEarthRelRot;
+  Radx::sincos(earthRelRotRad, sinEarthRelRot, cosEarthRelRot);
+  
+  double xt = (cosEarthRelRot * sinDrift * cosTilt * sinPitch
+               + cosDrift * sinEarthRelRot * cosTilt
+               - sinDrift * cosPitch * sinTilt);
+  
+  double yt = (-cosEarthRelRot * cosDrift * cosTilt * sinPitch
+               + sinDrift * sinEarthRelRot * cosTilt
+               + cosPitch * cosDrift * sinTilt);
+
+  double zz = (cosPitch * cosTilt * cosEarthRelRot
+               + sinPitch * sinTilt);
+  
+  double trackRelRot = atan2(xt, zz) * Radx::RadToDeg;
+  trackRelRot = Radx::conditionAz(trackRelRot);
+
+  double trackRelTilt = asin(yt) * Radx::RadToDeg;
+  trackRelTilt = Radx::conditionEl(trackRelTilt);
+
+  double trackRelAz = atan2(xt, yt) * Radx::RadToDeg;
+  trackRelAz = Radx::conditionAz(trackRelAz);
+
+  double trackRelEl = asin(zz) * Radx::RadToDeg;
+  trackRelEl = Radx::conditionEl(trackRelEl);
+
+  _georef->setTrackRelTilt(trackRelTilt);
+  _georef->setTrackRelRot(trackRelRot);
+  _georef->setTrackRelAz(trackRelAz);
+  _georef->setTrackRelEl(trackRelEl);
 
 }
 
@@ -1857,6 +1946,36 @@ void RadxRay::incrementGeorefNotMissingCount(RadxGeoref &count)
 {
   if (_georef != NULL) {
     _georef->incrementIfNotMissing(count);
+  }
+}
+
+/////////////////////////////////////////////////////////////////
+/// Set angles for elevation surveillance mode
+/// In SWEEP_MODE_ELEVATION_SURVEILLANCE mode, if georefs are
+/// available copy rotation to azimuth, and tilt to elevation.
+
+void RadxRay::setAnglesForElevSurveillance()
+  
+{
+  
+  if (getSweepMode() == Radx::SWEEP_MODE_ELEVATION_SURVEILLANCE) {
+    const RadxGeoref *georef = getGeoreference();
+    if (georef != NULL) {
+      double rollCorr = 0.0;
+      double rotCorr = 0.0;
+      double tiltCorr = 0.0;
+      const RadxCfactors *cfactors = getCfactors();
+      if (cfactors != NULL) {
+        rollCorr = cfactors->getRollCorr();
+        rotCorr = cfactors->getRotationCorr();
+        tiltCorr = cfactors->getTiltCorr();
+      }
+      double rotation = georef->getRotation() + rotCorr;
+      double roll = georef->getRoll() + rollCorr;
+      double tilt = georef->getTilt() + tiltCorr;
+      setAzimuthDeg(rotation + roll);
+      setElevationDeg(tilt);
+    }
   }
 }
 
@@ -2062,6 +2181,10 @@ void RadxRay::serialize(RadxMsg &msg)
                 fieldMsg.lengthAssembled());
 
   } // ifield
+
+  // assemble the message from the parts
+
+  msg.assemble();
 
 }
 

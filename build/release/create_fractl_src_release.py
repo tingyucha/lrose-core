@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===========================================================================
 #
@@ -29,6 +29,8 @@ def main():
 
     global thisScriptDir
     thisScriptDir = os.path.dirname(__file__)
+    if (len(thisScriptDir) == 0):
+        thisScriptDir = "."
     os.chdir(thisScriptDir)
     thisScriptDir = os.getcwd()
 
@@ -65,7 +67,7 @@ def main():
 
     usage = "usage: %prog [options]"
     releaseDirDefault = os.path.join(homeDir, 'releases')
-    logDirDefault = '/tmp/create_src_release/logs'
+    logDirDefault = '/tmp/create_fractl_src_release/logs'
     parser = OptionParser(usage)
     parser.add_option('--debug',
                       dest='debug', default=True,
@@ -256,11 +258,11 @@ def createReleaseInfoFile():
     global releaseInfoName
 
     # go to core dir
-    os.chdir(coreDir)
+    os.chdir(releaseDir)
 
     # open info file
 
-    releaseInfoPath = os.path.join(coreDir, releaseInfoName)
+    releaseInfoPath = os.path.join(releaseDir, releaseInfoName)
     info = open(releaseInfoPath, 'w')
 
     # write release info
@@ -351,43 +353,30 @@ def createTarFile():
 ########################################################################
 # template for brew formula
 
-template = """
+formulaBody = """
+
 require 'formula'
 
-class LroseCore < Formula
+class LroseFractl < Formula
+
   homepage 'https://github.com/mmbell/fractl'
 
   url '{0}'
   version '{1}'
   sha256 '{2}'
 
-  #depends_on 'hdf5' => 'enable-cxx'
-  #depends_on 'netcdf' => 'enable-cxx-compat'
-  #depends_on 'udunits'
-  #depends_on 'fftw'
-  #depends_on 'flex'
-  #depends_on 'jpeg'
-  #depends_on 'libpng'
   depends_on 'libzip'
-  #depends_on 'libomp'
-  #depends_on 'qt'
-  #depends_on 'szip'
-  #depends_on 'pkg-config'
   depends_on 'cmake'
   depends_on 'eigen'
-  depends_on 'geographiclib'
-  # depends_on 'armadillo'
   depends_on 'rsync'
-  #depends_on :x11
+  depends_on 'lrose-core'
 
   def install
 
     # Build/install fractl
-    # Dir.chdir("fractl")
-    ENV['LROSE_ROOT_DIR'] = prefix
+    ENV['LROSE_INSTALL_DIR'] = prefix
     system "cmake", "-DCMAKE_INSTALL_PREFIX=#{{prefix}}", "."
     system "make install"
-    Dir.chdir("..")
 
   end
 
@@ -409,9 +398,9 @@ def buildFractlFormula(tar_url, tar_name, formula_name):
     dash = tar_name.find('-')
     period = tar_name.find('.', dash)
     version = tar_name[dash+1:period]
-    checksum = subprocess.check_output(("sha256sum", tar_name))
-    checksum = checksum.split()[0]
-    formula = template.format(tar_url, version, checksum)
+    result = subprocess.check_output(("sha256sum", tar_name))
+    checksum = result.split()[0].decode('ascii')
+    formula = formulaBody.format(tar_url, version, checksum)
     outf = open(formula_name, 'w')
     outf.write(formula)
     outf.close()
@@ -427,26 +416,6 @@ def createBrewFormula():
 
     buildFractlFormula(tarUrl, tarName, formulaName)
     
-    # compute path for script to create formula
-    
-    #scriptName = "build_" + package + "_formula"
-    #scriptDir = os.path.join(buildDir, "formulas")
-    #scriptPath = os.path.join(scriptDir, scriptName)
-
-    # check if script exists
-    
-    #os.chdir(releaseDir)
-    #if (os.path.isfile(scriptPath) == False):
-    #    print("WARNING - ", thisScriptName, file=logFp)
-    #    print("  No script: ", scriptPath, file=logFp)
-    #    print("  Will not build brew formula for package", file=logFp)
-    #    return
-
-    # create the brew formula file
-
-    #shellCmd(scriptPath + " " + tarUrl + " " +
-    #         tarName + " " + formulaName)
-
 ########################################################################
 # prepare log file
 

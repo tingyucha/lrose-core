@@ -41,7 +41,6 @@
 #include <cassert>
 #include <iostream>
 #include <toolsa/pmu.h>
-#include <Spdb/DsSpdb.hh>
 #include "EgmCorrection.hh"
 #include "SpectraPrint.hh"
 #include "Iq2Dsr.hh"
@@ -135,6 +134,20 @@ Iq2Dsr::Iq2Dsr(int argc, char **argv)
     _params.check_for_missing_pulses = pTRUE;
   }
   
+  // read params for KdpFilt
+
+  if (strstr(_params.KDP_params_file_path, "use-defaults") == NULL) {
+    // not using defaults
+    if (_kdpParams.load(_params.KDP_params_file_path,
+                        NULL, true, false)) {
+      cerr << "ERROR: " << _progName << endl;
+      cerr << "Cannot read params file for KdpFilt: "
+           << _params.KDP_params_file_path << endl;
+      constructorOK = false;
+      return;
+    }
+  }
+
   // initalize calibration object, read in starting calibration
 
   _calib = new Calibration(_params);
@@ -166,7 +179,7 @@ Iq2Dsr::Iq2Dsr(int argc, char **argv)
   // create the beam reader
 
   pthread_mutex_init(&_beamRecyclePoolMutex, NULL);
-  _beamReader = new BeamReader(_progName, _params, _args,
+  _beamReader = new BeamReader(_progName, _params, _kdpParams, _args,
                                _beamRecyclePool, _beamRecyclePoolMutex,
                                _momentsMgrArray);
   if (!_beamReader->constructorOK) {
@@ -257,13 +270,55 @@ Iq2Dsr::~Iq2Dsr()
     cerr << "Entering Iq2Dsr destructor" << endl;
   }
 
-  // set write thread to exit
+  // unregister process
 
-  if (_params.debug >= Params::DEBUG_VERBOSE) {
-    pthread_mutex_lock(&_debugPrintMutex);
-    cerr << "==>> waiting for write thread to exit" << endl;
-    pthread_mutex_unlock(&_debugPrintMutex);
+  PMU_auto_unregister();
+
+  return;
+
+  // free memory
+  
+  // if (_beamReader) {
+  //   delete _beamReader;
+  // }
+  
+  for (size_t ii = 0; ii < _momentsMgrArray.size(); ii++) {
+    delete _momentsMgrArray[ii];
   }
+  _momentsMgrArray.clear();
+  
+  if (_fmq) {
+    delete _fmq;
+  }
+
+  if (_calib) {
+    delete _calib;
+  }
+  
+  for (size_t ii = 0; ii < _beamRecyclePool.size(); ii++) {
+    delete _beamRecyclePool[ii];
+  }
+
+  pthread_mutex_destroy(&_beamRecyclePoolMutex);
+  pthread_mutex_destroy(&_debugPrintMutex);
+
+  if (_params.debug) {
+    cerr << "Exiting Iq2Dsr destructor" << endl;
+  }
+
+}
+
+void Iq2Dsr::_cleanUp()
+
+{
+
+  if (_params.debug) {
+    cerr << "Entering _cleanUp" << endl;
+  }
+
+  _writeRemainingBeamsOnExit();
+
+  // set threads to exit
 
   if (_writeThread) {
     // write thread will process all beams waiting in the
@@ -271,17 +326,9 @@ Iq2Dsr::~Iq2Dsr()
     _writeThread->setExitFlag(true);
   }
   
-  // set thread pool to exit
-
   for (size_t ii = 0; ii < _threadPool.size(); ii++) {
     _threadPool[ii]->setExitFlag(true);
     _threadPool[ii]->signalWorkToStart();
-  }
-
-  // wait for write thread to exit
-
-  if (_writeThread) {
-    _writeThread->waitForWorkToComplete();
   }
 
   // end time
@@ -299,36 +346,8 @@ Iq2Dsr::~Iq2Dsr()
     cerr << "  Gates per second: " << gatesPerSec << endl;
   }
 
-  if (_beamReader) {
-    delete _beamReader;
-  }
-  
-  for (size_t ii = 0; ii < _momentsMgrArray.size(); ii++) {
-    delete _momentsMgrArray[ii];
-  }
-  _momentsMgrArray.clear();
-  
-  if (_fmq) {
-    delete _fmq;
-  }
-
-  if (_calib) {
-    delete _calib;
-  }
-  
-  // for (size_t ii = 0; ii < _beamRecyclePool.size(); ii++) {
-  //   delete _beamRecyclePool[ii];
-  // }
-
-  // pthread_mutex_destroy(&_beamRecyclePoolMutex);
-  // pthread_mutex_destroy(&_debugPrintMutex);
-
-  // unregister process
-
-  PMU_auto_unregister();
-
   if (_params.debug) {
-    cerr << "Exiting Iq2Dsr destructor" << endl;
+    cerr << "Exiting _cleanUp" << endl;
   }
 
 }
@@ -339,15 +358,21 @@ Iq2Dsr::~Iq2Dsr()
 int Iq2Dsr::Run ()
 {
 
+  int iret = 0;
+  
   if (_params.use_multiple_threads) {
     
-    return _runMultiThreaded();
+    iret = _runMultiThreaded();
 
   } else {
-
-    return _runSingleThreaded();
+    
+    iret = _runSingleThreaded();
 
   }
+
+  _cleanUp();
+  
+  return iret;
 
 }
 
@@ -359,10 +384,10 @@ int Iq2Dsr::_runSingleThreaded()
 
   int iret = 0;
   PMU_auto_register("Run single threaded");
-  time_t latestBeamTime = 0;
+  Beam *latestBeam = NULL;
   
   while (true) {
-
+    
     PMU_auto_register("Getting next beam");
 
     // get next incoming beam
@@ -371,8 +396,8 @@ int Iq2Dsr::_runSingleThreaded()
     if (beam == NULL) {
       break;
     }
-    
-    latestBeamTime = beam->getTimeSecs();
+
+    latestBeam = beam;
     _nGatesComputed += beam->getNGates();
     
     // process the current beam
@@ -384,13 +409,15 @@ int Iq2Dsr::_runSingleThreaded()
     
     _nBeamsThisVol++;
     _nBeamsSinceParams++;
-
+    
   } // while
   
   // put final end of sweep and volume flags
 
-  _fmq->putEndOfTilt(_currentSweepNum, latestBeamTime);
-  _fmq->putEndOfVolume(_currentVolNum, latestBeamTime);
+  if (latestBeam != NULL) {
+    _fmq->putEndOfTilt(_currentSweepNum, *latestBeam);
+    _fmq->putEndOfVolume(_currentVolNum, *latestBeam);
+  }
 
   return iret;
 
@@ -408,7 +435,7 @@ int Iq2Dsr::_runMultiThreaded()
   PMU_auto_register("Run multi-threaded");
 
   int iret = 0;
-  time_t latestBeamTime = 0;
+  Beam *latestBeam = NULL;
   
   Beam *beams[30];
   for (int ii = 0; ii < 30; ii++) {
@@ -420,9 +447,12 @@ int Iq2Dsr::_runMultiThreaded()
     // get next incoming beam
     
     Beam *beam = beams[ii % 30];
+    if (beam == NULL) {
+      continue;
+    }
     
     _nGatesComputed += beam->getNGates();
-    latestBeamTime = beam->getTime();
+    latestBeam = beam;
     
     // process the current beam
     
@@ -438,9 +468,11 @@ int Iq2Dsr::_runMultiThreaded()
   
   // put final end of sweep and volume flags
 
-  _fmq->putEndOfTilt(_currentSweepNum, latestBeamTime);
-  _fmq->putEndOfVolume(_currentVolNum, latestBeamTime);
-
+  if (latestBeam != NULL) {
+    _fmq->putEndOfTilt(_currentSweepNum, latestBeam);
+    _fmq->putEndOfVolume(_currentVolNum, latestBeam);
+  }
+  
   return iret;
 
 }
@@ -456,7 +488,7 @@ int Iq2Dsr::_runMultiThreaded()
   PMU_auto_register("Run multi-threaded");
 
   int iret = 0;
-  time_t latestBeamTime = 0;
+  Beam *latestBeam = NULL;
   
   while (true) {
 
@@ -470,7 +502,7 @@ int Iq2Dsr::_runMultiThreaded()
     }
     
     _nGatesComputed += beam->getNGates();
-    latestBeamTime = beam->getTimeSecs();
+    latestBeam = beam;
     
     // process the current beam
     
@@ -486,8 +518,10 @@ int Iq2Dsr::_runMultiThreaded()
   
   // put final end of sweep and volume flags
 
-  _fmq->putEndOfTilt(_currentSweepNum, latestBeamTime);
-  _fmq->putEndOfVolume(_currentVolNum, latestBeamTime);
+  if (latestBeam != NULL) {
+    _fmq->putEndOfTilt(_currentSweepNum, *latestBeam);
+    _fmq->putEndOfVolume(_currentVolNum, *latestBeam);
+  }
 
   return iret;
 
@@ -541,8 +575,6 @@ int Iq2Dsr::_processBeamSingleThreaded(Beam *beam)
   _beamRecyclePool.push_front(beam);
   pthread_mutex_unlock(&_beamRecyclePoolMutex);
 
-  // delete beam;
-
 #endif
 
   return 0;
@@ -575,6 +607,7 @@ int Iq2Dsr::_processBeamMultiThreaded(Beam *beam)
   // set the beam on the thread, and start the computations
 
   thread->setBeam(beam);
+  thread->setBeamReadyForWrite(false);
   thread->signalWorkToStart();
 
   return 0;
@@ -680,23 +713,29 @@ void *Iq2Dsr::_computeMomentsInThread(void *thread_data)
     
     // compute moments
 
-    if (app->getParams().debug >= Params::DEBUG_VERBOSE) {
-      pthread_mutex_t *debugPrintMutex = app->getDebugPrintMutex();
-      pthread_mutex_lock(debugPrintMutex);
-      cerr << "======>> starting beam compute" << endl;
-      pthread_mutex_unlock(debugPrintMutex);
-    }
-
     Beam *beam = compThread->getBeam();
-    beam->computeMoments();
-    
-    if (app->getParams().debug >= Params::DEBUG_VERBOSE) {
-      pthread_mutex_t *debugPrintMutex = app->getDebugPrintMutex();
-      pthread_mutex_lock(debugPrintMutex);
-      cerr << "======>> done with beam compute" << endl;
-      pthread_mutex_unlock(debugPrintMutex);
-    }
+    if (beam != NULL) {
 
+      if (app->getParams().debug >= Params::DEBUG_VERBOSE) {
+        pthread_mutex_t *debugPrintMutex = app->getDebugPrintMutex();
+        pthread_mutex_lock(debugPrintMutex);
+        cerr << "======>> starting beam compute, el, az: "
+             << beam->getEl() << ", " << beam->getAz() << endl;
+        pthread_mutex_unlock(debugPrintMutex);
+      }
+
+      // compute moments for this beam
+      beam->computeMoments();
+      compThread->setBeamReadyForWrite(true);
+      if (app->getParams().debug >= Params::DEBUG_VERBOSE) {
+        pthread_mutex_t *debugPrintMutex = app->getDebugPrintMutex();
+        pthread_mutex_lock(debugPrintMutex);
+        cerr << "======>> done with beam compute, el, az"
+             << beam->getEl() << ", " << beam->getAz() << endl;
+        pthread_mutex_unlock(debugPrintMutex);
+      }
+    }
+      
     // unlock done mutex
     
     compThread->signalParentWorkIsComplete();
@@ -782,33 +821,43 @@ int Iq2Dsr::writeBeams()
     _threadPoolRetrievePos = (_threadPoolRetrievePos + 1) % _threadPoolSize;
     
     // get the beam from the thread
-
+    
     Beam *beam = thread->getBeam();
     
-    // write the sweep and volume flags
-    
-    _handleSweepAndVolChange(beam);
-    
-    // write the radar params, field params and calibration
-    
-    _writeParamsAndCalib(beam);
-    
-    // write beam to FMQ
+    if (beam != NULL && thread->getBeamReadyForWrite()) {
 
-    beam->setVolNum(_currentVolNum);
-    beam->setSweepNum(_currentSweepNum);
-    if (_fmq->writeBeam(*beam)) {
-      cerr << "ERROR - Iq2Dsr::_writeBeams" << endl;
-      cerr << "  Cannot write the beam data to output FMQ" << endl;
-      _writeThread->setReturnCode(-1);
+      // write the sweep and volume flags
+      
+      _handleSweepAndVolChange(beam);
+      
+      // write the radar params, field params and calibration
+      
+      _writeParamsAndCalib(beam);
+      
+      // write beam to FMQ
+      
+      beam->setVolNum(_currentVolNum);
+      beam->setSweepNum(_currentSweepNum);
+      if (_fmq->writeBeam(*beam)) {
+        cerr << "ERROR - Iq2Dsr::_writeBeams" << endl;
+        cerr << "  Cannot write the beam data to output FMQ" << endl;
+        _writeThread->setReturnCode(-1);
+      }
+      
+      // clear out beam pointer
+      // clear ready for write flag
+      
+      thread->setBeam(NULL);
+      thread->setBeamReadyForWrite(false);
+      
     }
-
+    
     // mark thread as available
 
     thread->markAsAvailable();
 
     // delete the beam
-
+    
 #ifdef TESTING
 #else  
 
@@ -821,6 +870,85 @@ int Iq2Dsr::writeBeams()
   } // while
 
   return -1;
+
+}
+
+///////////////////////////////////////////////////////////
+// Write out remaining beams on exit
+
+int Iq2Dsr::_writeRemainingBeamsOnExit()
+  
+{
+
+  if (!_params.use_multiple_threads) {
+    return 0;
+  }
+    
+  int iret = 0;
+  int startRetrievePos = _threadPoolRetrievePos;
+  int endRetrievePos = (startRetrievePos - 1) % _threadPoolSize;
+
+  int retrievePos = startRetrievePos;
+  int count = 0;
+  while (retrievePos != endRetrievePos) {
+
+    // get thread pointer
+    
+    ComputeThread *thread = _threadPool[retrievePos];
+    
+    // advance retrieve position
+
+    retrievePos = (retrievePos + 1) % _threadPoolSize;
+    
+    // get the beam from the thread
+    
+    Beam *beam = thread->getBeam();
+    
+    if (beam != NULL) {
+
+      // check beam is ready
+
+      if (!thread->getBeamReadyForWrite()) {
+        umsleep(500);
+      }
+
+      if (thread->getBeamReadyForWrite()) {
+        
+        // write the sweep and volume flags
+        
+        _handleSweepAndVolChange(beam);
+        
+        // write the radar params, field params and calibration
+        
+        _writeParamsAndCalib(beam);
+        
+        // write beam to FMQ
+        
+        beam->setVolNum(_currentVolNum);
+        beam->setSweepNum(_currentSweepNum);
+        if (_fmq->writeBeam(*beam)) {
+          cerr << "ERROR - Iq2Dsr::_writeBeams" << endl;
+          cerr << "  Cannot write the beam data to output FMQ" << endl;
+          iret = -1;
+        }
+
+      } // if (thread->getBeamReadyForWrite())
+        
+      // clear out beam pointer and ready for write flag
+      
+      thread->setBeam(NULL);
+      thread->setBeamReadyForWrite(false);
+      
+    } // if (beam != NULL)
+
+    count++;
+    if (count > 2 * _threadPoolSize) {
+      break;
+    }
+    
+  } // while (_threadPoolRetrievePos != endRetrievePos) {
+
+  return iret;
 
 }
 
@@ -852,13 +980,14 @@ void Iq2Dsr::_handleSweepAndVolChange(const Beam *beam)
   
   _beamScanMode = beam->getScanMode();
   if (_currentScanMode != _beamScanMode) {
-    _fmq->putNewScanType(_beamScanMode, beam->getTimeSecs());
+    _fmq->putNewScanType(_beamScanMode, *beam);
     _currentScanMode = _beamScanMode;
     if (_params.set_end_of_sweep_when_antenna_changes_direction) {
       _endOfVolPending = true;
     }
     if (_params.debug) {
-      cerr << "Scan mode change to: " << iwrf_scan_mode_to_str(_currentScanMode) << endl;
+      cerr << "Scan mode change to: "
+           << iwrf_scan_mode_to_str(_currentScanMode) << endl;
     }
   }
 
@@ -922,7 +1051,7 @@ void Iq2Dsr::_handleSweepAndVolChange(const Beam *beam)
   // end of sweep?
 
   if (_endOfSweepFlag) {
-    _fmq->putEndOfTilt(_currentSweepNum, beam->getTimeSecs());
+    _fmq->putEndOfTilt(_currentSweepNum, *beam);
     if (_params.debug) {
       cerr << "End of sweep num: " << _currentSweepNum << endl;
     }
@@ -932,7 +1061,7 @@ void Iq2Dsr::_handleSweepAndVolChange(const Beam *beam)
   // end of vol?
   
   if (_endOfVolFlag) {
-    _putEndOfVol(beam->getTimeSecs());
+    _putEndOfVol(beam);
   }
   
   // start of vol?
@@ -940,7 +1069,7 @@ void Iq2Dsr::_handleSweepAndVolChange(const Beam *beam)
   if (_startOfVolPending) {
     if (!_params.delay_tilt_start_msg_during_ant_trans ||
         !_antennaTransition) {
-      _fmq->putStartOfVolume(_currentVolNum, beam->getTimeSecs());
+      _fmq->putStartOfVolume(_currentVolNum, *beam);
       if (_params.debug) {
         cerr << "Start of vol num: " << _currentVolNum << endl;
       }
@@ -953,7 +1082,7 @@ void Iq2Dsr::_handleSweepAndVolChange(const Beam *beam)
   if (_startOfSweepPending) {
     if (!_params.delay_tilt_start_msg_during_ant_trans ||
         !_antennaTransition) {
-      _fmq->putStartOfTilt(_currentSweepNum, beam->getTimeSecs());
+      _fmq->putStartOfTilt(_currentSweepNum, *beam);
       if (_params.debug) {
         cerr << "Start of sweep num: " << _currentSweepNum << endl;
       }
@@ -966,11 +1095,11 @@ void Iq2Dsr::_handleSweepAndVolChange(const Beam *beam)
 ////////////////////////////////////////////////////////////////////////
 // Put end of volume
 
-void Iq2Dsr::_putEndOfVol(time_t latestTime)
+void Iq2Dsr::_putEndOfVol(const Beam *beam)
   
 {
 
-  _fmq->putEndOfVolume(_currentVolNum, latestTime);
+  _fmq->putEndOfVolume(_currentVolNum, *beam);
   if (_params.debug) {
     cerr << "End of vol num: " << _currentVolNum << endl;
   }
@@ -1034,9 +1163,9 @@ void Iq2Dsr::_deduceEndOfVol(const Beam *beam)
   
   if (_endOfVolFlag) {
     
-    _fmq->putEndOfVolume(_currentVolNum, beam->getTimeSecs());
+    _fmq->putEndOfVolume(_currentVolNum, *beam);
     _currentVolNum++;
-    _fmq->putStartOfVolume(_currentVolNum, beam->getTimeSecs());
+    _fmq->putStartOfVolume(_currentVolNum, *beam);
     
     _volMinEl = 180.0;
     _volMaxEl = -180.0;
@@ -1107,7 +1236,7 @@ void Iq2Dsr::_changeSweepOnDirectionChange(const Beam *beam)
   // set flags on change
   
   _endOfSweepFlag = true;
-  _fmq->putEndOfTilt(_currentSweepNum, beam->getTimeSecs());
+  _fmq->putEndOfTilt(_currentSweepNum, *beam);
 
   if (dirnChange && _params.debug) {
     cerr << "Dirn change, end of sweep num: " << _currentSweepNum << endl;
@@ -1145,7 +1274,7 @@ void Iq2Dsr::_changeSweepOnDirectionChange(const Beam *beam)
   }
   
   if (_endOfVolFlag) {
-    _fmq->putEndOfVolume(_currentVolNum, beam->getTimeSecs());
+    _fmq->putEndOfVolume(_currentVolNum, *beam);
     if (_params.debug) {
       cerr << "End of vol num: " << _currentVolNum << endl;
     }
@@ -1154,7 +1283,7 @@ void Iq2Dsr::_changeSweepOnDirectionChange(const Beam *beam)
     } else {
       _currentVolNum = _beamVolNum;
     }
-    _fmq->putStartOfVolume(_currentVolNum, beam->getTimeSecs());
+    _fmq->putStartOfVolume(_currentVolNum, *beam);
     if (_params.debug) {
       cerr << "Start of vol num: " << _currentVolNum << endl;
     }
@@ -1165,7 +1294,7 @@ void Iq2Dsr::_changeSweepOnDirectionChange(const Beam *beam)
   
   // start of sweep
   
-  _fmq->putStartOfTilt(_currentSweepNum, beam->getTimeSecs());
+  _fmq->putStartOfTilt(_currentSweepNum, *beam);
   if (_params.debug) {
     cerr << "Start of sweep num: " << _currentSweepNum << endl;
   }

@@ -42,8 +42,12 @@
 #include "Args.hh"
 #include <toolsa/file_io.h>
 #include <toolsa/str.h>
-#include <toolsa/Path.hh>
 #include <toolsa/sincos.h>
+#include <toolsa/TaXml.hh>
+#include <titan/TitanFile.hh>
+#include <titan/Titan2Xml.hh>
+#include <titan/TitanStormFile.hh>
+#include <titan/TitanTrackFile.hh>
 #include <cerrno>
 #include <vector>
 #include <map>
@@ -58,6 +62,9 @@ PrintTitanFiles::PrintTitanFiles(int argc, char **argv)
   // initialize
 
   OK = true;
+  _isNcFile = false;
+  _isStormFile = false;
+  _isTrackFile = false;
   
   // set programe name
   
@@ -90,38 +97,138 @@ PrintTitanFiles::~PrintTitanFiles()
 int PrintTitanFiles::Run()
 {
 
-  // read the file label
-
-  char file_label[R_FILE_LABEL_LEN];
-  if (_readLabel(file_label)) {
+  // set the print details
+  
+  if (_setPrintDetails()) {
     return -1;
   }
   
-  // show info for given file type
-
-  if (!strcmp(file_label, STORM_HEADER_FILE_TYPE)) {
-
-    if (_printStormFile()) {
+  if (_args.printLegacy) {
+    // print using legacy mode
+    if (_printLegacy()) {
       return -1;
     }
-
-  } else if (!strcmp(file_label, TRACK_HEADER_FILE_TYPE)) {
-
-    if (_printTrackFile()) {
-      return -1;
-    }
-
   } else {
-
-    cerr << "ERROR - " << _progName << endl;
-    cerr << "Unknown file type: " << _args.path << endl;
-    return -1;
-
+    if (_printNcFile()) {
+      return -1;
+    }
   }
-
+  
   return 0;
 
 }
+
+//////////////////////////////////////////////////
+// Print using legacy methods
+
+int PrintTitanFiles::_printLegacy()
+{
+
+  if (_args.dataChoice == Args::not_set) {
+    cerr << "ERROR - " << _progName << endl;
+    cerr << "Unknown file type: " << _args.path << endl;
+    return -1;
+  }
+  
+  // print info for given file type
+
+  if (_args.dataChoice == Args::printBoth ||
+      _args.dataChoice == Args::printStorms) {
+    if (_args.printAsXml) {
+      if (_printStormsXml()) {
+        return -1;
+      }
+    } else {
+      if (_printStormFileLegacy()) {
+        return -1;
+      }
+    }
+  } // if (_args.dataChoice ...
+  
+  if (_args.dataChoice == Args::printBoth ||
+      _args.dataChoice == Args::printTracks) {
+    if (_args.printAsXml) {
+      if (_printTracksXml()) {
+        return -1;
+      }
+    } else {
+      if (_printTrackFileLegacy()) {
+        return -1;
+      }
+    }
+  } // if (_args.dataChoice ...
+  
+  return 0;
+
+}
+
+//////////////////////////////////////////////////
+// set print method details
+
+int PrintTitanFiles::_setPrintDetails()
+{
+
+  // file format
+  
+  Path inputPath(_args.path);
+  if (inputPath.getExt() == "nc") {
+    _isNcFile = true;
+    if (_args.dataChoice == Args::not_set) {
+      _args.dataChoice = Args::printStorms;
+    }
+    _ncFilePath = inputPath;
+  } else if (inputPath.getExt() == "sh5") {
+    _isStormFile = true;
+    if (_args.dataChoice == Args::not_set) {
+      _args.dataChoice = Args::printStorms;
+    }
+    _stormFilePath = inputPath;
+    _trackFilePath = inputPath.getDirectory() + PATH_DELIM + inputPath.getBase() + ".th5";
+    _args.printLegacy = true;
+  } else if (inputPath.getExt() == "th5") {
+    _isTrackFile = true;
+    if (_args.dataChoice == Args::not_set) {
+      _args.dataChoice = Args::printTracks;
+    }
+    _trackFilePath = inputPath;
+    _stormFilePath = inputPath.getDirectory() + PATH_DELIM + inputPath.getBase() + ".sh5";
+    _args.printLegacy = true;
+  } else {
+    cerr << "ERROR - PrintTitanFiles::_setPrintDetails" << endl;
+    cerr << "  Bad input file: " << inputPath.getPath() << endl;
+    return -1;
+  }
+  
+  // read the file label
+
+  if (_isStormFile) {
+    char file_label[R_FILE_LABEL_LEN];
+    if (_readLabel(file_label)) {
+      return -1;
+    }
+    if (strcmp(file_label, STORM_HEADER_FILE_TYPE)) {
+      cerr << "ERROR - PrintTitanFiles::_setPrintDetails" << endl;
+      cerr << "  Bad storm file: " << inputPath.getPath() << endl;
+      cerr << "  Header label is incorrect: " << file_label << endl;
+      return -1;
+    }
+  } else if (_isTrackFile) {
+    char file_label[R_FILE_LABEL_LEN];
+    if (_readLabel(file_label)) {
+      return -1;
+    }
+    if (strcmp(file_label, TRACK_HEADER_FILE_TYPE)) {
+      cerr << "ERROR - PrintTitanFiles::_setPrintDetails" << endl;
+      cerr << "  Bad track file: " << inputPath.getPath() << endl;
+      cerr << "  Header label is incorrect: " << file_label << endl;
+      return -1;
+    }
+  }
+    
+  return 0;
+
+}
+
 
 //////////////////////////////////////////////////
 // read label
@@ -163,11 +270,480 @@ int PrintTitanFiles::_readLabel(char *label)
 
 
 //////////////////////////////////////////////////
-// printStormFile
+// printStormFile - legacy version
 
 #define BOOL_STR(a) (a == 0? "false" : "true")
 
-int PrintTitanFiles::_printStormFile()
+int PrintTitanFiles::_printNcFile()
+  
+{
+
+  // open file
+  
+  TitanFile tFile;
+  if (tFile.openFile(_ncFilePath.getPath(), NcxxFile::read)) {
+    cerr << "ERROR - PrintTitanFiles::_printNcFile" << endl;
+    cerr << tFile.getErrStr() << endl;
+    return -1;
+  }
+
+  // print storms
+
+  if (_args.dataChoice == Args::printStorms ||
+      _args.dataChoice == Args::printBoth) {
+    _printStormsNc(tFile);
+  }
+  
+  // print tracks
+
+  if (_args.dataChoice == Args::printTracks ||
+      _args.dataChoice == Args::printBoth) {
+    _printTracksNc(tFile);
+  }
+  
+  // close file
+
+  tFile.closeFile();
+
+  return 0;
+
+}
+
+int PrintTitanFiles::_printStormsNc(TitanFile &tFile)
+  
+{
+
+  //  read in storm properties file header
+  
+  if (tFile.readStormHeader()) {
+    cerr << "ERROR - PrintTitanFiles::_printNcFile" << endl;
+    cerr << tFile.getErrStr() << endl;
+    return -1;
+  }
+
+  int n_scans = tFile.stormHeader().n_scans;
+  const TitanData::StormParams &sparams = tFile.stormHeader().params;
+  
+  // print out header
+  
+  fprintf(stdout, "STORM FILE\n");
+  fprintf(stdout, "==========\n");
+  fprintf(stdout, "\n");
+  tFile.stormHeader().print(stdout, "  ");
+
+  /*
+   * loop through scans
+   */
+  
+  for (int iscan = 0; iscan < n_scans; iscan++) {
+
+    /*
+     * read in scan info
+     */
+
+    if (tFile.readScan(iscan)) {
+      cerr << "ERROR - PrintTitanFiles::_printNcFile" << endl;
+      cerr << tFile.getErrStr() << endl;
+      return -1;
+    }
+
+    const TitanData::ScanHeader &scan = tFile.scan();
+    
+    /*
+     * print out s_handle.scan info
+     */
+
+    if (_args.printSummary) {
+      
+      printf("Scan, time, nstorms : %4d %s %4d\n",
+	     scan.scan_num, utimstr(scan.time), scan.nstorms);
+
+    } else {
+      
+      scan.print(stdout, "    ");
+      
+      if (_args.printFull) {
+        
+	for (int istorm = 0; istorm < scan.nstorms; istorm++) {
+	  
+	  if (tFile.readStormAux(istorm)) {
+	    cerr << "ERROR - PrintTitanFiles::_printNcFile" << endl;
+	    cerr << tFile.getErrStr() << endl;
+	    return -1;
+	  }
+
+          const TitanData::StormGprops &gprops = tFile.gprops()[istorm];
+          gprops.print(stdout, "      ", tFile.stormParams(), scan);
+          TitanData::StormLprops::print(stdout, "      ", scan, gprops, tFile.lprops());
+          TitanData::StormDbzHist::print(stdout, "      ", sparams, gprops, tFile.hist());
+          TitanData::StormRun::printRuns(stdout, "      ", gprops, tFile.runs());
+          TitanData::StormRun::printProjRuns(stdout, "      ", gprops, tFile.projRuns());
+          
+	} // istorm
+
+      } // f (_args.printFull)
+
+    } // if (_args.printSummary)
+
+  } // iscan
+  
+  return 0;
+
+}
+
+int PrintTitanFiles::_printTracksNc(TitanFile &tFile)
+  
+{
+
+  //  read in storm properties file header
+  
+  if (tFile.readStormHeader()) {
+    cerr << "ERROR - PrintTitanFiles::_printNcFile" << endl;
+    cerr << tFile.getErrStr() << endl;
+    return -1;
+  }
+
+  // int n_scans = tFile.stormHeader().n_scans;
+  // const TitanData::StormParams &sparams = tFile.stormHeader().params;
+  
+  // read in track properties file header
+  
+  if (tFile.readTrackHeader()) {
+    cerr << "ERROR - PrintTitanFiles::_printNcFile" << endl;
+    cerr << tFile.getErrStr() << endl;
+    return -1;
+  }
+  
+  if (tFile.readSimplesPerComplex()) {
+    cerr << "ERROR - PrintTitanFiles::_printNcFile" << endl;
+    cerr << tFile.getErrStr() << endl;
+    return -1;
+  }
+
+  // print out header
+  
+  printf("TRACK FILE\n");
+  printf("==========\n");
+  printf("\n");
+  
+  tFile.trackHeader().print(stdout, "  ");
+  
+  if (_args.printFull) {
+    TitanData::printTrackArrays(stdout, "  ",
+                                tFile.trackHeader(),
+                                tFile.complexTrackNums(),
+                                tFile.nSimplesPerComplex(),
+                                tFile.simplesPerComplexOffsets(),
+                                tFile.simplesPerComplex2D(),
+                                tFile.scanIndexes());
+  }
+
+  // if full listing, print out track info
+  
+  if (_args.printFull) {
+    if (_printTrackFullNc(tFile)) {
+      return -1;
+    }
+  } else if (_args.printSummary) {
+    if (_printTrackSummaryNc(tFile)) {
+      return -1;
+    }
+  }
+    
+  return 0;
+
+}
+
+/////////////////////////////////////////////////////////////////////
+// Print track in full
+
+int PrintTitanFiles::_printTrackFullNc(TitanFile &tFile)
+  
+  
+{
+  
+  // const TitanData::StormParams &sparams = tFile.stormHeader().params;
+  // const TitanData::TrackingParams &tparams = tFile.trackHeader().params;
+
+  const TitanData::TrackVerify &verify = tFile.trackHeader().verify;
+  bool printVerification = verify.verification_performed;
+  if (_args.printVerification) {
+    printVerification = true;
+  }
+  
+  /*
+   * complex tracks
+   */
+  
+  for (int icomplex = 0;
+       icomplex < tFile.trackHeader().n_complex_tracks; icomplex++) {
+
+    int complex_track_num = tFile.complexTrackNums()[icomplex];
+    
+    if (_args.trackNum >= 0 &&
+	_args.trackNum != complex_track_num) {
+      continue;
+    }
+
+    if (tFile.readComplexTrackParams(complex_track_num, true)) {
+      cerr << "ERROR - PrintTitanFiles::_printTrackFull" << endl;
+      cerr << tFile.getErrStr() << endl;
+      return -1;
+    }
+
+    tFile.complexParams().print(stdout, "    ",
+                                printVerification,
+                                tFile.simplesPerComplex2D()[complex_track_num]);
+    
+    // simple tracks in this complex track
+    
+    for (int isimple = 0;
+	 isimple < tFile.complexParams().n_simple_tracks; isimple++) {
+      
+      int simple_track_num =
+	tFile.simplesPerComplex2D()[complex_track_num][isimple];
+
+      // prepare to read in simple track
+
+      if (tFile.rewindSimpleTrack(simple_track_num)) {
+	cerr << "ERROR - PrintTitanFiles::_printTrackFull" << endl;
+	cerr << tFile.getErrStr() << endl;
+	return -1;
+      }
+
+      tFile.simpleParams().print(stdout, "      ");
+      
+      // loop through the track entries
+      
+      for (int ientry = 0;
+	   ientry < tFile.simpleParams().duration_in_scans; ientry++) {
+	
+	if (tFile.readTrackEntry()) {
+	  cerr << "ERROR - PrintTitanFiles::_printTrackFull" << endl;
+	  cerr << tFile.getErrStr() << endl;
+	  return -1;
+	}
+	
+	const TitanData::TrackEntry &entry = tFile.entry();
+	
+	// check that simple and complex track numbers are
+	// correct
+	
+	if (entry.complex_track_num !=
+	    tFile.complexParams().complex_track_num) {
+	  fprintf(stderr, "\aERROR: complex track num "
+		  "incorrect in entry\n");
+	  fprintf(stderr, "complex_params->complex_track_num : %d\n",
+		  tFile.complexParams().complex_track_num);
+	  fprintf(stderr, "entry.complex_track_num : %d\n",
+		  entry.complex_track_num);
+	}
+	
+	if (entry.simple_track_num !=
+	    tFile.simpleParams().simple_track_num) {
+	  fprintf(stderr, "\aERROR: simple track num "
+		  "incorrect in entry\n");
+	  fprintf(stderr, "simple_params->simple_track_num : %d\n",
+		  tFile.simpleParams().simple_track_num);
+	  fprintf(stderr, "entry.simple_track_num : %d\n",
+		  entry.simple_track_num);
+	}
+
+        entry.print(stdout, "        ", ientry);
+	
+	if (_args.trackNum >= 0) {
+	  
+	  // read in storm props
+	  
+	  if (tFile.readScan(entry.scan_num)) {
+	    cerr << "ERROR - PrintTitanFiles::_printTrackFull" << endl;
+	    cerr << tFile.getErrStr() << endl;
+	    return -1;
+	  }
+
+	  const TitanData::ScanHeader &scan = tFile.scan();
+	  
+	  // print out sfile.scan info
+
+          scan.print(stdout, "    ");
+
+          if (tFile.readStormAux(entry.storm_num)) {
+	    cerr << "ERROR - PrintTitanFiles::_printTrackFull" << endl;
+	    cerr << tFile.getErrStr() << endl;
+	    return -1;
+	  }
+          
+          tFile.gprops()[entry.storm_num].print(stdout, "      ", tFile.stormParams(), scan);
+
+          TitanData::StormLprops::print(stdout, "      ", scan,
+                                        tFile.gprops()[entry.storm_num],
+                                        tFile.lprops());
+	  
+          TitanData::StormDbzHist::print(stdout, "      ",
+                                         tFile.stormParams(),
+                                         tFile.gprops()[entry.storm_num],
+                                         tFile.hist());
+	  
+          TitanData::StormRun::printRuns(stdout, "      ",
+                                         tFile.gprops()[entry.storm_num],
+                                         tFile.runs());
+	  
+          TitanData::StormRun::printProjRuns(stdout, "      ",
+                                             tFile.gprops()[entry.storm_num],
+                                             tFile.projRuns());
+	  
+	} // if (_args.trackNum >= 0)
+	
+      } // ientry
+      
+    } // isimple
+    
+    printf("\n");
+    
+  } // icomplex
+
+  return 0;
+
+}
+
+/////////////////////////////////////////////////////////////////////
+// Print track in summary
+
+int PrintTitanFiles::_printTrackSummaryNc(TitanFile &tFile)
+  
+
+{
+
+  const TitanData::TrackVerify &verify = tFile.trackHeader().verify;
+  bool printVerification = verify.verification_performed;
+  if (_args.printVerification) {
+    printVerification = true;
+  }
+  
+  // complex tracks
+  
+  if (tFile.trackHeader().n_complex_tracks > 0) {
+    fprintf(stdout, "COMPLEX TRACKS\n\n");
+  }
+  
+  for (int icomplex = 0;
+       icomplex < tFile.trackHeader().n_complex_tracks; icomplex++) {
+    
+    int complex_track_num = tFile.complexTrackNums()[icomplex];
+    if (_args.trackNum >= 0 && _args.trackNum != complex_track_num) {
+      continue;
+    }
+
+    if (tFile.readComplexTrackParams(complex_track_num, true)) {
+      cerr << "ERROR - PrintTitanFiles::_printTrackSummary" << endl;
+      cerr << tFile.getErrStr() << endl;
+      return -1;
+    }
+    
+    const TitanData::ComplexTrackParams &ct_params = tFile.complexParams();
+
+    // continue to next track if this one is too short
+
+    if (ct_params.duration_in_secs < _args.minDuration) {
+      continue;
+    }
+    
+    tFile.complexParams().print(stdout, "    ",
+                                printVerification,
+                                tFile.simplesPerComplex2D()[complex_track_num]);
+
+    // loop through simple tracks in this complex track
+  
+    for (int isimple = 0; isimple < ct_params.n_simple_tracks; isimple++) {
+    
+      int complex_track_num = ct_params.complex_track_num;
+      int simple_track_num = tFile.simplesPerComplex2D()[complex_track_num][isimple];
+
+      // prepare to read in simple track
+
+      if (tFile.rewindSimpleTrack(simple_track_num)) {
+	cerr << "ERROR - PrintTitanFiles::_printTrackSummary" << endl;
+	cerr << tFile.getErrStr() << endl;
+	return -1;
+      }
+      
+      const TitanData::SimpleTrackParams &st_params = tFile.simpleParams();
+
+      // loop through the track entries
+      
+      fprintf(stdout, "\nTRACK NUMBER %d/%d\n\n",
+              complex_track_num, simple_track_num);
+      
+      fprintf(stdout, "%4s %10s %8s %7s %7s %7s %7s %7s %7s %7s %7s\n",
+              "scan", "date", "time", "refl-x", "refl-y", "refl-z", "delta-z",
+              "volume", "mass", "av area", "max dbz");
+      
+      fprintf(stdout, "%4s %10s %8s %7s %7s %7s %7s %7s %7s %7s %7s\n",
+              " ", " ", " ", "(km)", "(km)", "(km)", "(km)",
+              "(km3)", "(ktons)", "(km2)", "(dbz)");
+      
+      for (int ientry = 0; ientry < st_params.duration_in_scans; ientry++) {
+      
+	if (tFile.readTrackEntry()) {
+	  cerr << "ERROR - PrintTitanFiles::_printTrackSummary" << endl;
+	  cerr << tFile.getErrStr() << endl;
+	  return -1;
+	}
+      
+	const TitanData::TrackEntry &entry = tFile.entry();
+
+        // read in scan info
+        
+        if (tFile.readScan(entry.scan_num)) {
+          cerr << "ERROR - PrintTitanFiles::_printTrackSummary" << endl;
+          cerr << tFile.getErrStr() << endl;
+          return -1;
+        }
+        
+	if (tFile.readStormAux(entry.scan_num)) {
+	  cerr << "ERROR - PrintTitanFiles::_printTrackSummary" << endl;
+	  cerr << tFile.getErrStr() << endl;
+	  return -1;
+	}
+
+	int istorm = entry.storm_num;
+	const TitanData::StormGprops &gprops = tFile.gprops()[istorm];
+	
+	// print out storm data
+	
+	fprintf(stdout, 
+		"%4d %s "
+		"%7.1f %7.1f %7.1f %7.1f %7.1f"
+		"%7.1f %7.1f %7.1f\n", 
+		tFile.scan().scan_num,
+		utimstr(tFile.scan().time),
+		gprops.refl_centroid_x,
+		gprops.refl_centroid_y,
+		gprops.refl_centroid_z,
+		gprops.refl_centroid_z - gprops.vol_centroid_z,
+		gprops.volume,
+		gprops.mass,
+		gprops.area_mean,
+		gprops.dbz_max);
+	
+      } // ientry
+
+    } // isimple
+	
+  } // icomplex
+  
+  fprintf(stdout, "\n");
+  
+  return 0;
+
+}
+
+//////////////////////////////////////////////////
+// printStormFile - legacy version
+
+#define BOOL_STR(a) (a == 0? "false" : "true")
+
+int PrintTitanFiles::_printStormFileLegacy()
 
 {
 
@@ -175,7 +751,7 @@ int PrintTitanFiles::_printStormFile()
   
   // open storm properties files
   
-  if (sfile.OpenFiles("r", _args.path.c_str())) {
+  if (sfile.OpenFiles("r", _stormFilePath.getPath().c_str(), "sd5")) {
     cerr << "ERROR - PrintTitanFiles::_printStormFile" << endl;
     cerr << sfile.getErrStr() << endl;
     return -1;
@@ -284,16 +860,16 @@ int PrintTitanFiles::_printStormFile()
 }
 
 //////////////////////////////////////////////////
-// printTrackFile
+// printTrackFile - legacy version
 
-int PrintTitanFiles::_printTrackFile()
+int PrintTitanFiles::_printTrackFileLegacy()
 
 {
 
   // open track properties files
   
   TitanTrackFile tfile;
-  if (tfile.OpenFiles("r", _args.path.c_str())) {
+  if (tfile.OpenFiles("r", _trackFilePath.getPath().c_str(), "td5")) {
     cerr << "ERROR - PrintTitanFiles::_printTrackFile" << endl;
     cerr << tfile.getErrStr() << endl;
     return -1;
@@ -386,11 +962,11 @@ int PrintTitanFiles::_printTrackFile()
   // if full listing, print out track info
   
   if (_args.printFull) {
-    if (_printTrackFull(sfile, tfile)) {
+    if (_printTrackFullLegacy(sfile, tfile)) {
       return -1;
     }
   } else if (_args.printSummary) {
-    if (_printTrackSummary(sfile, tfile)) {
+    if (_printTrackSummaryLegacy(sfile, tfile)) {
       return -1;
     }
   } else if (_args.printCsvTable) {
@@ -429,8 +1005,8 @@ int PrintTitanFiles::_printTrackFile()
 /////////////////////////////////////////////////////////////////////
 // Print track in full
 
-int PrintTitanFiles::_printTrackFull(TitanStormFile &sfile,
-                                     TitanTrackFile &tfile)
+int PrintTitanFiles::_printTrackFullLegacy(TitanStormFile &sfile,
+                                           TitanTrackFile &tfile)
   
 
 {
@@ -439,13 +1015,18 @@ int PrintTitanFiles::_printTrackFull(TitanStormFile &sfile,
   const track_file_params_t &tparams = tfile.header().params;
   const track_file_verify_t &verify = tfile.header().verify;
 
+  bool printVerification = verify.verification_performed;
+  if (_args.printVerification) {
+    printVerification = true;
+  }
+  
   /*
    * complex tracks
    */
   
   for (int icomplex = 0;
        icomplex < tfile.header().n_complex_tracks; icomplex++) {
-  
+
     int complex_track_num = tfile.complex_track_nums()[icomplex];
     
     if (_args.trackNum >= 0 &&
@@ -460,7 +1041,7 @@ int PrintTitanFiles::_printTrackFull(TitanStormFile &sfile,
     }
     
     RfPrintComplexTrackParams(stdout, "    ",
-			      verify.verification_performed,
+			      printVerification,
 			      &tparams,
 			      &tfile.complex_params(),
 			      tfile.simples_per_complex()[complex_track_num]);
@@ -579,13 +1160,17 @@ int PrintTitanFiles::_printTrackFull(TitanStormFile &sfile,
 /////////////////////////////////////////////////////////////////////
 // Print track in summary
 
-int PrintTitanFiles::_printTrackSummary(TitanStormFile &sfile,
-                                        TitanTrackFile &tfile)
+int PrintTitanFiles::_printTrackSummaryLegacy(TitanStormFile &sfile,
+                                              TitanTrackFile &tfile)
   
 
 {
 
   const track_file_verify_t &verify = tfile.header().verify;
+  bool printVerification = verify.verification_performed;
+  if (_args.printVerification) {
+    printVerification = true;
+  }
 
   // complex tracks
   
@@ -616,7 +1201,7 @@ int PrintTitanFiles::_printTrackSummary(TitanStormFile &sfile,
     }
     
     RfPrintComplexTrackParams(stdout, "    ",
-			      verify.verification_performed,
+			      printVerification,
 			      &tfile.header().params,
 			      &tfile.complex_params(),
 			      tfile.simples_per_complex()[complex_track_num]);
@@ -664,6 +1249,14 @@ int PrintTitanFiles::_printTrackSummary(TitanStormFile &sfile,
       
 	const track_file_entry_t &entry = tfile.entry();
 
+        // read in scan info
+        
+        if (sfile.ReadScan(entry.scan_num)) {
+          cerr << "ERROR - PrintTitanFiles::_printTrackSummary" << endl;
+          cerr << sfile.getErrStr() << endl;
+          return -1;
+        }
+        
 	if (sfile.ReadProps(entry.scan_num)) {
 	  cerr << "ERROR - PrintTitanFiles::_printTrackSummary" << endl;
 	  cerr << sfile.getErrStr() << endl;
@@ -1279,6 +1872,357 @@ int PrintTitanFiles::_printCsvTableType5(TitanStormFile &sfile,
     } // isimple
     
   } // icomplex
+
+  return 0;
+
+}
+
+//////////////////////////////////////////////////
+// print storms as XML
+
+int PrintTitanFiles::_printStormsXml()
+
+{
+
+  TitanStormFile sfile;
+  
+  // open storm properties files
+  
+  if (sfile.OpenFiles("r", _args.path.c_str())) {
+    cerr << "ERROR - PrintTitanFiles::_printStormsXml" << endl;
+    cerr << sfile.getErrStr() << endl;
+    return -1;
+  }
+
+  //  read in storm properties file header
+
+  if (sfile.ReadHeader()) {
+    cerr << "ERROR - PrintTitanFiles::_printStormsXml" << endl;
+    cerr << sfile.getErrStr() << endl;
+    return -1;
+  }
+
+  int n_scans = sfile.header().n_scans;
+  const storm_file_header_t &sheader = sfile.header();
+  const storm_file_params_t &sparams = sheader.params;
+  
+  // header
+
+  string xml;
+  string mainTag = "titan_storm_data";
+  xml += TaXml::writeStartTag(mainTag, 0);
+  xml += Titan2Xml::stormFileHeader("storm_file_header", 1, sheader);
+
+  /*
+   * loop through scans
+   */
+  
+  for (int iscan = 0; iscan < n_scans; iscan++) {
+
+    string scanTag("scan");
+    xml += TaXml::writeStartTag(scanTag, 1, "scan_num", iscan);
+    
+    /*
+     * read in scan info
+     */
+
+    if (sfile.ReadScan(iscan)) {
+      cerr << "ERROR - PrintTitanFiles::_printStormsXml" << endl;
+      cerr << sfile.getErrStr() << endl;
+      return -1;
+    }
+
+    const storm_file_scan_header_t &scan = sfile.scan();
+    const titan_grid_t &grid = scan.grid;
+    
+    xml += Titan2Xml::stormScanHeader("scan_header", 2, scan);
+    
+    for (int istorm = 0; istorm < scan.nstorms; istorm++) {
+
+      string stormTag("storm");
+      xml += TaXml::writeStartTag(stormTag, 2, "storm_num", istorm);
+      
+      if (sfile.ReadProps(istorm)) {
+        cerr << "ERROR - PrintTitanFiles::_printStormsXml" << endl;
+        cerr << sfile.getErrStr() << endl;
+        return -1;
+      }
+      
+      const storm_file_global_props_t &gprops = sfile.gprops()[istorm];
+      xml += Titan2Xml::stormGlobalProps("global_props", 3, sparams, gprops);
+
+      for (int ilayer = 0; ilayer < gprops.n_layers; ilayer++) {
+        const storm_file_layer_props_t &lprops = sfile.lprops()[ilayer];
+        int layerNum = ilayer + gprops.base_layer;
+        xml += Titan2Xml::stormLayerProps("layer_props", 3, layerNum, grid, lprops);
+      }
+      
+      for (int ihist = 0; ihist < gprops.n_dbz_intervals; ihist++) {
+        const storm_file_dbz_hist_t &entry = sfile.hist()[ihist];
+        xml += Titan2Xml::stormDbzHistEntry("dbz_hist_bin", 3,
+                                            ihist, sparams, entry);
+      }
+
+      xml += TaXml::writeEndTag(stormTag, 2);
+
+    } // istorm
+    
+    xml += TaXml::writeEndTag(scanTag, 1);
+
+  } // iscan
+  
+  xml += TaXml::writeEndTag(mainTag, 0);
+
+   // close files and return
+
+  sfile.CloseFiles();
+
+  // print to stdout
+  
+  cout << xml << endl;
+
+  return 0;
+
+}
+
+//////////////////////////////////////////////////
+// print tracks as XML
+
+int PrintTitanFiles::_printTracksXml()
+
+{
+
+  // open track properties files
+  
+  TitanTrackFile tfile;
+  if (tfile.OpenFiles("r", _args.path.c_str())) {
+    cerr << "ERROR - PrintTitanFiles::_printTracksXml" << endl;
+    cerr << tfile.getErrStr() << endl;
+    return -1;
+  }
+  
+  // read in track properties file header
+
+  if (tfile.ReadHeader()) {
+    cerr << "ERROR - PrintTitanFiles::_printTracksXml" << endl;
+    cerr << tfile.getErrStr() << endl;
+    return -1;
+  }
+
+  const track_file_header_t &theader = tfile.header();
+  const track_file_verify_t &verify = theader.verify;
+  bool printVerification = verify.verification_performed;
+  if (_args.printVerification) {
+    printVerification = true;
+  }
+
+
+  if (tfile.ReadSimplesPerComplex()) {
+    cerr << "ERROR - PrintTitanFiles::_printTracksXml" << endl;
+    cerr << tfile.getErrStr() << endl;
+    return -1;
+  }
+
+  // header
+
+  string xml;
+  string mainTag = "titan_track_data";
+  xml += TaXml::writeStartTag(mainTag, 0);
+  xml += Titan2Xml::trackFileHeader("track_file_header", 1, theader);
+
+  // open storm file
+
+  Path trackPath(_args.path);
+  string stormFilePath = trackPath.getDirectory();
+  stormFilePath += PATH_DELIM;
+  stormFilePath += tfile.header().storm_header_file_name;
+
+  TitanStormFile sfile;
+  if (sfile.OpenFiles("r", stormFilePath.c_str())) {
+    cerr << "ERROR - PrintTitanFiles::_printTracksXml" << endl;
+    cerr << sfile.getErrStr() << endl;
+    return -1;
+  }
+
+  // read in storm properties file header
+  
+  if (sfile.ReadHeader()) {
+    cerr << "ERROR - PrintTitanFiles::_printTracksXml" << endl;
+    cerr << sfile.getErrStr() << endl;
+    return -1;
+  }
+
+  const storm_file_header_t &sheader = sfile.header();
+  const storm_file_params_t &sparams = sheader.params;
+
+  // complex tracks
+  
+  for (int icomplex = 0;
+       icomplex < tfile.header().n_complex_tracks; icomplex++) {
+
+    int complex_track_num = tfile.complex_track_nums()[icomplex];
+    
+    if (_args.trackNum >= 0 &&
+	_args.trackNum != complex_track_num) {
+      continue;
+    }
+    
+    string ctrackTag("complex_track");
+    xml += TaXml::writeStartTag(ctrackTag, 1,
+                                "complex_track_num", complex_track_num);
+    
+    if (tfile.ReadComplexParams(complex_track_num, true)) {
+      cerr << "ERROR - PrintTitanFiles::_printTrackXml" << endl;
+      cerr << tfile.getErrStr() << endl;
+      return -1;
+    }
+    
+    xml += Titan2Xml::complexTrackParams("complex_track_params", 2,
+                                         printVerification,
+                                         tfile.complex_params());
+    
+    // simple tracks in this complex track
+    
+    for (int isimple = 0;
+	 isimple < tfile.complex_params().n_simple_tracks; isimple++) {
+      
+      int simple_track_num =
+	tfile.simples_per_complex()[complex_track_num][isimple];
+      
+      string strackTag("simple_track");
+      xml += TaXml::writeStartTag(strackTag, 2,
+                                  "simple_track_num", simple_track_num);
+      
+      // prepare to read in simple track
+      
+      if (tfile.RewindSimple(simple_track_num)) {
+	cerr << "ERROR - PrintTitanFiles::_printTrackXml" << endl;
+	cerr << tfile.getErrStr() << endl;
+	return -1;
+      }
+      
+      xml += Titan2Xml::simpleTrackParams("simple_track_params",
+                                          3,
+                                          tfile.simple_params());
+      
+      // loop through the track entries
+      
+      for (int ientry = 0;
+	   ientry < tfile.simple_params().duration_in_scans; ientry++) {
+
+	if (tfile.ReadEntry()) {
+	  cerr << "ERROR - PrintTitanFiles::_printTrackXml" << endl;
+	  cerr << tfile.getErrStr() << endl;
+	  return -1;
+	}
+	
+	const track_file_entry_t &entry = tfile.entry();
+	
+	// check that simple and complex track numbers are
+	// correct
+	
+	if (entry.complex_track_num !=
+	    tfile.complex_params().complex_track_num) {
+	  fprintf(stderr, "\aERROR: complex track num "
+		  "incorrect in entry\n");
+	  fprintf(stderr, "complex_params->complex_track_num : %d\n",
+		  tfile.complex_params().complex_track_num);
+	  fprintf(stderr, "entry.complex_track_num : %d\n",
+		  entry.complex_track_num);
+	}
+	
+	if (entry.simple_track_num !=
+	    tfile.simple_params().simple_track_num) {
+	  fprintf(stderr, "\aERROR: simple track num "
+		  "incorrect in entry\n");
+	  fprintf(stderr, "simple_params->simple_track_num : %d\n",
+		  tfile.simple_params().simple_track_num);
+	  fprintf(stderr, "entry.simple_track_num : %d\n",
+		  entry.simple_track_num);
+	}
+
+	if (_args.trackNum < 0) {
+
+          // no track selected
+          // just print out the track entry header
+          
+          xml += Titan2Xml::trackEntry("track_entry", 3, entry, ientry);
+
+        } else {
+
+          // track selected, print entry header plus storm props
+          
+          string etag("track_entry");
+          xml += TaXml::writeStartTag(etag, 3, "entry_num", ientry);
+          
+	  // read in scan plus global props
+	  
+	  if (sfile.ReadScan(entry.scan_num)) {
+	    cerr << "ERROR - PrintTitanFiles::_printTrackXml" << endl;
+	    cerr << sfile.getErrStr() << endl;
+	    return -1;
+	  }
+
+          const storm_file_scan_header_t &scan = sfile.scan();
+          const titan_grid_t &grid = scan.grid;
+          
+          xml += Titan2Xml::stormScanHeader("scan_header", 4, scan);
+          
+          // read in full props for this storm
+
+          int storm_num = entry.storm_num;
+          string stormTag("storm");
+          xml += TaXml::writeStartTag(stormTag, 4,
+                                      "storm_num", storm_num);
+          
+	  if (sfile.ReadProps(storm_num)) {
+	    cerr << "ERROR - PrintTitanFiles::_printTrackXml" << endl;
+	    cerr << sfile.getErrStr() << endl;
+	    return -1;
+	  }
+          
+          const storm_file_global_props_t &gprops = sfile.gprops()[storm_num];
+          xml += Titan2Xml::stormGlobalProps("global_props", 5,
+                                             sparams, gprops);
+
+          for (int ilayer = 0; ilayer < gprops.n_layers; ilayer++) {
+            const storm_file_layer_props_t &lprops = sfile.lprops()[ilayer];
+            int layerNum = ilayer + gprops.base_layer;
+            xml += Titan2Xml::stormLayerProps("layer_props", 5,
+                                              layerNum, grid, lprops);
+          }
+          
+          for (int ihist = 0; ihist < gprops.n_dbz_intervals; ihist++) {
+            const storm_file_dbz_hist_t &entry = sfile.hist()[ihist];
+            xml += Titan2Xml::stormDbzHistEntry("hist", 5,
+                                                ihist, sparams, entry);
+          }
+          
+          xml += TaXml::writeEndTag(stormTag, 4);
+          xml += TaXml::writeEndTag(etag, 3);
+          
+	} // if (_args.trackNum < 0)
+	
+      } // ientry
+      
+      xml += TaXml::writeEndTag(strackTag, 2);
+
+    } // isimple
+    
+    xml += TaXml::writeEndTag(ctrackTag, 1);
+    
+  } // icomplex
+  
+  xml += TaXml::writeEndTag(mainTag, 0);
+
+  // close files and return
+  
+  sfile.CloseFiles();
+  tfile.CloseFiles();
+
+  // print to stdout
+  
+  cout << xml << endl;
 
   return 0;
 

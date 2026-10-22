@@ -46,6 +46,8 @@
 #include <radar/RadarCalib.hh>
 #include <Radx/RadxFile.hh>
 #include <Radx/RadxGeoref.hh>
+#include <Radx/RadxStatusXml.hh>
+#include <Radx/RadxMsg.hh>
 using namespace std;
 
 ////////////////////////////////////////////////////
@@ -54,7 +56,6 @@ using namespace std;
 IwrfMomReader::IwrfMomReader()
   
 {
-  _opsInfo.setDebug(IWRF_DEBUG_OFF);
   _nonBlocking = false;
   _msecsNonblockingWait = 0;
   _msecsBlockingTimeout = -1;
@@ -62,6 +63,7 @@ IwrfMomReader::IwrfMomReader()
   _endOfFile = false;
   _latestRay = NULL;
   _savedRay = NULL;
+  _useSavedRay = false;
   _rayReady = false;
   _debug = IWRF_DEBUG_OFF;
 }
@@ -103,8 +105,8 @@ void IwrfMomReader::seekToEnd()
 // Returns RadxRay pointer on success, NULL on failure.
 //
 // This method is used by the FMQ and TCP subclasses.
-// It calls the virtual _getNextMsg() method, which will use the
-// appropriate device.
+// It calls the virtual _getNextMsg() method, which will
+// use the appropriate device.
 //
 // Caller is responsible for freeing the ray.
 //
@@ -141,7 +143,16 @@ RadxRay *IwrfMomReader::readNextRay()
     while (!_rayReady) {
       
       if (_getNextMsg()) {
-        return NULL;
+        if (_useSavedRay) {
+          // no rays immediately available, make use of saved
+          // ray if it is available
+          userRay = _savedRay;
+          _savedRay = NULL;
+          _latestRay = NULL;
+          return userRay;
+        } else {
+          return NULL;
+        }
       }
       
       // try disassembling as a DsRadarMsg
@@ -154,7 +165,7 @@ RadxRay *IwrfMomReader::readNextRay()
           continue;
         }
       } else {
-        if (_handleIwrfMessage()) {
+        if (_handleRadxMsg()) {
           continue;
         }
       }
@@ -648,14 +659,140 @@ void IwrfMomReader::_setRcalibIndex()
 }
 
 /////////////////////////////////////////////////////////////////////
-// handle input IWRF message
+// handle input Radx message
 //
 // returns 0 on success, -1 on failure
 
-int IwrfMomReader::_handleIwrfMessage()
+int IwrfMomReader::_handleRadxMsg()
 
 {
+
+  // disassemble message
+  
+  RadxMsg msg;
+  if (msg.disassemble(_msgBuf.getPtr(), _msgBuf.getLen())) {
+    return -1;
+  }
+
+  ///////////////// platform ///////////////////////////////
+  
+  if (msg.getMsgType() == RadxMsg::RadxPlatformMsg) {
+    if (_platform.deserialize(msg)) {
+      cerr << "ERROR - IwrfMomReader::_handleRadxMsg()" << endl;
+      cerr << "  Cannot deseralize platform from RadxMsg" << endl;
+      msg.printHeader(cerr, "  ");
+      return -1;
+    }
+    if (_debug >= IWRF_DEBUG_EXTRA) {
+      cerr << "=========>> IwrfMomReader got RadxPlatform" << endl;
+    }
+    _latestFlags.platformUpdated = true;
+    return 0;
+  }
+
+  ///////////////// calibration ////////////////////////
+  
+  if (msg.getMsgType() == RadxMsg::RadxRcalibMsg) {
+
+    if (_debug >= IWRF_DEBUG_EXTRA) {
+      cerr << "=========>> got RADAR_CALIB" << endl;
+    }
+
+    RadxRcalib rcal;
+    if (rcal.deserialize(msg)) {
+      cerr << "ERROR - IwrfMomReader::_handleRadxMsg()" << endl;
+      cerr << "  Cannot deseralize calibration from RadxMsg" << endl;
+      msg.printHeader(cerr, "  ");
+      return -1;
+    }
+
+    // remove cal with the same pulse width
+    // if one already exists
+    
+    double thisPulseWidth = rcal.getPulseWidthUsec();
+    for (vector<RadxRcalib>::iterator ii = _rcalibs.begin();
+         ii != _rcalibs.end(); ii++) {
+      double prevPulseWidth = ii->getPulseWidthUsec();
+      if (fabs(thisPulseWidth - prevPulseWidth) < 0.0001) {
+        // same pulse width, so remove existing one
+        _rcalibs.erase(ii);
+        break;
+      }
+    }
+
+    // store it
+    
+    _rcalibs.push_back(rcal);
+
+    if (_debug >= IWRF_DEBUG_EXTRA) {
+      cerr << "=========>> IwrfMomReader got RadxRcalib" << endl;
+    }
+    _latestFlags.rcalibUpdated = true;
+    return 0;
+
+  }
+  
+  ///////////////// event ////////////////////////
+  
+  if (msg.getMsgType() == RadxMsg::RadxEventMsg) {
+
+    RadxEvent event;
+    if (event.deserialize(msg)) {
+      cerr << "ERROR - IwrfMomReader::_handleRadxMsg()" << endl;
+      cerr << "  Cannot deseralize event from RadxMsg" << endl;
+      msg.printHeader(cerr, "  ");
+      return -1;
+    }
+    
+    _latestEvents.push_back(event);
+
+    if (_debug >= IWRF_DEBUG_EXTRA) {
+      cerr << "=========>> IwrfMomReader got RadxEvent" << endl;
+    }
+    
+    
+    return 0;
+  }
+  
+  ///////////////// status xml /////////////////////////////
+  
+  if (msg.getMsgType() == RadxMsg::RadxStatusXmlMsg) {
+    RadxStatusXml status;
+    if (status.deserialize(msg)) {
+      cerr << "ERROR - IwrfMomReader::_handleRadxMsg()" << endl;
+      cerr << "  Cannot deseralize status xml from RadxMsg" << endl;
+      msg.printHeader(cerr, "  ");
+      return -1;
+    }
+    if (_debug >= IWRF_DEBUG_EXTRA) {
+      cerr << "=========>> IwrfMomReader got RadxStatusXml" << endl;
+    }
+    _statusXml = status.getXmlStr();
+    _latestFlags.statusXmlUpdated = true;
+    return 0;
+  }
+
+  ///////////////// ray ////////////////////////
+  
+  if (msg.getMsgType() == RadxMsg::RadxRayMsg) {
+
+    if (_latestRay->deserialize(msg)) {
+      cerr << "ERROR - IwrfMomReader::_handleRadxMsg()" << endl;
+      cerr << "  Cannot deseralize ray from RadxMsg" << endl;
+      msg.printHeader(cerr, "  ");
+      return -1;
+    }
+
+    _setEventFlags();
+    _setRcalibIndex();
+    _rayReady = true;
+    
+    return 0;
+    
+  }
+  
   return 0;
+
 }
 
 /////////////////////////////////////
@@ -673,6 +810,7 @@ int IwrfMomReader::_getNextMsg()
 // Read pulses from FILE
 // Derived class
 
+//////////////////////////////////////////////////////////////
 // REALTIME mode, read files as they arrive
 // Specify input directory to watch.
 //
@@ -686,6 +824,8 @@ IwrfMomReaderFile::IwrfMomReaderFile(const char *input_dir,
         IwrfMomReader()
         
 {
+
+  _inputDir = input_dir;
   
   _input = new DsInputPath("IwrfMomReaderFile",
                            false,
@@ -695,10 +835,39 @@ IwrfMomReaderFile::IwrfMomReaderFile(const char *input_dir,
                            use_ldata_info);
   
   _rayIndex = 0;
+  _startTimeFound = false;
 
 }
 
-// ARCHIVE mode - specify list of files to be read
+//////////////////////////////////////////////////////////////
+// ARCHIVE mode, read rays between start and end time.
+// Specify input directory.
+
+IwrfMomReaderFile::IwrfMomReaderFile(const char *input_dir,
+                                     const RadxTime &start_time,
+                                     const RadxTime &end_time) :
+        IwrfMomReader()
+        
+{
+  
+  _inputDir = input_dir;
+  
+  _archiveStartTime = start_time;
+  _archiveEndTime = end_time;
+  
+  _input = new DsInputPath("IwrfMomReaderFile",
+                           false,
+                           input_dir,
+                           start_time.utime(),
+                           end_time.utime());
+
+  _rayIndex = 0;
+  _startTimeFound = false;
+
+}
+
+////////////////////////////////////////////////////
+// FILELIST mode - specify list of files to be read
 
 IwrfMomReaderFile::IwrfMomReaderFile(const vector<string> &fileList) :
         IwrfMomReader(),
@@ -708,6 +877,7 @@ IwrfMomReaderFile::IwrfMomReaderFile(const vector<string> &fileList) :
 
   _input = new DsInputPath("IwrfMomReaderFile", false, _fileList);
   _rayIndex = 0;
+  _startTimeFound = false;
 
 }
 
@@ -762,7 +932,7 @@ RadxRay *IwrfMomReaderFile::readNextRay()
   _savedEvents.clear();
   
   // check the next ray is available in the current file
-  
+
   if (_rayIndex >= _vol.getRays().size()) {
     // need new file - flags will be set
     if (_readNextFile()) {
@@ -775,10 +945,33 @@ RadxRay *IwrfMomReaderFile::readNextRay()
     _flags.clear();
   }
   
+  // in archive mode, and for first file,
+  // read until ray time exceeds start time
+
+  if (_archiveStartTime.utime() != RadxTime::NEVER && !_startTimeFound) {
+    for (size_t iray = 0; iray < _vol.getRays().size(); iray++) {
+      _rayIndex = iray;
+      const RadxRay &ray = *_vol.getRays()[_rayIndex];
+      if (ray.getRadxTime() >= _archiveStartTime) {
+        break;
+      }
+    }
+  }
+  _startTimeFound = true;
+
   const RadxRay &thisRay = *_vol.getRays()[_rayIndex];
   RadxEvent event;
   event.setFromRayFlags(thisRay);
   
+  // in archive mode check if ray time is after end time
+  
+  if (_archiveEndTime.utime() != RadxTime::NEVER) {
+    if (thisRay.getRadxTime() > _archiveEndTime) {
+      // ray time is beyond end time
+      return NULL;
+    }
+  }
+
   if (_rayIndex == 0) {
     // start of volume
     _events.push_back(event);
@@ -795,7 +988,7 @@ RadxRay *IwrfMomReaderFile::readNextRay()
 
   RadxRay *ray = new RadxRay(thisRay);
   _rayIndex++;
-  
+
   return ray;
 
 }
@@ -899,8 +1092,6 @@ IwrfMomReaderFmq::IwrfMomReaderFmq(const char *input_fmq,
         _positionFmqAtStart(position_at_start)
         
 {
-  _nParts = 0;
-  _pos = 0;
   _fmqIsOpen = false;
 }
 
@@ -983,12 +1174,30 @@ int IwrfMomReaderFmq::_getNextMsg()
       return -1;
     }
   } else {
-    if (_fmq.readMsgBlocking()) {
-      cerr << "ERROR - IwrfMomReaderFmq::_getNextMsg" << endl;
-      cerr << _fmq.getErrStr() << endl;
-      _fmq.closeMsgQueue();
-      _fmqIsOpen = false;
-      return -1;
+    if (_savedRay == NULL) {
+      // read blocking, need to wait for data
+      if (_fmq.readMsgBlocking()) {
+        cerr << "ERROR - IwrfMomReaderFmq::_getNextMsg" << endl;
+        cerr << _fmq.getErrStr() << endl;
+        _fmq.closeMsgQueue();
+        _fmqIsOpen = false;
+        return -1;
+      }
+    } else {
+      // read non-blocking with 0.5 sec timeout
+      bool gotOne = false;
+      if (_fmq.readMsg(&gotOne, -1, 500)) {
+        cerr << "ERROR - IwrfMomReaderFmq::_getNextMsg" << endl;
+        cerr << _fmq.getErrStr() << endl;
+        _fmq.closeMsgQueue();
+        _fmqIsOpen = false;
+        return -1;
+      }
+      if (!gotOne) {
+        // no immediate data available, so used saved ray
+        _useSavedRay = true;
+        return -1;
+      }
     }
   }
 

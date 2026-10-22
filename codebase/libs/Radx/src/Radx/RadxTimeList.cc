@@ -37,6 +37,7 @@
 #include <Radx/RadxStr.hh>
 #include <Radx/RadxPath.hh>
 #include <Radx/RadxReadDir.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <iomanip>
 #include <iterator>
 #include <algorithm>
@@ -176,6 +177,20 @@ void RadxTimeList::setModeFirstAfter(RadxTime search_time,
 }
 
 /////////////////////////////////////////////////////////////////
+// SetModeAll
+//
+// set the time list mode so that it finds all the available data time
+
+void RadxTimeList::setModeAll()
+  
+{
+
+  clearMode();
+  _mode = MODE_ALL;
+
+}
+
+/////////////////////////////////////////////////////////////////
 // clearMode
 //
 // clear out time list mode info
@@ -275,6 +290,9 @@ int RadxTimeList::compile()
     case MODE_FIRST_AFTER:
       _compileFirstAfter(topDir);
       break;
+    case MODE_ALL:
+      _compileAll(topDir);
+      break;
     case MODE_UNDEFINED:
       break;
   } // switch
@@ -332,7 +350,7 @@ string RadxTimeList::getRequestString() const
              _mode == MODE_FIRST_BEFORE ||
              _mode == MODE_FIRST_AFTER) {
     req += "  search time: " + _searchTime.asString() + "\n";
-    sprintf(text, "    time margin(secs): %lg\n", _timeMargin);
+    safe_snprintf(text, "    time margin(secs): %lg\n", _timeMargin);
     req += text;
   }
 
@@ -419,10 +437,10 @@ void RadxTimeList::_compileClosest(const string &topDir)
   // use best forecast search, centered on the search time
 
   TimePathSet timePaths;
-  RadxTime startTime = _searchTime - _timeMargin;
-  RadxTime endTime = _searchTime + _timeMargin;
+  RadxTime searchStartTime = _searchTime - _timeMargin;
+  RadxTime searchEndTime = _searchTime + _timeMargin;
   
-  _addClosest(topDir, _searchTime, startTime, endTime, timePaths);
+  _addClosest(topDir, _searchTime, searchStartTime, searchEndTime, timePaths);
 
   // fill time lists
 
@@ -444,10 +462,10 @@ void RadxTimeList::_compileFirstBefore(const string &topDir)
   // use best forecast search, ending at the search time
 
   TimePathSet timePaths;
-  RadxTime startTime = _searchTime - _timeMargin;
-  RadxTime endTime = _searchTime;
+  RadxTime searchStartTime = _searchTime - _timeMargin;
+  RadxTime searchEndTime = _searchTime;
   
-  _addClosest(topDir, _searchTime, startTime, endTime, timePaths);
+  _addClosest(topDir, _searchTime, searchStartTime, searchEndTime, timePaths);
     
   // fill time lists
 
@@ -469,10 +487,10 @@ void RadxTimeList::_compileFirstAfter(const string &topDir)
   // use best forecast search, starting at the search time
   
   TimePathSet timePaths;
-  RadxTime startTime = _searchTime;
-  RadxTime endTime = _searchTime + _timeMargin;
+  RadxTime searchStartTime = _searchTime;
+  RadxTime searchEndTime = _searchTime + _timeMargin;
   
-  _addClosest(topDir, _searchTime, startTime, endTime, timePaths);
+  _addClosest(topDir, _searchTime, searchStartTime, searchEndTime, timePaths);
     
   // fill time lists
 
@@ -485,34 +503,54 @@ void RadxTimeList::_compileFirstAfter(const string &topDir)
 }
 
 ///////////////////////////////////////////////////
+// compile all
+
+void RadxTimeList::_compileAll(const string &topDir)
+
+{
+
+  // get the first time
+
+  TimePathSet timePaths;
+  _addAll(topDir, timePaths);
+
+  TimePathSet::iterator ii;
+  for (ii = timePaths.begin(); ii != timePaths.end(); ii++) {
+    _fileStartTimes.push_back(ii->fileStartTime);
+    _pathList.push_back(ii->path);
+  } // ii
+
+}
+
+///////////////////////////////////////////////////
 // Search for interval times
 
 void RadxTimeList::_searchForValid(const string &topDir,
-                                   RadxTime startTime,
-                                   RadxTime endTime,
+                                   RadxTime searchStartTime,
+                                   RadxTime searchEndTime,
                                    TimePathSet &timePaths)
   
 {
 
   // search through days in time range
   
-  int startDay = startTime.utime() / RadxTime::RADX_SECS_IN_DAY;
-  if (startTime.utime() < 0) {
+  int startDay = searchStartTime.utime() / RadxTime::RADX_SECS_IN_DAY;
+  if (searchStartTime.utime() < 0) {
     startDay -= 1;
   }
-  int endDay = endTime.utime() / RadxTime::RADX_SECS_IN_DAY;
-  if (endTime.utime() < 0) {
+  int endDay = searchEndTime.utime() / RadxTime::RADX_SECS_IN_DAY;
+  if (searchEndTime.utime() < 0) {
     endDay -= 1;
   }
   
   TimePathSet all;
 
   _searchDayRange(topDir, startDay, endDay,
-                  startTime, endTime, all);
+                  searchStartTime, searchEndTime, all);
 
   if (_fileStartTimes.size() == 0) {
     _searchTopDir(topDir, startDay, endDay,
-                  startTime, endTime, all);
+                  searchStartTime, searchEndTime, all);
   }
 
   if (all.size() < 1) {
@@ -564,7 +602,7 @@ void RadxTimeList::_searchForValid(const string &topDir,
   for (; mm != all.end(); mm++, count++) {
     TimePath tpath = *mm;
     tpath.fileEndTime = fileEndTimes[count];
-    if (tpath.fileStartTime <= endTime && tpath.fileEndTime >= startTime) {
+    if (tpath.fileStartTime <= searchEndTime && tpath.fileEndTime >= searchStartTime) {
       timePaths.insert(timePaths.end(), tpath);
     }
   } // mm
@@ -583,8 +621,8 @@ void RadxTimeList::_searchForValid(const string &topDir,
 void RadxTimeList::_searchDayRange(const string &dir,
                                    int startDay,
                                    int endDay,
-                                   RadxTime startTime,
-                                   RadxTime endTime,
+                                   RadxTime searchStartTime,
+                                   RadxTime searchEndTime,
                                    TimePathSet &timePaths)
   
 {
@@ -599,18 +637,18 @@ void RadxTimeList::_searchDayRange(const string &dir,
 
     // normal format
 
-    sprintf(dayDir, "%s%s%.4d%.2d%.2d",
-	    dir.c_str(), RadxPath::RADX_PATH_DELIM,
-	    midday.getYear(), midday.getMonth(), midday.getDay());
-    _searchDay(dayDir, midday, startTime, endTime, timePaths);
+    safe_snprintf(dayDir, "%s%s%.4d%.2d%.2d",
+                  dir.c_str(), RadxPath::RADX_PATH_DELIM,
+                  midday.getYear(), midday.getMonth(), midday.getDay());
+    _searchDay(dayDir, midday, searchStartTime, searchEndTime, timePaths);
 
     // extended format
     
-    sprintf(dayDir, "%s%s%.4d%s%.4d%.2d%.2d",
-	    dir.c_str(), RadxPath::RADX_PATH_DELIM, 
-            midday.getYear(), RadxPath::RADX_PATH_DELIM, 
-	    midday.getYear(), midday.getMonth(), midday.getDay());
-    _searchDay(dayDir, midday, startTime, endTime, timePaths);
+    safe_snprintf(dayDir, "%s%s%.4d%s%.4d%.2d%.2d",
+                  dir.c_str(), RadxPath::RADX_PATH_DELIM, 
+                  midday.getYear(), RadxPath::RADX_PATH_DELIM, 
+                  midday.getYear(), midday.getMonth(), midday.getDay());
+    _searchDay(dayDir, midday, searchStartTime, searchEndTime, timePaths);
 
   } // iday
 
@@ -623,8 +661,8 @@ void RadxTimeList::_searchDayRange(const string &dir,
 void RadxTimeList::_searchTopDir(const string &dir,
                                  int startDay,
                                  int endDay,
-                                 RadxTime startTime,
-                                 RadxTime endTime,
+                                 RadxTime searchStartTime,
+                                 RadxTime searchEndTime,
                                  TimePathSet &timePaths)
   
 {
@@ -638,11 +676,11 @@ void RadxTimeList::_searchTopDir(const string &dir,
     
     // normal format
     
-    _searchDay(dir, midday, startTime, endTime, timePaths);
+    _searchDay(dir, midday, searchStartTime, searchEndTime, timePaths);
 
     // extended format
     
-    _searchDay(dir, midday, startTime, endTime, timePaths);
+    _searchDay(dir, midday, searchStartTime, searchEndTime, timePaths);
 
   } // iday
 
@@ -653,8 +691,8 @@ void RadxTimeList::_searchTopDir(const string &dir,
 
 void RadxTimeList::_searchDay(const string &dayDir,
                               const RadxTime &midday,
-                              RadxTime startTime,
-                              RadxTime endTime,
+                              RadxTime searchStartTime,
+                              RadxTime searchEndTime,
                               TimePathSet &timePaths)
   
 {
@@ -674,7 +712,7 @@ void RadxTimeList::_searchDay(const string &dayDir,
 	continue;
       }
       
-      _addValid(dayDir, midday, dp->d_name, startTime, endTime, timePaths);
+      _addValid(dayDir, midday, dp->d_name, searchStartTime, searchEndTime, timePaths);
       
     } // dp
     
@@ -690,127 +728,39 @@ void RadxTimeList::_searchDay(const string &dayDir,
 void RadxTimeList::_addValid(const string &dayDir,
                              const RadxTime &midday,
                              const string &entryName,
-                             RadxTime startTime,
-                             RadxTime endTime,
+                             RadxTime searchStartTime,
+                             RadxTime searchEndTime,
                              TimePathSet &timePaths)
   
 {
 
-  // exclude entry names which are too short
-  
-  if (entryName.size() < 6) {
-    return;
-  }
-  
-  // find first digit in entry name - if no digits, return now
-
-  const char *start = NULL;
-  for (size_t ii = 0; ii < entryName.size(); ii++) {
-    if (isdigit(entryName[ii])) {
-      start = entryName.c_str() + ii;
-      break;
-    }
-  }
-  if (!start) return;
-  const char *end = start + strlen(start);
-
-  // get time
-
-  RadxTime fileStartTime;
-  RadxTime fileEndTime;
-  int year, month, day, hour, min, sec, msec;
-  int eyear, emonth, eday, ehour, emin, esec, emsec;
-  char cc, ecc;
-  while (start < end - 6) {
-    if (strncmp(entryName.c_str(), "swp.", 4) == 0) {
-      // dorade sweep file
-      RadxTime doradeTime;
-      if (getDoradeTime(entryName, doradeTime)) {
-        return;
-      }
-      fileStartTime = doradeTime;
-      fileEndTime = doradeTime;
-      break;
-    } else if (sscanf(start, "%4d%2d%2d%1c%2d%2d%2d.%3d_to_%4d%2d%2d%1c%2d%2d%2d.%3d",
-                      &year, &month, &day, &cc, &hour, &min, &sec, &msec,
-                      &eyear, &emonth, &eday, &ecc, &ehour, &emin, &esec, &emsec) == 16) {
-      // start/end format - yyyymmdd_hhmmss.mmm_to_yyyymmdd_hhmmss.mmm
-      if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
-        return;
-      }
-      if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) {
-        return;
-      }
-      if (eyear < 1900 || emonth < 1 || emonth > 12 || eday < 1 || eday > 31) {
-        return;
-      }
-      if (ehour < 0 || ehour > 23 || emin < 0 || emin > 59 || esec < 0 || esec > 59) {
-        return;
-      }
-      if (msec > 999) {
-        msec = 0;
-      }
-      if (emsec > 999) {
-        emsec = 0;
-      }
-      RadxTime stime(year, month, day, hour, min, sec, msec / 1000.0);
-      RadxTime etime(eyear, emonth, eday, ehour, emin, esec, emsec / 1000.0);
-      fileStartTime = stime;
-      fileEndTime = etime;
-      break;
-    } else if (sscanf(start, "%4d%2d%2d%1c%2d%2d%2d",
-                      &year, &month, &day, &cc, &hour, &min, &sec) == 7) {
-      // extended format - yyyymmdd_hhmmss
-      if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
-        return;
-      }
-      if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) {
-        return;
-      }
-      RadxTime etime(year, month, day, hour, min, sec);
-      fileStartTime = etime;
-      fileEndTime = etime;
-      break;
-    } else if (sscanf(start, "%4d%2d%2d%1c%2d%2d",
-                      &year, &month, &day, &cc, &hour, &min) == 6) {
-      // extended format - yyyymmdd_hhmmss
-      if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
-        return;
-      }
-      if (hour < 0 || hour > 23 || min < 0 || min > 59) {
-        return;
-      }
-      RadxTime etime(year, month, day, hour, min, 0);
-      fileStartTime = etime;
-      fileEndTime = etime;
-      break;
-    } else if (sscanf(start, "%2d%2d%2d", &hour, &min, &sec) == 3) {
-      // normal format - yyyymmdd/hhmmss
-      if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) {
-        return;
-      }
-      RadxTime etime(midday);
-      etime.setTime(hour, min, sec);
-      fileStartTime = etime;
-      fileEndTime = etime;
-      break;
-    }
-    start++;
-  }
-
-  if (fileStartTime.utime() == 0) {
-    return;
-  }
-	
   // check that the file is a valid candidate
   
   RadxPath fpath(dayDir, entryName);
-
   if (!_isValidFile(fpath.getPath())) {
     return;
   }
-  
-  // insert the file
+
+  // try different time types
+
+  RadxTime fileStartTime;
+  RadxTime fileEndTime;
+  if (getIso8601Time(entryName, fileStartTime) == 0) {
+    fileEndTime = fileStartTime;
+  } else if (getDoradeTime(entryName, fileStartTime) == 0) {
+    fileEndTime = fileStartTime;
+  } else if (getGenericTime(entryName, midday, fileStartTime, fileEndTime) == 0) {
+  } else {
+    return;
+  }
+
+  // check times are valid
+
+  if (fileStartTime < searchStartTime || fileEndTime > searchEndTime) {
+    return;
+  }
+	
+  // insert the file into the list
   
   string pathStr(fpath.getPath());
   TimePath tpath(fileStartTime, fileEndTime, pathStr);
@@ -872,6 +822,45 @@ void RadxTimeList::_addFirst(const string &topDir,
       timePaths.insert(timePaths.end(), *(tmpSet.begin()));
       return;
     }
+    
+  } // ii
+
+}
+
+
+/////////////////////////////////////
+// add all files to the set
+
+void RadxTimeList::_addAll(const string &topDir,
+           TimePathSet &timePaths)
+  
+{
+  
+  // get day dirs in time order
+  
+  TimePathSet dayDirs;
+  _getDayDirs(topDir, dayDirs);
+  
+  // search for interval times in each day
+  // we stop as soon as we find a interval time
+  
+  TimePathSet::iterator ii;
+  for (ii = dayDirs.begin(); ii != dayDirs.end(); ii++) {
+    
+    RadxTime midday(ii->fileStartTime);
+    const string &dayDir = ii->path;
+
+    // look for non-forecast files
+    
+    //TimePathSet tmpSet;
+    _searchDay(dayDir, midday, 0, 0, timePaths); // tmpSet);
+    
+    //if (tmpSet.size() > 0) {
+    //  // times found, insert all into the set
+    //  // and return
+    //  timePaths.insert(timePaths.end(), *(tmpSet.begin()));
+    //  return;
+    //}
     
   } // ii
 
@@ -940,8 +929,8 @@ void RadxTimeList::_addLast(const string &topDir,
 
 void RadxTimeList::_addClosest(const string &topDir,
                                RadxTime searchTime,
-                               RadxTime startTime,
-                               RadxTime endTime,
+                               RadxTime searchStartTime,
+                               RadxTime searchEndTime,
                                TimePathSet &timePaths)
 
 {
@@ -949,7 +938,7 @@ void RadxTimeList::_addClosest(const string &topDir,
   // search for all interval times within the search range
   
   TimePathSet interval;
-  _searchForValid(topDir, startTime, endTime, interval);
+  _searchForValid(topDir, searchStartTime, searchEndTime, interval);
   if (interval.size() < 1) {
     return;
   }
@@ -1072,13 +1061,11 @@ bool RadxTimeList::_isValidFile(const string &path)
   if (filename.find("swp") != string::npos &&
       filename.find("IDL") != string::npos) {
     // dorade idle or rhi volumes
-    // cerr << "XXXXXXXXXXXXXX filename: " << filename << endl;
     return false;
   }
   if (filename.find("swp") != string::npos &&
       filename.find("RHI") != string::npos) {
     // dorade idle or rhi volumes
-    // cerr << "YYYYYYYYYYYYYYYY filename: " << filename << endl;
     return false;
   }
 #endif
@@ -1119,7 +1106,7 @@ bool RadxTimeList::_isValidFile(const string &path)
 // get time for Dorade file path
 // Returns 0 on success, -1 on failure
 
-int RadxTimeList::getDoradeTime(const string &path, RadxTime &doradeTime)
+int RadxTimeList::getDoradeTime(const string &fileName, RadxTime &doradeTime)
   
 {
 
@@ -1128,16 +1115,16 @@ int RadxTimeList::getDoradeTime(const string &path, RadxTime &doradeTime)
   
   // find "swp." string
 
-  const char *sweepStr = strstr(path.c_str(), "swp.");
+  const char *sweepStr = strstr(fileName.c_str(), "swp.");
   if (sweepStr == NULL) {
     return -1;
   }
 
-  // tokenize path
+  // tokenize fileName
   // file name is swp.yyymmddhhmmss.name.millisecs.angle_scantype_volnum
 
   vector<string> toks;
-  RadxStr::tokenize(path, ".", toks);
+  RadxStr::tokenize(fileName, ".", toks);
   const char *timeStr = toks[1].c_str();
   
   int year, month, day, hour, min, sec;
@@ -1179,6 +1166,141 @@ int RadxTimeList::getDoradeTime(const string &path, RadxTime &doradeTime)
 
   return 0;
 
+}
+
+///////////////////////////////////////////
+// get ISO 8601 time from file fileName
+// Returns 0 on success, -1 on failure
+
+int RadxTimeList::getIso8601Time(const string &fileName, RadxTime &isoTime)
+  
+{
+
+  const char *start = fileName.c_str();
+  const char *end = start + strlen(start);
+
+  // get time
+
+  int year, month, day, hour, min, sec;
+  char tt, zz;
+  while (start < end - 16) {
+    if (sscanf(start, "%4d%2d%2d%c%2d%2d%2d%c",
+               &year, &month, &day, &tt, &hour, &min, &sec, &zz) == 6) {
+      if (tt == 'T' && zz == 'Z') {
+        isoTime.set(year, month, day, hour, min, sec);
+        return 0;
+      }
+    }
+    start++;
+  }
+  
+  return -1;
+
+}
+
+///////////////////////////////////////////////////
+// get start and end times from generic fileName
+
+int RadxTimeList::getGenericTime(const string &fileName,
+                                 const RadxTime &midday,
+                                 RadxTime &fileStartTime,
+                                 RadxTime &fileEndTime)
+  
+{
+
+  // exclude entry names which are too short
+  
+  if (fileName.size() < 6) {
+    return -1;
+  }
+  
+  // find first digit in fileName - if no digits, return now
+
+  const char *start = NULL;
+  for (size_t ii = 0; ii < fileName.size(); ii++) {
+    if (isdigit(fileName[ii])) {
+      start = fileName.c_str() + ii;
+      break;
+    }
+  }
+  if (!start) return -1;
+  const char *end = start + strlen(start);
+
+  // get time
+  
+  int year, month, day, hour, min, sec, msec;
+  int eyear, emonth, eday, ehour, emin, esec, emsec;
+  char cc, ecc;
+  while (start < end - 6) {
+    if (sscanf(start, "%4d%2d%2d%1c%2d%2d%2d.%3d_to_%4d%2d%2d%1c%2d%2d%2d.%3d",
+               &year, &month, &day, &cc, &hour, &min, &sec, &msec,
+               &eyear, &emonth, &eday, &ecc, &ehour, &emin, &esec, &emsec) == 16) {
+      // start/end format - yyyymmdd_hhmmss.mmm_to_yyyymmdd_hhmmss.mmm
+      if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
+        return -1;
+      }
+      if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) {
+        return -1;
+      }
+      if (eyear < 1900 || emonth < 1 || emonth > 12 || eday < 1 || eday > 31) {
+        return -1;
+      }
+      if (ehour < 0 || ehour > 23 || emin < 0 || emin > 59 || esec < 0 || esec > 59) {
+        return -1;
+      }
+      if (msec > 999) {
+        msec = 0;
+      }
+      if (emsec > 999) {
+        emsec = 0;
+      }
+      RadxTime stime(year, month, day, hour, min, sec, msec / 1000.0);
+      RadxTime etime(eyear, emonth, eday, ehour, emin, esec, emsec / 1000.0);
+      fileStartTime = stime;
+      fileEndTime = etime;
+      break;
+    } else if (sscanf(start, "%4d%2d%2d%1c%2d%2d%2d",
+                      &year, &month, &day, &cc, &hour, &min, &sec) == 7) {
+      // extended format - yyyymmdd_hhmmss
+      if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
+        return -1;
+      }
+      if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) {
+        return -1;
+      }
+      RadxTime etime(year, month, day, hour, min, sec);
+      fileStartTime = etime;
+      fileEndTime = etime;
+      break;
+    } else if (sscanf(start, "%4d%2d%2d%1c%2d%2d",
+                      &year, &month, &day, &cc, &hour, &min) == 6) {
+      // extended format - yyyymmdd_hhmmss
+      if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
+        return -1;
+      }
+      if (hour < 0 || hour > 23 || min < 0 || min > 59) {
+        return -1;
+      }
+      RadxTime etime(year, month, day, hour, min, 0);
+      fileStartTime = etime;
+      fileEndTime = etime;
+      break;
+    } else if (sscanf(start, "%2d%2d%2d", &hour, &min, &sec) == 3) {
+      // normal format - yyyymmdd/hhmmss
+      if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) {
+        return -1;
+      }
+      RadxTime etime(midday);
+      etime.setTime(hour, min, sec);
+      fileStartTime = etime;
+      fileEndTime = etime;
+      break;
+    }
+    start++;
+  }
+
+  return 0;
+  
 }
 
 ///////////////////////////////////////////////////////////
@@ -1260,4 +1382,3 @@ int RadxTimeList::_getVolNum(const string &fileName)
   }
   return volNum;
 }
-

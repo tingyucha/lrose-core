@@ -39,7 +39,7 @@
 #include "DisplayManager.hh"
 #include "DisplayField.hh"
 #include "DisplayElevation.hh"
-#include "ColorMap.hh"
+#include <qtplot/ColorMap.hh>
 #include "Params.hh"
 #include "Reader.hh"
 
@@ -77,10 +77,11 @@
 #include <toolsa/toolsa_macros.h>
 #include <toolsa/DateTime.hh>
 #include <toolsa/LogStream.hh>
+#include <toolsa/TaXml.hh>
 #include <Radx/RadxFile.hh>
 
 using namespace std;
-bool DisplayManager::_firstTimerEvent = true;
+int DisplayManager::_timerEventCount = 0;
 
 // Constructor
 
@@ -110,6 +111,13 @@ DisplayManager::DisplayManager(const Params &params,
   _altRateMps = 0.0;
 
   _altitudeInFeet = false;
+
+  _clickPointFmq.setUrl(_params.click_point_fmq_url);
+  if (_params.debug >= Params::DEBUG_VERBOSE) {
+    _clickPointFmq.setVerbose();
+  } else if (_params.debug) {
+    _clickPointFmq.setDebug();
+  }
 
 }
 
@@ -530,7 +538,7 @@ void DisplayManager::_changeFieldVariable(bool value) {
 
 void DisplayManager::colorMapRedefineReceived(string fieldName, ColorMap newColorMap) {
 
-  LOG(DEBUG) << "enter"; 
+  LOG(DEBUG_VERBOSE) << "enter"; 
   
   // connect the new color map with the field
   // find the fieldName in the list of FieldDisplays
@@ -560,7 +568,7 @@ void DisplayManager::colorMapRedefineReceived(string fieldName, ColorMap newColo
     _changeField(fieldId, true); 
   }
   
-  LOG(DEBUG) << "exit";
+  LOG(DEBUG_VERBOSE) << "exit";
 }
 
 
@@ -907,7 +915,7 @@ void DisplayManager::_updateStatusPanel(const RadxRay *ray)
   }
   
   if (_pulseWidthVal) {
-    _setText(text, "%.2f", ray->getPulseWidthUsec());
+    _setText(text, "%.3f", ray->getPulseWidthUsec());
     _pulseWidthVal->setText(text);
   }
 
@@ -1038,6 +1046,10 @@ void DisplayManager::_updateStatusPanel(const RadxRay *ray)
     _radarLat = _platform.getLatitudeDeg();
     _radarLon = _platform.getLongitudeDeg();
     _radarAltKm = _platform.getAltitudeKm();
+    _beamHt.setInstrumentHtKm(_radarAltKm);
+    if (_radarAltKm < -1.0) {
+      _radarAltKm = 0.0;
+    }
     _sunPosn.setLocation(_radarLat, _radarLon, _radarAltKm * 1000.0);
   }
 
@@ -1127,7 +1139,11 @@ void DisplayManager::_updateStatusPanel(const RadxRay *ray)
     }
     
     if (_altitudeInFeet) {
-      _setText(text, "%.3f", _platform.getAltitudeKm() / 0.3048);
+      if (_platform.getAltitudeKm() > -1.0) {
+        _setText(text, "%.3f", _platform.getAltitudeKm() / 0.3048);
+      } else {
+        snprintf(text, 1024, "%s", "missing");
+      }
     } else {
       _setText(text, "%.3f", _platform.getAltitudeKm());
     }
@@ -1184,6 +1200,9 @@ double DisplayManager::_getInstHtKm(const RadxRay *ray)
 
 {
   double instHtKm = _platform.getAltitudeKm();
+  if (instHtKm < -1.0) {
+    instHtKm = 0.0;
+  }
   if (ray->getGeoreference() != NULL) {
     instHtKm = ray->getGeoreference()->getAltitudeKmMsl();
   }
@@ -1267,3 +1286,68 @@ void DisplayManager::_about()
 
   QMessageBox::about(this, tr("About Menu"), tr(text.c_str()));
 }
+
+/////////////////////////////////////////////////////////////////
+// write click point data, in XML format, to FMQ
+
+int DisplayManager::_writeClickPointXml2Fmq(const RadxRay *ray,
+                                            double rangeKm,
+                                            int gateNum)
+
+{
+  
+  if (_params.debug >= Params::DEBUG_VERBOSE) {
+    fprintf(stderr, "DisplayManager::_writeClickPointXml2Fmq() called\n");
+  }
+
+  if (_clickPointFmq.write(ray->getTimeSecs(),
+                           ray->getNanoSecs(),
+                           ray->getAzimuthDeg(),
+                           ray->getElevationDeg(),
+                           rangeKm,
+                           gateNum)) {
+    cerr << "ERROR - DisplayManager::_writeClickPointXml2Fmq()" << endl;
+    return -1;
+  }
+
+  return 0;
+
+}
+
+/////////////////////////////////////////////////
+// read click point data from FMQ
+// Returns 0 on success, -1 on failure
+
+int DisplayManager::_readClickPointFmq(bool &gotNew)
+  
+{
+  
+  // read in a new message
+  
+  if (_clickPointFmq.read(gotNew)) {
+    cerr << "ERROR -  DisplayManager::_readClickPointFmq" << endl;
+    cerr << "  Cannot read click point info from FMQ" << endl;
+    cerr << "  Fmq: " << _params.click_point_fmq_url << endl;
+    return -1;
+  }
+  
+  if (!gotNew) {
+    // no data
+    return 0;
+  }
+
+  if (_params.debug) {
+    cerr << "=========== latest click point XML ==================" << endl;
+    cerr << "_clickPointTime: " << _clickPointFmq.getDataTime().asString(6) << endl;
+    cerr << "_clickPointElevation: " << _clickPointFmq.getElevation() << endl;
+    cerr << "_clickPointAzimuth: " << _clickPointFmq.getAzimuth() << endl;
+    cerr << "_clickPointRangeKm: " << _clickPointFmq.getRangeKm() << endl;
+    cerr << "_clickPointGateNum: " << _clickPointFmq.getGateNum() << endl;
+    cerr << "=====================================================" << endl;
+  }
+  
+  return 0;
+
+}
+
+

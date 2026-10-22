@@ -47,9 +47,11 @@ string Moments::censorFlagFieldName = "CENSOR_FLAG";
 
 // Constructor
 
-Moments::Moments(const Params &params)  :
-        _params(params)
-  
+Moments::Moments(const Params &params,
+                 const KdpFiltParams &kdpFiltParams)  :
+        _params(params),
+        _kdpFiltParams(kdpFiltParams)
+        
 {
 
   OK = true;
@@ -1252,7 +1254,7 @@ void Moments::_computeNoiseSinglePolH(RadxRay *ray)
   MomentsFields *mfields = _momFields.dat();
   for (int igate = 0; igate < _nGates; igate++) {
     Covars &covar = covars[igate];
-    _rmom.singlePolHNoisePrep(covar.lag0Hc, covar.lag1Hc, mfields[igate]);
+    _rmom.singlePolHNoisePrep(igate, covar.lag0Hc, covar.lag1Hc, mfields[igate]);
   }
 
   // identify noise regions, and compute the mea noise
@@ -1288,7 +1290,7 @@ void Moments::_computeNoiseSinglePolV(RadxRay *ray)
   MomentsFields *mfields = _momFields.dat();
   for (int igate = 0; igate < _nGates; igate++) {
     Covars &covar = covars[igate];
-    _rmom.singlePolVNoisePrep(covar.lag0Vc, covar.lag1Vc, mfields[igate]);
+    _rmom.singlePolVNoisePrep(igate, covar.lag0Vc, covar.lag1Vc, mfields[igate]);
   }
 
   // identify noise regions, and compute the mea noise
@@ -1324,7 +1326,8 @@ void Moments::_computeNoiseDpAltHvCoOnly(RadxRay *ray)
   MomentsFields *mfields = _momFields.dat();
   for (int igate = 0; igate < _nGates; igate++) {
     Covars &covar = covars[igate];
-    _rmom.dpAltHvCoOnlyNoisePrep(covar.lag0Hc,
+    _rmom.dpAltHvCoOnlyNoisePrep(igate,
+                                 covar.lag0Hc,
                                  covar.lag0Vc,
                                  covar.lag2Hc,
                                  covar.lag2Vc,
@@ -1367,7 +1370,8 @@ void Moments::_computeNoiseDpAltHvCoCross(RadxRay *ray)
   MomentsFields *mfields = _momFields.dat();
   for (int igate = 0; igate < _nGates; igate++) {
     Covars &covar = covars[igate];
-    _rmom.dpAltHvCoCrossNoisePrep(covar.lag0Hc,
+    _rmom.dpAltHvCoCrossNoisePrep(igate,
+                                  covar.lag0Hc,
                                   covar.lag0Hx,
                                   covar.lag0Vc,
                                   covar.lag0Vx,
@@ -1431,7 +1435,8 @@ void Moments::_computeNoiseDpSimHv(RadxRay *ray)
   MomentsFields *mfields = _momFields.dat();
   for (int igate = 0; igate < _nGates; igate++) {
     Covars &covar = covars[igate];
-    _rmom.dpSimHvNoisePrep(covar.lag0Hc,
+    _rmom.dpSimHvNoisePrep(igate,
+                           covar.lag0Hc,
                            covar.lag0Vc,
                            covar.lag1Hc,
                            covar.lag1Vc,
@@ -1474,7 +1479,8 @@ void Moments::_computeNoiseDpHOnly(RadxRay *ray)
   MomentsFields *mfields = _momFields.dat();
   for (int igate = 0; igate < _nGates; igate++) {
     Covars &covar = covars[igate];
-    _rmom.dpHOnlyNoisePrep(covar.lag0Hc,
+    _rmom.dpHOnlyNoisePrep(igate,
+                           covar.lag0Hc,
                            covar.lag0Vx,
                            covar.lag1Hc,
                            mfields[igate]);
@@ -1523,7 +1529,8 @@ void Moments::_computeNoiseDpVOnly(RadxRay *ray)
   MomentsFields *mfields = _momFields.dat();
   for (int igate = 0; igate < _nGates; igate++) {
     Covars &covar = covars[igate];
-    _rmom.dpVOnlyNoisePrep(covar.lag0Vc,
+    _rmom.dpVOnlyNoisePrep(igate,
+                           covar.lag0Vc,
                            covar.lag0Hx,
                            covar.lag1Vc,
                            mfields[igate]);
@@ -2044,7 +2051,7 @@ void Moments::_loadOutputFields(RadxRay *momRay)
           foldLimitUpper = phidpFoldLimitUpper;
           break;
         case Params::PHIDP_COND:
-          *datp = fields->phidp_cond;
+          *datp = fields->phidp_sc;
           fieldFolds = true;
           foldLimitLower = phidpFoldLimitLower;
           foldLimitUpper = phidpFoldLimitUpper;
@@ -2058,8 +2065,8 @@ void Moments::_loadOutputFields(RadxRay *momRay)
         case Params::KDP:
           *datp = fields->kdp;
           break;
-        case Params::PSOB:
-          *datp = fields->psob;
+        case Params::DELTA:
+          *datp = fields->delta;
           break;
         case Params::SNRHC:
           *datp = fields->snrhc;
@@ -2095,16 +2102,16 @@ void Moments::_loadOutputFields(RadxRay *momRay)
           foldLimitUpper = 180.0;
           break;
         case Params::ACCUM_PHASE_CHANGE:
-          *datp = fmod(fields->accum_phase_change, 180.0);
+          *datp = fmod(fields->noise_accum_phase_change, 180.0);
           break;
         case Params::PHASE_CHANGE_ERROR:
-          *datp = fields->phase_change_error;
+          *datp = fields->noise_phase_change_error;
           break;
         case Params::DBM_SDEV:
-          *datp = fields->dbm_sdev;
+          *datp = fields->noise_dbm_sdev;
           break;
         case Params::NCP_MEAN:
-          *datp = fields->ncp_mean;
+          *datp = fields->noise_ncp_mean;
           break;
         case Params::NOISE_FLAG:
           *datp = fields->noise_flag;
@@ -2130,7 +2137,13 @@ void Moments::_loadOutputFields(RadxRay *momRay)
           // test fields
 
         case Params::TEST:
-          *datp = fields->test;
+          *datp = fields->test0;
+          break;
+        case Params::TEST0:
+          *datp = fields->test0;
+          break;
+        case Params::TEST1:
+          *datp = fields->test1;
           break;
         case Params::TEST2:
           *datp = fields->test2;
@@ -2143,6 +2156,18 @@ void Moments::_loadOutputFields(RadxRay *momRay)
           break;
         case Params::TEST5:
           *datp = fields->test5;
+          break;
+        case Params::TEST6:
+          *datp = fields->test6;
+          break;
+        case Params::TEST7:
+          *datp = fields->test7;
+          break;
+        case Params::TEST8:
+          *datp = fields->test8;
+          break;
+        case Params::TEST9:
+          *datp = fields->test9;
           break;
 
           // kdp
@@ -2251,10 +2276,10 @@ void Moments::_setNoiseFields()
     MomentsFields &mfield = mfields[igate];
     mfield.noise_flag = noiseFlag[igate];
     mfield.signal_flag = signalFlag[igate];
-    mfield.accum_phase_change = accumPhaseChange[igate];
-    mfield.phase_change_error = phaseChangeError[igate];
-    mfield.dbm_sdev = dbmSdev[igate];
-    mfield.ncp_mean = ncpMean[igate];
+    mfield.noise_accum_phase_change = accumPhaseChange[igate];
+    mfield.noise_phase_change_error = phaseChangeError[igate];
+    mfield.noise_dbm_sdev = dbmSdev[igate];
+    mfield.noise_ncp_mean = ncpMean[igate];
   }
   
 }
@@ -2416,57 +2441,8 @@ void Moments::_kdpInit()
 
   // initialize KDP object
 
-  if (_params.KDP_fir_filter_len == Params::FIR_LEN_125) {
-    _kdp.setFIRFilterLen(KdpFilt::FIR_LENGTH_125);
-  } else if (_params.KDP_fir_filter_len == Params::FIR_LEN_60) {
-    _kdp.setFIRFilterLen(KdpFilt::FIR_LENGTH_60);
-  } else if (_params.KDP_fir_filter_len == Params::FIR_LEN_40) {
-    _kdp.setFIRFilterLen(KdpFilt::FIR_LENGTH_40);
-  } else if (_params.KDP_fir_filter_len == Params::FIR_LEN_30) {
-    _kdp.setFIRFilterLen(KdpFilt::FIR_LENGTH_30);
-  } else if (_params.KDP_fir_filter_len == Params::FIR_LEN_20) {
-    _kdp.setFIRFilterLen(KdpFilt::FIR_LENGTH_20);
-  } else {
-    _kdp.setFIRFilterLen(KdpFilt::FIR_LENGTH_10);
-  }
-  _kdp.setNGatesStats(_params.KDP_ngates_for_stats);
-  _kdp.setNFiltIterUnfolded(_params.KDP_n_filt_iterations_unfolded);
-  _kdp.setNFiltIterCond(_params.KDP_n_filt_iterations_conditioned);
-  if (_params.KDP_use_iterative_filtering) {
-    _kdp.setUseIterativeFiltering(true);
-    _kdp.setPhidpDiffThreshold(_params.KDP_phidp_difference_threshold);
-  }
-  _kdp.setPhidpSdevMax(_params.KDP_phidp_sdev_max);
-  _kdp.setPhidpJitterMax(_params.KDP_phidp_jitter_max);
-  _kdp.checkSnr(_params.KDP_check_snr);
-  _kdp.setSnrThreshold(_params.KDP_snr_threshold);
-  _kdp.checkRhohv(_params.KDP_check_rhohv);
-  _kdp.setRhohvThreshold(_params.KDP_rhohv_threshold);
-  if (_params.KDP_check_zdr_sdev) {
-    _kdp.checkZdrSdev(true);
-  }
-  _kdp.setZdrSdevMax(_params.KDP_zdr_sdev_max);
-  _kdp.setMinValidAbsKdp(_params.KDP_min_valid_abs_kdp);
-
-  // if (_params.set_max_range) {
-  //   _kdp.setMaxRangeKm(true, _params.max_range_km);
-  // }
-
-  if (_params.KDP_debug) {
-    _kdp.setDebug(true);
-  }
-
-  if (_params.apply_precip_attenuation_correction) {
-    if (_params.specify_coefficients_for_attenuation_correction) {
-      _kdp.setAttenCoeffs(_params.dbz_attenuation_coefficient,
-                          _params.dbz_attenuation_exponent,
-                          _params.zdr_attenuation_coefficient,
-                          _params.zdr_attenuation_exponent);
-    } else {
-      _kdp.setComputeAttenCorr(true);
-    }
-  }
-
+  _kdp.setParams(_kdpFiltParams);
+  
 }
 
 ////////////////////////////////////////////////
@@ -2496,12 +2472,11 @@ void Moments::_kdpCompute()
                MomentsFields::missingDouble);
   
   const double *kdp = _kdp.getKdp();
-  const double *psob = _kdp.getPsob();
-  const double *phidpCond = _kdp.getPhidpCondFilt();
+  const double *delta = _kdp.getDelta();
+  const double *phidpSC = _kdp.getPhidpSC();
   const double *phidpFilt = _kdp.getPhidpFilt();
   const double *phidpSdev = _kdp.getPhidpSdev();
   const double *phidpJitter = _kdp.getPhidpJitter();
-  const double *zdrSdev = _kdp.getZdrSdev();
   const double *dbzAtten = _kdp.getDbzAttenCorr();
   const double *zdrAtten = _kdp.getZdrAttenCorr();
   
@@ -2514,13 +2489,12 @@ void Moments::_kdpCompute()
       mfield.kdp = kdp[ii];
       _kdpArray[ii] = kdp[ii];
     }
-    mfield.phidp_cond = phidpCond[ii];
+    mfield.phidp_sc = phidpSC[ii];
     mfield.phidp_filt = phidpFilt[ii];
     mfield.phidp_sdev_4kdp = phidpSdev[ii];
     mfield.phidp_jitter_4kdp = phidpJitter[ii];
-    mfield.zdr_sdev_4kdp = zdrSdev[ii];
     if (mfield.signal_flag) {
-      mfield.psob = psob[ii];
+      mfield.delta = delta[ii];
     }
     mfield.dbz_atten_correction = dbzAtten[ii];
     mfield.zdr_atten_correction = zdrAtten[ii];

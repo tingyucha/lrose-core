@@ -137,6 +137,10 @@ public:
 
   RadxField &copyMetaData(const RadxField &rhs);
   
+  /// Check for common geometry with another ray
+
+  bool checkGeometryIsEqual(const RadxField &rhs);
+
   /// \name Set methods:
   //@{
 
@@ -155,6 +159,11 @@ public:
   /// Set standard name.
 
   void setStandardName(const string &val) { _standardName = val; }
+
+  /// Set WMO attributes
+
+  void setWmoParameterName(const string &val) { _wmoParameterName = val; }
+  void setWmoParameterUri(const string &val) { _wmoParameterUri = val; }
 
   /// Set legend XML
   /// This is intended for 'discrete' fields - i.e. those which
@@ -175,6 +184,11 @@ public:
   /// aspects of a field
 
   void setComment(const string &val) { _comment = val; }
+
+  /// Set the ancillary variables attribute
+  /// The ancillary variables are those that qualify this field
+  
+  void setAncillaryVariables(const string &val) { _ancillaryVariables = val; }
 
   /// Set sampling ratio.
   ///
@@ -203,6 +217,15 @@ public:
   
   void setIsDiscrete(bool val = true) { _isDiscrete = val; }
 
+  /// flags for discrete fields
+  
+  void clearFlagValues() { _flagValues.clear(); }
+  void clearFlagMeanings() { _flagMeanings.clear(); }
+  void addFlagValue(int val) { _flagValues.push_back(val); }
+  void addFlagMeaning(const string &val) { _flagMeanings.push_back(val); }
+  void setFlagValues(const vector<int> &vals) { _flagValues = vals; }
+  void setFlagMeanings(const vector<string> &vals) { _flagMeanings = vals; }
+  
   /// Set whether this is a RayQualifier field. RayQualifier fields have only one
   /// value per ray, instead of a gate-based array.
   
@@ -598,6 +621,15 @@ public:
   //@{
 
   /////////////////////////////////////////////////
+  // Remap data for a single ray onto new range
+  // Utilizes remap lookup for efficiency
+  
+  void remapRayGeom(size_t nGates,
+                    double newStartRangeKm,
+                    double newGateSpacingKm,
+                    bool interp = false);
+  
+  /////////////////////////////////////////////////
   /// Remap data for a single ray onto new range
   /// geometry using lookup table passed in.
   ///
@@ -633,8 +665,11 @@ public:
   /// Transforms x to y as follows:
   ///   y = x * scale + offset
   /// After operation, leaves type unchanged.
+  /// If field folds, ensure the result is within the folding region.
 
-  void applyLinearTransform(double scale, double offset);
+  void applyLinearTransform(double scale, double offset,
+                            bool fieldFolds = false,
+                            double foldingValue = 0.0);
 
   /// Transorm from db to linear units
   /// Note - will convert to fl32
@@ -651,11 +686,15 @@ public:
   
   bool checkDataAllMissing() const;
   
-  /// Compute the number of gates without missing data.
-  ///
+  /// Count non-missing gates
+  /// Returns number of non-missing gates
+  
+  size_t countNonMissingGates() const;
+  
+  /// Find the last gate with non-missing data.
   /// i.e. all gates beyond this number have missing data.
   
-  int computeNGatesNonMissing(size_t rayNum) const;
+  int findLastGateNonMissing(size_t rayNum) const;
   
   //@}
   
@@ -673,6 +712,11 @@ public:
   /// Get standard name for field.
   
   const string &getStandardName() const { return _standardName; }
+
+  /// Get WMO attributes
+  
+  const string &getWmoParameterName() const { return _wmoParameterName; }
+  const string &getWmoParameterUri() const { return _wmoParameterUri; }
 
   /// Get units for field.
   
@@ -697,6 +741,11 @@ public:
   /// aspects of a field
 
   const string &getComment() const { return _comment; }
+
+  /// Get the ancillary variables attribute
+  /// The ancillary variables are those that qualify this field
+  
+  const string &getAncillaryVariables() const { return _ancillaryVariables; }
 
   /// Get number of rays represented in field data.
   
@@ -765,6 +814,11 @@ public:
   
   bool getIsDiscrete() const { return _isDiscrete; }
 
+  /// flags for discrete fields
+
+  const vector<int> &getFlagValues() const { return _flagValues; }
+  const vector<string> &getFlagMeanings() const { return _flagMeanings; }
+  
   /// Is this a RayQualifier field? In other words does it only have
   /// a single value per ray, rather than a gate-based array.
   
@@ -980,7 +1034,8 @@ public:
     STATS_METHOD_MAXIMUM = 2, /**< Computing the maximum of a series */
     STATS_METHOD_MINIMUM = 3, /**< Computing the minumum of a series */
     STATS_METHOD_MIDDLE = 4, /**< Using the middle entry in a series */
-    STATS_METHOD_LAST = 5
+    STATS_METHOD_DISCRETE_MODE = 5, /**< Most frequent entry in a discrete field */
+    STATS_METHOD_LAST = 6
 
   } StatsMethod_t;
 
@@ -988,25 +1043,27 @@ public:
 
   typedef pair<string, StatsMethod_t> NamedStatsMethod;
 
-  /// compute stats from a series of fields
+  /// compute a field for a dwell, based on the rays that are merged
+  /// into that combined dwell.
   ///
-  /// Pass in a method type, and a vector of fields
+  /// Pass in a method type, and a vector of fields for rays comprising
+  /// the dwell.
   ///
-  /// Compute the requested stats on those fields, on a point-by-point basis.
+  /// Compute the requested stats, on a gate-by-gate basis.
   /// Create a field, fill it with the results, and return it.
   ///
-  /// If the number of points in the field is not constant, use the minumum number
+  /// If the number of gates in the rays is not constant, use the minumum number
   /// of points in the supplied fields.
   ///
   /// maxFractionMissing indicates the maximum fraction of the input data field
   /// that can be missing for valid statistics. Should be between 0 and 1.
   ///
   /// Returns NULL if fieldIn.size() == 0.
-  /// Otherwise, returns field containing results.
+  /// Otherwise, returns field for combined dwell.
   
-  RadxField *computeStats(RadxField::StatsMethod_t method,
-                          const vector<const RadxField *> &fieldsIn,
-                          double maxFractionMissing = 0.25);
+  RadxField *computeDwellField(RadxField::StatsMethod_t method,
+                               const vector<const RadxField *> &rayFieldsIn,
+                               double maxFractionMissing = 0.66);
 
   /// convert enums to strings
 
@@ -1050,9 +1107,14 @@ private:
   string _longName;
   string _standardName;
   string _units;
+
+  string _wmoParameterName;
+  string _wmoParameterUri;
+
   string _legendXml;
   string _thresholdingXml;
   string _comment;
+  string _ancillaryVariables;
   
   Radx::DataType_t _dataType;
   int _byteWidth;
@@ -1084,6 +1146,11 @@ private:
   
   bool _isDiscrete;
 
+  // flags for discrete fields
+
+  vector<int> _flagValues;
+  vector<string> _flagMeanings;
+  
   // Is this a RayQualifier field? RayQualifiers store just a
   // single value per ray, instead of gate-based array.
   
@@ -1114,6 +1181,10 @@ private:
 
   string _thresholdFieldName;
   double _thresholdValue;
+
+  // lookup table for remapping
+
+  RadxRemap _remap;
   
   // private methods
   
@@ -1133,40 +1204,45 @@ private:
   static double _getFoldAngle(double val, double foldLimitLower, double foldRange);
   static double _getFoldValue(double angle, double foldLimitLower, double foldRange);
 
-  void _computeMean(size_t nPoints,
-                    const vector<const RadxField *> &fieldsIn,
-                    Radx::fl64 *data,
-                    double maxFractionMissing);
+  void _computeDwellMean(size_t nPoints,
+                         const vector<const RadxField *> &rayFieldsIn,
+                         RadxField *dwellField,
+                         double maxFractionMissing);
   
-  void _computeMeanFolded(size_t nPoints,
-                          double foldLimitLower,
-                          double foldRange,
-                          const vector<const RadxField *> &fieldsIn,
-                          Radx::fl64 *data,
-                          double maxFractionMissing);
+  void _computeDwellMeanFolded(size_t nPoints,
+                               double foldLimitLower,
+                               double foldRange,
+                               const vector<const RadxField *> &rayFieldsIn,
+                               RadxField *dwellField,
+                               double maxFractionMissing);
   
-  void _computeMedian(size_t nPoints,
-                      const vector<const RadxField *> &fieldsIn,
-                      Radx::fl64 *data,
-                      double maxFractionMissing);
-
-  void _computeMaximum(size_t nPoints,
-                       const vector<const RadxField *> &fieldsIn,
-                       Radx::fl64 *data,
-                       double maxFractionMissing);
-
-  void _computeMinimum(size_t nPoints,
-                       const vector<const RadxField *> &fieldsIn,
-                       Radx::fl64 *data,
-                       double maxFractionMissing);
-
-  void _computeMiddle(size_t nPoints,
-                      const vector<const RadxField *> &fieldsIn,
-                      Radx::fl64 *data,
-                      double maxFractionMissing);
-
-  int _computeMinValid(int nn,
-                       double maxFractionMissing);
+  void _computeDwellMedian(size_t nPoints,
+                           const vector<const RadxField *> &rayFieldsIn,
+                           RadxField *dwellField,
+                           double maxFractionMissing);
+  
+  void _computeDwellMaximum(size_t nPoints,
+                            const vector<const RadxField *> &rayFieldsIn,
+                            RadxField *dwellField,
+                            double maxFractionMissing);
+  
+  void _computeDwellMinimum(size_t nPoints,
+                            const vector<const RadxField *> &rayFieldsIn,
+                            RadxField *dwellField,
+                            double maxFractionMissing);
+  
+  void _computeDwellMiddle(size_t nPoints,
+                           const vector<const RadxField *> &rayFieldsIn,
+                           RadxField *dwellField,
+                           double maxFractionMissing);
+  
+  void _computeDwellModeDiscrete(size_t nPoints,
+                                 const vector<const RadxField *> &rayFieldsIn,
+                                 RadxField *dwellField,
+                                 double maxFractionMissing);
+  
+  int _computeMinNValid(int nn,
+                        double maxFractionMissing);
   
   /////////////////////////////////////////////////
   // serialization
@@ -1238,7 +1314,11 @@ private:
   /// swap meta numbers
   
   static void _swapMetaNumbers(msgMetaNumbers_t &msgMetaNumbers);
-          
+
+  // compute discrete mode
+
+  int _computeMode(const vector<int> &vals);
+
 };
 
 #endif

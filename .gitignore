@@ -3,7 +3,8 @@
 # build files
 
 *.so
-*.o
+*.o 
+*.o.tmp
 *.a
 *.la
 *.lo
@@ -20,11 +21,12 @@ TAGS
 Entries.Log
 Entries.static
 
-# Ignore files and directories created by the Eclipse IDE
+# Ignore files and directories created by the Eclipse IDE and AIs
 
 .cproject
 .project
 .settings
+.codex
 
 # Ignore bin, include, and lib directories which are created if
 # an install is done to the local directory
@@ -44,7 +46,6 @@ makefile
 .deps
 makefile.in
 makefile.am
-__makefile.template
 .libs
 compile
 
@@ -68,10 +69,18 @@ codebase/install-sh
 codebase/missing
 codebase/stamp-h1
 codebase/autom4te.cache
+codebase/build*
 
 # qt
 
 .qmake*
+
+# cmake
+
+CMakeCache.txt
+CMakeFiles
+codebase/build
+build.cmake
 
 # distro makefiles
 
@@ -100,7 +109,6 @@ codebase/apps/spol/src/makefile
 codebase/apps/symprod/src/makefile
 codebase/apps/tdrp/src/makefile
 codebase/apps/titan/src/makefile
-codebase/apps/titan_analysis/src/makefile
 codebase/apps/trec/src/makefile
 codebase/apps/xpol/src/makefile
 codebase/libs/makefile
@@ -126,6 +134,7 @@ codebase/apps/didss/src/File2Dsr/File2Dsr
 codebase/apps/didss/src/Fmq2Fmq/Fmq2Fmq
 codebase/apps/didss/src/Fmq2MultMsgFmq/Fmq2MultMsgFmq
 codebase/apps/didss/src/FmqMon/FmqMon
+codebase/apps/didss/src/FmqTest/FmqTest
 codebase/apps/didss/src/GenPt2Spdb/GenPt2Spdb
 codebase/apps/didss/src/Hiq2Dsr/Hiq2Dsr
 codebase/apps/didss/src/HiqDos2Dsr/HiqDos2Dsr
@@ -187,6 +196,8 @@ codebase/apps/dsserver/src/ResolveUrl/ResolveUrl
 codebase/apps/dsserver/src/Rhi2Symprod/Rhi2Symprod
 codebase/apps/dsserver/src/SigAirMet2Symprod/SigAirMet2Symprod
 codebase/apps/dsserver/src/SpdbQuery/SpdbQuery
+codebase/apps/dsserver/src/SpdbXml2Table/SpdbXml2Table
+codebase/apps/dsserver/src/StnAscii2Symprod/StnAscii2Symprod
 codebase/apps/dsserver/src/SunCal2Symprod/SunCal2Symprod
 codebase/apps/dsserver/src/SyncDataMap/SyncDataMap
 codebase/apps/dsserver/src/TestDataMap/TestDataMap
@@ -215,6 +226,7 @@ codebase/apps/hydro/src/Shape2Map/Shape2Map
 codebase/apps/ingest/src/AcData2Spdb/AcData2Spdb
 codebase/apps/ingest/src/AcTrack2Polygon/AcTrack2Polygon
 codebase/apps/ingest/src/AcarsNc2GenPt/AcarsNc2GenPt
+codebase/apps/ingest/src/Amdar2Spdb/Amdar2Spdb
 codebase/apps/ingest/src/ArgentineAwsIngest/ArgentineAwsIngest
 codebase/apps/ingest/src/AsciiPosn2Spdb/AsciiPosn2Spdb
 codebase/apps/ingest/src/Awos2Spdb/Awos2Spdb
@@ -222,16 +234,23 @@ codebase/apps/ingest/src/Aws2Spdb/Aws2Spdb
 codebase/apps/ingest/src/BomAws2Spdb/BomAws2Spdb
 codebase/apps/ingest/src/BomSounding2Spdb/BomSounding2Spdb
 codebase/apps/ingest/src/Bprp2Dsr/Bprp2Dsr
+codebase/apps/ingest/src/classIngest/classIngest
 codebase/apps/ingest/src/CreateStationList/CreateStationList
 codebase/apps/ingest/src/CsuSounding2Spdb/CsuSounding2Spdb
+codebase/apps/ingest/src/CwbAws2Spdb/CwbAws2Spdb
+codebase/apps/ingest/src/CwbObs2Spdb/CwbObs2Spdb
+codebase/apps/ingest/src/CwbSfc2Mdv/CwbSfc2Mdv
 codebase/apps/ingest/src/Dorade2Dsr/Dorade2Dsr
 codebase/apps/ingest/src/Dorade2DsrArchiveDriver/Dorade2DsrArchiveDriver
 codebase/apps/ingest/src/EolMobileKml2Spdb/EolMobileKml2Spdb
+codebase/apps/ingest/src/EraGrib2Mdv/EraGrib2Mdv
+codebase/apps/ingest/src/Era5Nc2Mdv/Era5Nc2Mdv
 codebase/apps/ingest/src/GemScan2Dsr/GemScan2Dsr
 codebase/apps/ingest/src/GemVolXml2Dsr/GemVolXml2Dsr
 codebase/apps/ingest/src/Gini2Mdv/Gini2Mdv
 codebase/apps/ingest/src/GoesRGLM2Spdb/GoesRGLM2Spdb
 codebase/apps/ingest/src/GoesRnetCDF2Mdv/GoesRnetCDF2Mdv
+codebase/apps/ingest/src/GpmHdf5ToMdv/GpmHdf5ToMdv
 codebase/apps/ingest/src/Grib2Mdv/Grib2Mdv
 codebase/apps/ingest/src/Grib2toMdv/Grib2toMdv
 codebase/apps/ingest/src/Grib2toNc/Grib2toNc
@@ -240,19 +259,23 @@ codebase/apps/ingest/src/LdmDynamic2Static/LdmDynamic2Static
 codebase/apps/ingest/src/LdmMetars2File/LdmMetars2File
 codebase/apps/ingest/src/Ltg2Spdb/Ltg2Spdb
 codebase/apps/ingest/src/madis2Spdb/madis2Spdb
+codebase/apps/ingest/src/Mesonet2Spdb/Mesonet2Spdb
 codebase/apps/ingest/src/Metar2Spdb/Metar2Spdb
+codebase/apps/ingest/src/MetarCsv2Spdb/MetarCsv2Spdb
+codebase/apps/ingest/src/Metreport2Spdb/Metreport2Spdb
 codebase/apps/ingest/src/Mrms2Mdv/Mrms2Mdv
 codebase/apps/ingest/src/MrmsGribIngest/MrmsGribIngest
 codebase/apps/ingest/src/NWSsoundingIngest/NWSsoundingIngest
 codebase/apps/ingest/src/NcRadar2Dsr/NcRadar2Dsr
 codebase/apps/ingest/src/NcRadarSplit/NcRadarSplit
 codebase/apps/ingest/src/NcarAcPosn2Spdb/NcarAcPosn2Spdb
-codebase/apps/ingest/src/NewNidsRadial2Mdv/NidsRadial2Mdv
+codebase/apps/ingest/src/NewNidsRadial2Mdv/NewNidsRadial2Mdv
 codebase/apps/ingest/src/NexradBzipDecompress/NexradBzipDecompress
 codebase/apps/ingest/src/Nids2Mdv/Nids2Mdv
 codebase/apps/ingest/src/NidsRadial2Mdv/NidsRadial2Mdv
 codebase/apps/ingest/src/NidsRaster2Mdv/NidsRaster2Mdv
 codebase/apps/ingest/src/NidsVad2Spdb/NidsVad2Spdb
+codebase/apps/ingest/src/OdimHdf5ToMdv/OdimHdf5ToMdv
 codebase/apps/ingest/src/PrintNids/PrintNids
 codebase/apps/ingest/src/Rdas2Dsr/Rdas2Dsr
 codebase/apps/ingest/src/SatOrbit2AcPosn/SatOrbit2AcPosn
@@ -264,6 +287,8 @@ codebase/apps/ingest/src/Sigmet2Dsr/Sigmet2Dsr
 codebase/apps/ingest/src/SigmetRaw2Dsr/SigmetRaw2Dsr
 codebase/apps/ingest/src/SigmetUdp2Dsr/SigmetUdp2Dsr
 codebase/apps/ingest/src/SynopObsIngest/SynopObsIngest
+codebase/apps/ingest/src/Taf2Spdb/Taf2Spdb
+codebase/apps/ingest/src/UAEMesonet2Spdb/UAEMesonet2Spdb
 codebase/apps/ingest/src/Uf2Dsr/Uf2Dsr
 codebase/apps/ingest/src/Usgs2Spdb/Usgs2Spdb
 codebase/apps/ingest/src/WafsTiled2Mdv/WafsTiled2Mdv
@@ -331,6 +356,7 @@ codebase/apps/mdv_utils/src/MdvFixTimes/MdvFixTimes
 codebase/apps/mdv_utils/src/MdvFlat2Fcst/MdvFlat2Fcst
 codebase/apps/mdv_utils/src/MdvFromCircles/MdvFromCircles
 codebase/apps/mdv_utils/src/MdvGetLatestTime/MdvGetLatestTime
+codebase/apps/mdv_utils/src/MdvGetMostRecentTime/MdvGetMostRecentTime
 codebase/apps/mdv_utils/src/MdvGrad/MdvGrad
 codebase/apps/mdv_utils/src/MdvGridDiagnostic/MdvGridDiagnostic
 codebase/apps/mdv_utils/src/MdvHeaders2Xml/MdvHeaders2Xml
@@ -410,12 +436,10 @@ codebase/apps/procmap/src/procmap_register/procmap_register
 codebase/apps/procmap/src/procmap_unregister/procmap_unregister
 codebase/apps/procmap/src/test_procmap/test_procmap
 
-codebase/apps/radar/src/AparTsPrint/AparTsPrint
-codebase/apps/radar/src/AparTsSim/AparTsSim
-codebase/apps/radar/src/AparTs2Moments/AparTs2Moments
 codebase/apps/radar/src/AcGeorefCompare/AcGeorefCompare
 codebase/apps/radar/src/AcGeoref2Spdb/AcGeoref2Spdb
 codebase/apps/radar/src/AltCpCompute/AltCpCompute
+codebase/apps/radar/src/Colide/Colide
 codebase/apps/radar/src/CP2Udp2Fmq/CP2Udp2Fmq
 codebase/apps/radar/src/CalCompute/CalCompute
 codebase/apps/radar/src/CartSim/CartSim
@@ -432,20 +456,44 @@ codebase/apps/radar/src/Dsr2CP2Mom/Dsr2CP2Mom
 codebase/apps/radar/src/DsrGrabber/DsrGrabber
 codebase/apps/radar/src/DsrMerge/DsrMerge
 codebase/apps/radar/src/DualDopplerLobes/DualDopplerLobes
+codebase/apps/radar/src/Ecco/Ecco
+codebase/apps/radar/src/Ecco/ResTestEcco/ResTestEcco
+codebase/apps/radar/src/EccoStats/EccoStats
 
 codebase/apps/radar/src/HawkEye/HawkEye
 codebase/apps/radar/src/HawkEye/Makefile.qmake
 codebase/apps/radar/src/HawkEye/moc_*cpp
 codebase/apps/radar/src/HawkEye/moc_predefs.h
+codebase/apps/radar/src/HawkEye/qrc_resources.cpp
 
-codebase/apps/radar/src/Sprite/Sprite
-codebase/apps/radar/src/Sprite/Makefile.qmake
-codebase/apps/radar/src/Sprite/moc_*cpp
-codebase/apps/radar/src/Sprite/moc_predefs.h
+codebase/apps/radar/src/HawkEdit/HawkEdit
+codebase/apps/radar/src/HawkEdit/Makefile.qmake
+codebase/apps/radar/src/HawkEdit/moc_*cpp
+codebase/apps/radar/src/HawkEdit/moc_predefs.h
 
+codebase/apps/radar/src/IpsAscope/IpsAscope
+codebase/apps/radar/src/IpsAscope/Makefile.qmake
+codebase/apps/radar/src/IpsAscope/moc_*cpp
+codebase/apps/radar/src/IpsAscope/moc_predefs.h
+
+codebase/apps/radar/src/IpsEye/IpsEye
+codebase/apps/radar/src/IpsEye/Makefile.qmake
+codebase/apps/radar/src/IpsEye/moc_*cpp
+codebase/apps/radar/src/IpsEye/moc_predefs.h
+codebase/apps/radar/src/IpsEye/qrc_resources.cpp
+
+codebase/apps/radar/src/IpsTsArchive/IpsTsArchive
+codebase/apps/radar/src/IpsTsPrint/IpsTsPrint
+codebase/apps/radar/src/IpsTsSim/IpsTsSim
+codebase/apps/radar/src/IpsTs2Moments/IpsTs2Moments
+codebase/apps/radar/src/IpsTs2NetCDF/IpsTs2NetCDF
+
+codebase/apps/radar/src/HcrMomentsCombine/HcrMomentsCombine
+codebase/apps/radar/src/HcrShortLongCombine/HcrShortLongCombine
+codebase/apps/radar/src/HcrTempRxGain/HcrTempRxGain
+codebase/apps/radar/src/HcrTs2Moments/HcrTs2Moments
 codebase/apps/radar/src/HcrVelCorrect/HcrVelCorrect
 codebase/apps/radar/src/HcrVelCorrect/ReadEgm2008/ReadEgm2008
-codebase/apps/radar/src/HcrTempRxGain/HcrTempRxGain
 codebase/apps/radar/src/HsrlMon/HsrlMon
 codebase/apps/radar/src/Hsrl2Radx/Hsrl2Radx
 codebase/apps/radar/src/HsrlSim/HsrlSim
@@ -459,7 +507,12 @@ codebase/apps/radar/src/MdvFold/MdvFold
 codebase/apps/radar/src/MdvPartRain/MdvPartRain
 codebase/apps/radar/src/MdvRadarShear/MdvRadarShear
 codebase/apps/radar/src/MergeHcrAndHsrl/MergeHcrAndHsrl
+codebase/apps/radar/src/Mpd2Radx/Mpd2Radx
 codebase/apps/radar/src/NexradPowerStats/NexradPowerStats
+codebase/apps/radar/src/NoiseMon/NoiseMon
+codebase/apps/radar/src/Lucid/Lucid
+codebase/apps/radar/src/Lucid/moc_*
+codebase/apps/radar/src/Lucid/Makefile.qmake
 codebase/apps/radar/src/PartRain/PartRain
 codebase/apps/radar/src/PidZdrStats/PidZdrStats
 codebase/apps/radar/src/PointingCpCompute/PointingCpCompute
@@ -471,14 +524,29 @@ codebase/apps/radar/src/RadarCal/RadarCal
 codebase/apps/radar/src/RadarConst/RadarConst
 codebase/apps/radar/src/RadarMdvCompare/RadarMdvCompare
 codebase/apps/radar/src/RapMap2Chill/RapMap2Chill
+codebase/apps/radar/src/RcalXml2Table/RcalXml2Table
 codebase/apps/radar/src/REPoH/REPoH
 codebase/apps/radar/src/SimCpCompute/SimCpCompute
 codebase/apps/radar/src/SpectraPrint/SpectraPrint
+
+codebase/apps/radar/src/Sprite/Sprite
+codebase/apps/radar/src/Sprite/Makefile.qmake
+codebase/apps/radar/src/Sprite/moc_*cpp
+codebase/apps/radar/src/Sprite/moc_predefs.h
+
+codebase/apps/radar/src/StormShapeSim/StormShapeSim
 codebase/apps/radar/src/StaggeredLimits/StaggeredLimits
 codebase/apps/radar/src/SunCal/SunCal
 codebase/apps/radar/src/SunCal/testing/sunscan_ael_code
 codebase/apps/radar/src/SunCpCompute/SunCpCompute
 codebase/apps/radar/src/SweepInfo2Spdb/SweepInfo2Spdb
+
+codebase/apps/radar/src/TsAscope/TsAscope
+codebase/apps/radar/src/TsAscope/Makefile.qmake
+codebase/apps/radar/src/TsAscope/moc_*cpp
+codebase/apps/radar/src/TsAscope/moc_predefs.h
+
+codebase/apps/radar/src/Ts2Moments/Ts2Moments
 codebase/apps/radar/src/Ts2NetCDF/Ts2NetCDF
 codebase/apps/radar/src/TsCalAuto/TsCalAuto
 codebase/apps/radar/src/TsConvert/TsConvert
@@ -504,16 +572,17 @@ codebase/apps/radar/src/TerrainHtServer/TerrainHtServer
 codebase/apps/radar/src/TerrainHtServer/TestClientTerrainHt
 
 codebase/apps/refractt/src/CalcMoisture/CalcMoisture
-codebase/apps/refractt/src/CalcNexrad/CalcNexrad
 codebase/apps/refractt/src/Chill2netCDFSweep/Chill2netCDFSweep
 codebase/apps/refractt/src/CleanupRvp8Data/CleanupRvp8Data
 codebase/apps/refractt/src/DsrAddSnr/DsrAddSnr
 codebase/apps/refractt/src/MdvAddSnr/MdvAddSnr
+codebase/apps/refractt/src/NexradA1ToRefract/NexradA1ToRefract
 codebase/apps/refractt/src/PhaseDiff/PhaseDiff
 codebase/apps/refractt/src/RefrMerge/RefrMerge
+codebase/apps/refractt/src/RefractColorScales/RefractColorScales
 codebase/apps/refractt/src/RefractCalib/RefractCalib
+codebase/apps/refractt/src/RefractCompute/RefractCompute
 codebase/apps/refractt/src/RefractParams2Tdrp/RefractParams2Tdrp
-codebase/apps/refractt/src/Refract/Refract
 
 codebase/apps/satApps/src/IR2Height/IR2Height
 
@@ -533,6 +602,7 @@ codebase/apps/spdb_utils/src/Sigmet2Mdv/Sigmet2Mdv
 codebase/apps/spdb_utils/src/Sndg2Ascii/Sndg2Ascii
 codebase/apps/spdb_utils/src/SpdbBdry2Axf/SpdbBdry2Axf
 codebase/apps/spdb_utils/src/SpdbMultSim/SpdbMultSim
+codebase/apps/spdb_utils/src/SpdbXmlPut/SpdbXmlPut
 codebase/apps/spdb_utils/src/StationCompare/StationCompare
 codebase/apps/spdb_utils/src/Taf2Spdb/Taf2Spdb
 codebase/apps/spdb_utils/src/WxStn2Table/WxStn2Table
@@ -558,11 +628,14 @@ codebase/apps/titan/src/ClutterTableGenerate/ClutterTableGenerate
 codebase/apps/titan/src/EchoTops/EchoTops
 codebase/apps/titan/src/EsdAcIngest/EsdAcIngest
 codebase/apps/titan/src/FilterStorms/FilterStorms
+codebase/apps/titan/src/HailKE/HailKE
+codebase/apps/titan/src/HailKEswath/HailKEswath
 codebase/apps/titan/src/OpticalFlow/OpticalFlow
 codebase/apps/titan/src/PrintTitanFiles/PrintTitanFiles
 codebase/apps/titan/src/PrintTitanServer/PrintTitanServer
 codebase/apps/titan/src/RdasSim/RdasSim
 codebase/apps/titan/src/Rview/Rview
+codebase/apps/titan/src/ScaleSep/ScaleSep
 codebase/apps/titan/src/StormInit2Field/StormInit2Field
 codebase/apps/titan/src/StormInitBdry/StormInitBdry
 codebase/apps/titan/src/StormInitClimatology/StormInitClimatology
@@ -572,7 +645,6 @@ codebase/apps/titan/src/StormInitLocDump/StormInitLocDump
 codebase/apps/titan/src/StormInitLocation/StormInitLocation
 codebase/apps/titan/src/Storms2Xml/Storms2Xml
 codebase/apps/titan/src/Storms2Xml2/Storms2Xml2
-codebase/apps/titan/src/StratFinder/StratFinder
 codebase/apps/titan/src/TimeHist/TimeHist
 codebase/apps/titan/src/Titan/Titan
 codebase/apps/titan/src/TitanLite/TitanLite
@@ -580,6 +652,7 @@ codebase/apps/titan/src/TitanSelect/TitanSelect
 codebase/apps/titan/src/TitanVectors2Mdv/TitanVectors2Mdv
 codebase/apps/titan/src/TstormTemporalSmooth/TstormTemporalSmooth
 codebase/apps/titan/src/Tstorms2GenPoly/Tstorms2GenPoly
+codebase/apps/titan/src/Tstorms2NetCDF/Tstorms2NetCDF
 codebase/apps/titan/src/Tstorms2Shapefile/Tstorms2Shapefile
 codebase/apps/titan/src/Tstorms2Spdb/Tstorms2Spdb
 codebase/apps/titan/src/Tstorms2Xml/Tstorms2Xml
@@ -593,46 +666,51 @@ codebase/apps/titan/src/titan_print/titan_print
 codebase/apps/titan/src/tstorm_refl_fcst/tstorm_refl_fcst
 codebase/apps/titan/src/Radx2Esd/Radx2Esd
 
-codebase/apps/titan_analysis/src/CaseStats/CaseStats
-codebase/apps/titan_analysis/src/DistFit/DistFit
-codebase/apps/titan_analysis/src/PartialProps/PartialProps
-codebase/apps/titan_analysis/src/StormModel/StormModel
-codebase/apps/titan_analysis/src/TimeProps/TimeProps
-codebase/apps/titan_analysis/src/TrackGridStats/TrackGridStats
-codebase/apps/titan_analysis/src/TrackMatch/TrackMatch
-codebase/apps/titan_analysis/src/TrackProps/TrackProps
-codebase/apps/titan_analysis/src/Tracks2Ascii/Tracks2Ascii
-codebase/apps/titan_analysis/src/VerifyTracks/VerifyTracks
-codebase/apps/titan_analysis/src/ascii_to_xgraph/ascii_to_xgraph
-codebase/apps/titan_analysis/src/cart_convert/cart_convert
-codebase/apps/titan_analysis/src/grid_forecast/grid_forecast
-codebase/apps/titan_analysis/src/rtiming/rtiming
-codebase/apps/titan_analysis/src/storms_to_ascii/storms_to_ascii
-codebase/apps/titan_analysis/src/storms_to_tifs/storms_to_tifs
-codebase/apps/titan_analysis/src/test_tserver/test_tserver
-codebase/apps/titan_analysis/src/track_grid_stats/track_grid_stats
-codebase/apps/titan_analysis/src/track_print/track_print
-codebase/apps/titan_analysis/src/tracks_to_ascii/tracks_to_ascii
-codebase/apps/titan_analysis/src/verify_day/verify_day
-codebase/apps/titan_analysis/src/verify_grid/verify_grid
-codebase/apps/titan_analysis/src/verify_tracks/verify_tracks
+codebase/apps/titan/src/CaseStats/CaseStats
+codebase/apps/titan/src/DistFit/DistFit
+codebase/apps/titan/src/PartialProps/PartialProps
+codebase/apps/titan/src/StormModel/StormModel
+codebase/apps/titan/src/TimeProps/TimeProps
+codebase/apps/titan/src/TrackGridStats/TrackGridStats
+codebase/apps/titan/src/TrackMatch/TrackMatch
+codebase/apps/titan/src/TrackProps/TrackProps
+codebase/apps/titan/src/Tracks2Ascii/Tracks2Ascii
+codebase/apps/titan/src/VerifyTracks/VerifyTracks
+codebase/apps/titan/src/ascii_to_xgraph/ascii_to_xgraph
+codebase/apps/titan/src/cart_convert/cart_convert
+codebase/apps/titan/src/grid_forecast/grid_forecast
+codebase/apps/titan/src/rtiming/rtiming
+codebase/apps/titan/src/storms_to_ascii/storms_to_ascii
+codebase/apps/titan/src/storms_to_tifs/storms_to_tifs
+codebase/apps/titan/src/test_tserver/test_tserver
+codebase/apps/titan/src/track_grid_stats/track_grid_stats
+codebase/apps/titan/src/track_print/track_print
+codebase/apps/titan/src/tracks_to_ascii/tracks_to_ascii
+codebase/apps/titan/src/verify_day/verify_day
+codebase/apps/titan/src/verify_grid/verify_grid
+codebase/apps/titan/src/verify_tracks/verify_tracks
 
 codebase/apps/trec/src/GridForecast/GridForecast
 codebase/apps/trec/src/TrecGauge2Spdb/TrecGauge2Spdb
 codebase/apps/trec/src/ctrec/ctrec
 
 codebase/apps/Radx/src/Ascii2Radx/Ascii2Radx
+codebase/apps/Radx/src/CartBeamBlock/CartBeamBlock
 codebase/apps/Radx/src/Dsr2Radx/Dsr2Radx
 codebase/apps/Radx/src/FixCfradialPaths/FixCfradialPaths
+codebase/apps/Radx/src/FixFieldVals/FixFieldVals
 codebase/apps/Radx/src/FixRadxPointing/FixRadxPointing
 codebase/apps/Radx/src/FixRadxValues/FixRadxValues
 codebase/apps/Radx/src/GroundEchoStats/GroundEchoStats
 codebase/apps/Radx/src/Radx2Dsr/Radx2Dsr
+codebase/apps/Radx/src/Radx2Fmq/Radx2Fmq
 codebase/apps/Radx/src/Radx2Grid/Radx2Grid
 codebase/apps/Radx/src/RadxBufr/RadxBufr
 codebase/apps/Radx/src/RadxCalUpdate/RadxCalUpdate
+codebase/apps/Radx/src/RadxCartDP/RadxCartDP
 codebase/apps/Radx/src/RadxCheck/RadxCheck
 codebase/apps/Radx/src/RadxClutMon/RadxClutMon
+codebase/apps/Radx/src/RadxClutter/RadxClutter
 codebase/apps/Radx/src/RadxConvert/RadxConvert
 codebase/apps/Radx/src/RadxCov2Mom/RadxCov2Mom
 codebase/apps/Radx/src/RadxCreateVol/RadxCreateVol
@@ -645,19 +723,20 @@ codebase/apps/Radx/src/RadxHca/RadxHca
 codebase/apps/Radx/src/RadxKdp/RadxKdp
 codebase/apps/Radx/src/RadxMergeFields/RadxMergeFields
 codebase/apps/Radx/src/RadxMergeVols/RadxMergeVols
+codebase/apps/Radx/src/RadxMesoCyclone/RadxMesoCyclone
 codebase/apps/Radx/src/RadxMon/RadxMon
 codebase/apps/Radx/src/RadxModelQc/RadxModelQc
 codebase/apps/Radx/src/RadxPartRain/RadxPartRain
 codebase/apps/Radx/src/RadxPid/RadxPid
-codebase/apps/Radx/src/RadxPersistentClutter/RadxPersistentClutter
 codebase/apps/Radx/src/RadxPrint/RadxPrint
 codebase/apps/Radx/src/RadxQpe/RadxQpe
 codebase/apps/Radx/src/RadxQc/RadxQc
 codebase/apps/Radx/src/RadxRate/RadxRate
+codebase/apps/Radx/src/RadxStats/RadxStats
 codebase/apps/Radx/src/RadxSunMon/RadxSunMon
 codebase/apps/Radx/src/RadxTest/RadxTest
-codebase/apps/Radx/src/RadxTimeMedian/RadxTimeMedian
-codebase/apps/Radx/src/RadxVolTimeStats/RadxVolTimeStats
+codebase/apps/Radx/src/RadxTimeStats/RadxTimeStats
+codebase/apps/Radx/src/RadxVolTimingStats/RadxVolTimingStats
 codebase/apps/Radx/src/RadxBeamBlock/RadxBeamBlock
 codebase/apps/Radx/src/TestRadxMsg/TestRadxMsg
 
@@ -708,6 +787,7 @@ codebase/apps/radar/src/SpectraPlot/SpectraPlot
 codebase/apps/radar/src/SpectraScope/SpectraScope
 
 codebase/apps/xpol/src/ProSensing2Dsr/ProSensing2Dsr
+codebase/apps/xpol/src/XpolScanControl/XpolScanControl
 
 codebase/Makefile
 codebase/libs/Fmq/src/.libs/

@@ -34,13 +34,13 @@
 
 #include "Props.hh"
 #include "InputMdv.hh"
-#include "GridClump.hh"
 #include "Verify.hh"
 #include "Sounding.hh"
 
 #include <toolsa/umisc.h>
 #include <toolsa/str.h>
 #include <toolsa/pmu.h>
+#include <euclid/ClumpProps.hh>
 #include <rapmath/math_macros.h>
 #include <rapmath/umath.h>
 #include <physics/vil.h>
@@ -154,8 +154,8 @@ void Props::init()
   // For this test, it is only necessary to consider x and y, since the
   // elevation angle will be low.
 
-  DsRadarParams *radar = NULL;
-  DsRadarElev *elevs = NULL;
+  DsRadarParams *radar = nullptr;
+  DsRadarElev *elevs = nullptr;
   MdvxRadar mdvxRadar;
   if (mdvxRadar.loadFromMdvx(_inputMdv.mdvx) == 0) {
     radar = &mdvxRadar.getRadarParams();
@@ -227,7 +227,7 @@ void Props::init()
 //         -1 if failure
 //
 
-int Props::compute(const GridClump &grid_clump, int storm_num)
+int Props::compute(const ClumpProps &cprops, int storm_num)
 
       
 {
@@ -256,50 +256,56 @@ int Props::compute(const GridClump &grid_clump, int storm_num)
   for (int ii = 0; ii < _nzValid; ii++) {
     _layer[ii].htKm = _minValidZ + ii * _inputMdv.grid.dz;
   }
-
+  
   // first pass through the clumps, computing the relevant things
   // from which to compute the storm properties.
   // Also, count the number of data runs for this storm.
   
-  if (_computeFirstPass(grid_clump)) {
+  if (_computeFirstPass(cprops)) {
     return (-1);
   }
 
   // get ht of 45 dBZ
   
-  _ht45AboveFreezing = _topOfDbz(45.0, grid_clump) - _freezingLevel;
+  _ht45AboveFreezing = _topOfDbz(45.0, cprops) - _freezingLevel;
 
   // now that we have the necessary first pass info, compute hail metrics.
 
-  _computeHailMetrics(grid_clump);
+  _computeHailMetrics(cprops);
 
   // perform the areal computations for precip and projected
   // areas, including dbz histogram for area
 
-  _area.compute(grid_clump, &_gprops, _dbzHist);
+  _area.compute(cprops, &_gprops, _dbzHist);
 
   // compute other props during second pass through intervals
   
-  _computeSecondPass(grid_clump);
+  _computeSecondPass(cprops);
 
   // tilt angle computations
 
-  _tiltCompute();
+  _tiltCompute(cprops);
 
   // compute dbz gradient with height
 
-  _dbzGradientCompute();
+  _dbzGradientCompute(cprops);
 
   // decide whether this is a second trip echo
-   
+  
   if (_params.check_second_trip) {
     _secondTrip = _checkSecondTrip();
   }
-      
+
+  // compute convectivity median if needed
+
+  if (_params.apply_convectivity_threshold) {
+    _computeConvectivityMedian(cprops);
+  }
+  
   // write valid_storms verification file
   
   if (_verify) {
-    _verify->updateValidStormsGrid(grid_clump);
+    _verify->updateValidStormsGrid(cprops);
   }
 
   // load up global storm properties
@@ -327,12 +333,12 @@ int Props::compute(const GridClump &grid_clump, int storm_num)
   // store runs
   
   if (_params.store_storm_runs) {
-    gprops->n_runs = _storeRuns(grid_clump);
+    gprops->n_runs = _storeRuns(cprops);
   } else {
     gprops->n_runs = 0;
   }
 
-  gprops->n_proj_runs = _area.storeProjRuns(grid_clump);
+  gprops->n_proj_runs = _area.storeProjRuns(cprops);
 
   return (0);
 
@@ -373,6 +379,10 @@ void Props::_alloc(int nz, int nhist)
   _sfile.AllocLayers(_inputMdv.grid.nz);
   _sfile.AllocHist(_nDbzHistIntervals);
 
+  if (nz > (int) _distribLayers.size()) {
+    _distribLayers.resize(nz);
+  }
+
 }
 
 //////////////////////////////////////
@@ -387,12 +397,12 @@ void Props::_alloc(int nz, int nhist)
 // computing arctan when the points are coincident
 #define FUDGE_X (0.1)
 
-int Props::_computeFirstPass(const GridClump &grid_clump)
+int Props::_computeFirstPass(const ClumpProps &cprops)
 
 {
 
   int max_dbz_intvl = 0;
-  const titan_grid_t &grid = grid_clump.grid;
+  const titan_grid_t &grid = _inputMdv.grid;
   int nptsPlane = grid.nx * grid.ny;
 
   // initialize
@@ -401,20 +411,20 @@ int Props::_computeFirstPass(const GridClump &grid_clump)
   double lowDbzThreshold = _params.low_dbz_threshold;
   double histInterval = _params.dbz_hist_interval;
 
-  for (int intv = 0; intv < grid_clump.nIntervals; intv++) {
-    
-    const Interval &intvl = grid_clump.intervals[intv];
+  for (size_t intv = 0; intv < cprops.nIntervals(); intv++) {
+
+    const Interval &intvl = cprops.intvLocal(intv);
 
     int iz = intvl.plane;
     int jz = iz + _inputMdv.minValidLayer;
     int iy = intvl.row_in_plane;
     _layer[iz].n += intvl.len;
 	
-    int index = ((iy + grid_clump.startIy) * grid.nx +
-		 intvl.begin + grid_clump.startIx);
+    int index = ((iy + cprops.minIy()) * grid.nx +
+		 intvl.begin + cprops.minIx());
     
     fl32 *dbz_ptr = _inputMdv.dbzVol + jz * nptsPlane + index;
-    fl32 *vel_ptr = NULL;
+    fl32 *vel_ptr = nullptr;
     if (_params.vel_available) {
       vel_ptr = _inputMdv.velVol + jz * nptsPlane + index;
     }
@@ -481,7 +491,7 @@ int Props::_computeFirstPass(const GridClump &grid_clump)
       
       // precip mass
       
-      _layer[iz].sum_mass += mass_factor;
+      _layer[iz].sum_mass_factor += mass_factor;
       
       // velocity
       
@@ -517,7 +527,7 @@ int Props::_computeFirstPass(const GridClump &grid_clump)
 	dbz_max_layer = iz;
       }
 	
-      _sum.mass += _layer[iz].sum_mass;
+      _sum.mass_factor += _layer[iz].sum_mass_factor;
 	
       if (iz > _topLayer)
 	_topLayer = iz;
@@ -541,25 +551,25 @@ int Props::_computeFirstPass(const GridClump &grid_clump)
   double dn = (double) _sum.n;
 
   _gprops.vol_centroid_x =
-    grid_clump.startX + ((double) _sum.x / dn) * grid.dx; // km
+    cprops.startXLocal() + ((double) _sum.x / dn) * grid.dx; // km
   _gprops.vol_centroid_y =
-    grid_clump.startY + ((double) _sum.y / dn) * grid.dy; // km
+    cprops.startYLocal() + ((double) _sum.y / dn) * grid.dy; // km
   _gprops.vol_centroid_z =
     _minValidZ + ((double) _sum.z / dn) * grid.dz; // km
   
   _gprops.refl_centroid_x =
-    grid_clump.startX + (_sum.refl_x / _sum.refl) * grid.dx; // km
+    cprops.startXLocal() + (_sum.refl_x / _sum.refl) * grid.dx; // km
     
   _gprops.refl_centroid_y =
-    grid_clump.startY + (_sum.refl_y / _sum.refl) * grid.dy; // km
+    cprops.startYLocal() + (_sum.refl_y / _sum.refl) * grid.dy; // km
   
   _gprops.refl_centroid_z =
     _minValidZ + (_sum.refl_z / _sum.refl) * grid.dz; // km
   
-  _gprops.volume = grid_clump.stormSize; // km3 or km2
+  _gprops.volume = cprops.clumpSize(); // km3 or km2
   
   _gprops.area_mean =
-    (dn / (double) _nLayers) * grid_clump.dAreaAtCentroid; // km2
+    (dn / (double) _nLayers) * cprops.dAreaAtCentroid(); // km2
   
   _gprops.top = _minValidZ +
     ((double) _topLayer + 0.5) * grid.dz; // km
@@ -576,35 +586,35 @@ int Props::_computeFirstPass(const GridClump &grid_clump)
   
   _gprops.rad_vel_sd = usdev(_sum.vel, _sum.vel2, dn);
 
-  _gprops.mass = (_sum.mass * grid_clump.dVolAtCentroid *
-                  pow(_ZMInverseCoeff, _ZMInverseExpon)); // ktons
-    
+  _gprops.mass = 0.0;
+  
   // layer properties
 
   for (int iz = 0; iz < _nzValid; iz++) {
     
     _layer[iz].area =
-      (double) _layer[iz].n * grid_clump.dAreaAtCentroid; // km2
+      (double) _layer[iz].n * cprops.dAreaAtCentroid(); // km2
     
     if (_layer[iz].n > 0) {
       
       double dnperlayer = (double) _layer[iz].n;
 	
-      _layer[iz].vol_centroid_x = grid_clump.startX +
+      _layer[iz].vol_centroid_x = cprops.startXLocal() +
 	((double) _layer[iz].sum_x / dnperlayer) * grid.dx; // km
-      _layer[iz].vol_centroid_y = grid_clump.startY +
+      _layer[iz].vol_centroid_y = cprops.startYLocal() +
 	((double) _layer[iz].sum_y / dnperlayer) * grid.dy; // km
 	
-      _layer[iz].refl_centroid_x = grid_clump.startX +
+      _layer[iz].refl_centroid_x = cprops.startXLocal() +
 	(_layer[iz].sum_refl_x / _layer[iz].sum_refl) * grid.dx; // km
-      _layer[iz].refl_centroid_y = grid_clump.startY +
+      _layer[iz].refl_centroid_y = cprops.startYLocal() +
 	(_layer[iz].sum_refl_y / _layer[iz].sum_refl) * grid.dy; // km
 	
       _layer[iz].dbz_mean = log10(_layer[iz].sum_refl / dnperlayer) * 10.0;
       
       _layer[iz].mass =
-	(_layer[iz].sum_mass * grid_clump.dVolAtCentroid
+	(_layer[iz].sum_mass_factor * cprops.dVolAtCentroid(iz)
 	 * pow(_ZMInverseCoeff, _ZMInverseExpon)); // ktons
+      _gprops.mass += _layer[iz].mass;
       
       if (_params.vel_available) {
 	_layer[iz].vel_mean = _layer[iz].sum_vel / dnperlayer;
@@ -678,7 +688,7 @@ int Props::_computeFirstPass(const GridClump &grid_clump)
 // circular structure
 #define VORTICITY_MODEL_FACTOR 2.0
 
-void Props::_computeSecondPass(const GridClump &grid_clump)
+void Props::_computeSecondPass(const ClumpProps &cprops)
 
 {
 
@@ -687,24 +697,24 @@ void Props::_computeSecondPass(const GridClump &grid_clump)
 
   // initialize
 
-  for (int intv = 0; intv < grid_clump.nIntervals; intv++) {
+  for (size_t intv = 0; intv < cprops.nIntervals(); intv++) {
 
-    const Interval intvl = grid_clump.intervals[intv];
+    const Interval intvl = cprops.intvLocal(intv);
 
     int iz = intvl.plane;
     int jz = iz + _inputMdv.minValidLayer;
     int iy = intvl.row_in_plane;
     
-    double grid_x = (double) intvl.begin * grid.dx + grid_clump.startX;
-    double grid_y = (double) iy * grid.dy + grid_clump.startY;
+    double grid_x = (double) intvl.begin * grid.dx + cprops.startXLocal();
+    double grid_y = (double) iy * grid.dy + cprops.startYLocal();
     double grid_z = (double) jz * grid.dz + grid.minz;
     double rel_y = grid_y - grid.sensor_y;
     double rel_z = grid_z - grid.sensor_z;
 
-    int index = ((iy + grid_clump.startIy) * grid.nx +
-		 intvl.begin + grid_clump.startIx);
+    int index = ((iy + cprops.minIy()) * grid.nx +
+		 intvl.begin + cprops.minIx());
 
-    fl32 *vel_ptr = NULL;
+    fl32 *vel_ptr = nullptr;
     if (_params.vel_available) {
       vel_ptr = _inputMdv.velVol + jz * nptsPlane + index;
     }
@@ -863,23 +873,23 @@ void Props::_computeSecondPass(const GridClump &grid_clump)
 // Returns the number of runs in the clump.
 //
 
-int Props::_storeRuns(const GridClump &grid_clump)
+int Props::_storeRuns(const ClumpProps &cprops)
 
 {
   
   // make sure there is space for the runs
 
-  _sfile.AllocLayers(grid_clump.grid.nz);
+  _sfile.AllocLayers(cprops.gridGeom().nz());
   _sfile.AllocHist(_nDbzHistIntervals);
-  _sfile.AllocRuns(grid_clump.nIntervals);
+  _sfile.AllocRuns(cprops.nIntervals());
   
   storm_file_run_t *run = _sfile._runs;
-  int start_ix = grid_clump.startIx;
-  int start_iy = grid_clump.startIy;
+  int start_ix = cprops.minIx();
+  int start_iy = cprops.minIy();
   
-  for (int intv = 0; intv < grid_clump.nIntervals; intv++, run++) {
+  for (size_t intv = 0; intv < cprops.nIntervals(); intv++, run++) {
 
-    const Interval &intvl = grid_clump.intervals[intv];
+    const Interval &intvl = cprops.intvLocal(intv);
   
     run->ix = intvl.begin + start_ix;
     run->iy = intvl.row_in_plane + start_iy;
@@ -888,11 +898,11 @@ int Props::_storeRuns(const GridClump &grid_clump)
 	
   } // intv
 
-  return (grid_clump.nIntervals);
+  return (cprops.nIntervals());
 
 }
 
-//////////////////
+//////////////////////////////////////////////////////////////
 // _tiltCompute()
 //
 // Compute tilt from  principal component analysis
@@ -901,7 +911,7 @@ int Props::_storeRuns(const GridClump &grid_clump)
 //       tilt_area is in sq grid_units.
 //
 
-void Props::_tiltCompute()
+void Props::_tiltCompute(const ClumpProps &cprops)
      
 {
 
@@ -920,8 +930,7 @@ void Props::_tiltCompute()
   for (int iz = _baseLayer; iz <= _topLayer; iz++) {
     _tiltData[iz][0] = _layer[iz].vol_centroid_x;
     _tiltData[iz][1] = _layer[iz].vol_centroid_y;
-    _tiltData[iz][2] = _minValidZ +
-      (double) iz * _inputMdv.grid.dz * 10.0;
+    _tiltData[iz][2] = cprops.gridGeom().zKm(iz) * 10.0;
   }
       
   // obtain the principal component transformation for this data - the
@@ -956,6 +965,10 @@ void Props::_tiltCompute()
 	_gprops.tilt_dirn += 360.0;
       }
       _gprops.tilt_angle = 90.0 - atan2(tilt_z, tilt_r) * RAD_TO_DEG;
+      if (fabs(_gprops.tilt_angle) < 0.01) {
+        _gprops.tilt_angle = 0.0;
+	_gprops.tilt_dirn = 0.0;
+      }
     }
     
   } // if (upct(3, _nLayers, _tiltData + _baseLayer, ...
@@ -968,7 +981,7 @@ void Props::_tiltCompute()
 // Compute dbz_gradient from  principal component analysis
 //
 
-void Props::_dbzGradientCompute()
+void Props::_dbzGradientCompute(const ClumpProps &cprops)
      
 {
   
@@ -984,8 +997,7 @@ void Props::_dbzGradientCompute()
       
   for (int iz = _baseLayer; iz <= _topLayer; iz++) {
     _dbzGradientData[iz][0] = _layer[iz].dbz_max;
-    _dbzGradientData[iz][1] = _minValidZ +
-      (double) iz * _inputMdv.grid.dz * 1000.0;
+    _dbzGradientData[iz][1] = cprops.zKm(iz) * 1000.0;
   }
       
   // obtain the principal component transformation for this data - the
@@ -1009,8 +1021,7 @@ void Props::_dbzGradientCompute()
       
   for (int iz = _baseLayer; iz <= _topLayer; iz++) {
     _dbzGradientData[iz][0] = _layer[iz].dbz_mean;
-    _dbzGradientData[iz][1] = _minValidZ +
-      (double) iz * _inputMdv.grid.dz * 1000.0;
+    _dbzGradientData[iz][1] = cprops.zKm(iz) * 1000.0;
   }
       
   if (upct( 2, _nLayers,
@@ -1114,6 +1125,71 @@ int Props::_checkSecondTrip()
 
 }
 
+/////////////////////////////////////////////////////////
+// Compute median convectivity median property
+// for global props and layer props
+
+void Props::_computeConvectivityMedian(const ClumpProps &cprops)
+  
+{
+  
+  if (_inputMdv.convVol == nullptr) {
+    return;
+  }
+  
+  const titan_grid_t &grid = _inputMdv.grid;
+  int nptsPlane = grid.nx * grid.ny;
+  
+  // create DistNormal objects for computing histograms
+  // Convectivity ranges from 0 to 1.
+  // We use 100 bins, width 0.01.
+  
+  _distribGlobal.clearValues();
+  _distribGlobal.setHistRange(0.0, 1.0);
+  _distribGlobal.setHistNBins(100);
+  for (size_t iz = 0; iz < _distribLayers.size(); iz++) {
+    DistNormal &distrib = _distribLayers[iz];
+    distrib.clearValues();
+    distrib.setHistRange(0.0, 1.0);
+    distrib.setHistNBins(100);
+  }
+
+  // accumulate convectivity data in DistNormals
+  
+  for (size_t intv = 0; intv < cprops.nIntervals(); intv++) {
+    
+    const Interval intvl = cprops.intvLocal(intv);
+    
+    int iz = intvl.plane;
+    int jz = iz + _inputMdv.minValidLayer;
+    int iy = intvl.row_in_plane;
+    
+    int index = ((iy + cprops.minIy()) * grid.nx +
+		 intvl.begin + cprops.minIx());
+    
+    fl32 *conv_ptr = _inputMdv.convVol + jz * nptsPlane + index;
+    
+    for (int ix = intvl.begin; ix <= intvl.end; ix++, conv_ptr++) {
+      double conv = *conv_ptr;
+      _distribGlobal.addValue(conv);
+      _distribLayers[iz].addValue(conv);
+    }
+
+  } // intv
+  
+  // compute the median values, set in the structs
+
+  _distribGlobal.computeHistogram();
+  _gprops.convectivity_median = _distribGlobal.getHistMedian();
+
+  for (int iz = 0; iz < _nLayers; iz++) {
+    DistNormal &distrib = _distribLayers[iz];
+    distrib.computeHistogram();
+    _layer[iz].convectivity_median = distrib.getHistMedian();
+  }
+
+}
+
 /***************************************************************************
  * load_props.c
  *
@@ -1181,6 +1257,7 @@ void Props::_loadLprops(layer_stats_t *layer,
   lprops->rad_vel_mean = layer->vel_mean;
   lprops->rad_vel_sd = layer->vel_sd;
   lprops->vorticity = layer->vorticity;
+  lprops->convectivity_median = layer->convectivity_median;
   
 }
 
@@ -1202,7 +1279,7 @@ void Props::_loadDbzHist(dbz_hist_entry_t *dbz_hist,
 //////////////////////////////////////////////////////////////
 // get top of dbz contour in clump
 
-double Props::_topOfDbz(double dbz, const GridClump &grid_clump)
+double Props::_topOfDbz(double dbz, const ClumpProps &cprops)
 {
 
   // Returns the top, i.e. max height in km, of a dbz contour
@@ -1242,12 +1319,12 @@ double Props::_topOfDbz(double dbz, const GridClump &grid_clump)
 //////////////////////////////////////////////////////////////
 // compute hail metrics for the clump
 
-void Props::_computeHailMetrics(const GridClump &grid_clump)
+void Props::_computeHailMetrics(const ClumpProps &cprops)
 {
 
   // initialize
   
-  const titan_grid_t &grid = grid_clump.grid;
+  const titan_grid_t &grid = _inputMdv.grid;
   int nptsPlane = grid.nx * grid.ny;
 
   if (_params.debug_hail_metrics >= Params::DEBUG_VERBOSE) {
@@ -1267,15 +1344,15 @@ void Props::_computeHailMetrics(const GridClump &grid_clump)
   // sums up hail mass over clump
   
   _hailZM.initIntegration();
-  for (int intv = 0; intv < grid_clump.nIntervals; intv++) {
-    const Interval &intvl = grid_clump.intervals[intv];
+  for (size_t intv = 0; intv < cprops.nIntervals(); intv++) {
+    const Interval &intvl = cprops.intvLocal(intv);
     int iz = intvl.plane;
     double ht = _layer[iz].htKm;
     if (ht > _freezingLevel + 2.0) {
       int jz = iz + _inputMdv.minValidLayer;
       int iy = intvl.row_in_plane;
-      int index = ((iy + grid_clump.startIy) * grid.nx +
-                   intvl.begin + grid_clump.startIx);
+      int index = ((iy + cprops.minIy()) * grid.nx +
+                   intvl.begin + cprops.minIx());
       fl32 *dbz_ptr = _inputMdv.dbzVol + jz * nptsPlane + index;
       for (int ix = intvl.begin; ix <= intvl.end; ix++, dbz_ptr++) {
         double dbz = *dbz_ptr;
@@ -1283,7 +1360,7 @@ void Props::_computeHailMetrics(const GridClump &grid_clump)
       }
     } // if (ht ...
   } // intv
-  double hma = _hailZM.integralOfX(grid_clump.dVolAtCentroid);
+  double hma = _hailZM.integralOfX(cprops.dVolAtCentroid(0));
 
   // VIHM - vertically integrated hail mass
   // uses the max dbz for each layer
@@ -1298,16 +1375,16 @@ void Props::_computeHailMetrics(const GridClump &grid_clump)
 
   // FOKR category
 
-  int fokr = _getFokrCategory(grid_clump);
+  int fokr = _getFokrCategory(cprops);
   
   // waldvogel probability of hail
   
-  double wpoh = _getWaldvogelProbability(grid_clump);
+  double wpoh = _getWaldvogelProbability(cprops);
 
   // nexrad hail detection algorithm
   
   double poh, shi, posh, mehs;
-  _computeNexradHda(grid_clump, poh, shi, posh, mehs);
+  _computeNexradHda(cprops, poh, shi, posh, mehs);
 
   if ((_params.debug_hail_metrics >= Params::DEBUG_VERBOSE) ||
       (_params.debug_hail_metrics && poh > 0)) {
@@ -1341,7 +1418,7 @@ void Props::_computeHailMetrics(const GridClump &grid_clump)
 // non-hailstorms (Category 0 and 1) from potentially developing hailers 
 // (Cat. 2), likely hailstorms (Cat. 3) and severe hailstorms (Cat. 4)
 
-int Props::_getFokrCategory(const GridClump &grid_clump)
+int Props::_getFokrCategory(const ClumpProps &cprops)
 {
 
   // Check for degenerate case
@@ -1386,7 +1463,7 @@ const Props::heightProb_t Props::HEIGHT_PROB[] =
   { 1.65, 0.0 }
 };
 
-double Props::_getWaldvogelProbability(const GridClump &grid_clump)
+double Props::_getWaldvogelProbability(const ClumpProps &cprops)
 {
 
   // Check for degenerate case
@@ -1427,19 +1504,19 @@ double Props::_getWaldvogelProbability(const GridClump &grid_clump)
 // An Enhanced Hail Detection Algorithm for the WSR-88D.
 // Weather and Forecasting, Volume 13, June 1998
 
-void Props::_computeNexradHda(const GridClump &grid_clump,
+void Props::_computeNexradHda(const ClumpProps &cprops,
                               double &poh,
                               double &shi,
                               double &posh,
                               double &mehs)
 {
 
-  const titan_grid_t &grid = grid_clump.grid;
+ const titan_grid_t &grid = _inputMdv.grid;
 
   // probability of hail (POH) is from Waldvogel et al
   // we comvert probability from fraction to percent
 
-  poh = _getWaldvogelProbability(grid_clump) * 100.0;
+  poh = _getWaldvogelProbability(cprops) * 100.0;
 
   // compute Severe Hail Index (SHI)
   

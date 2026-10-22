@@ -23,7 +23,7 @@ Recommended distributions are:
   * Debian
   * Ubuntu (based on Debian)
   * RedHat
-  * Centos (based on RedHat)
+  * AlmaLinux (based on RedHat)
   * Fedora (based on RedHat)
 
 Install the required packages. See:
@@ -97,7 +97,7 @@ LROSE will be installed in:
 You can choose to build manually from the command line, or you
 can use the python script provided.
 
-The script ```build_lrose_manual.py``` is in ```lrose-core/build```.
+The script ```build_lrose_manual.py``` is in ```lrose-core/build/scripts```.
 
 The usage is:
 ```
@@ -191,8 +191,6 @@ If you get an install error, try:
 
 ```
   cd $LROSE_CORE_DIR/codebase/apps/scripts/src
-  make install
-  cd $LROSE_CORE_DIR/codebase/apps/procmap/src/scripts
   make install
 ```
 

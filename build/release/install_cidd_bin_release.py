@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===========================================================================
 #
@@ -36,7 +36,7 @@ def main():
 
     usage = "usage: %prog [options]"
     homeDir = os.environ['HOME']
-    prefixDefault = '/usr/local/lrose'
+    prefixDefault = os.path.join(homeDir, "cidd")
 
     parser = OptionParser(usage)
     parser.add_option('--debug',

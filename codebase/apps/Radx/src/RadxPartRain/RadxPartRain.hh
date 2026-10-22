@@ -48,9 +48,8 @@
 #include <deque>
 #include <toolsa/TaThread.hh>
 #include <toolsa/TaThreadPool.hh>
-#include <radar/NoiseLocator.hh>
-#include <radar/KdpBringi.hh>
 #include <radar/TempProfile.hh>
+#include <radar/KdpFiltParams.hh>
 #include <Radx/RadxVol.hh>
 #include <Radx/RadxArray.hh>
 #include <Radx/PseudoRhi.hh>
@@ -105,6 +104,7 @@ private:
   char *_paramsPath;
   Args _args;
   Params _params;
+  KdpFiltParams _kdpFiltParams;
   vector<string> _readPaths;
 
   // radar volume container
@@ -180,7 +180,10 @@ private:
   {  
   public:
     // constructor
-    ComputeThread(RadxPartRain *obj, const Params &params, int threadNum);
+    ComputeThread(RadxPartRain *obj,
+                  const Params &params,
+                  const KdpFiltParams &kdpFiltParams,
+                  int threadNum);
     // destructor
     virtual ~ComputeThread();
     // compute engine object
@@ -198,6 +201,7 @@ private:
     RadxPartRain *_this;
     // params
     const Params &_params;
+    const KdpFiltParams &_kdpFiltParams;
     // thread number
     int _threadNum;
     // computation engine
@@ -261,6 +265,8 @@ private:
   void _applyInfillFilter(int nGates,
                           Radx::si32 *flag,
                           bool removeShortRuns);
+  
+  void _printParamsKdp();
   
 };
 

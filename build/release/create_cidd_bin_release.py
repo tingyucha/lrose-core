@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===========================================================================
 #
@@ -38,11 +38,13 @@ def main():
 
     global thisScriptDir
     thisScriptDir = os.path.dirname(__file__)
-    os.chdir(thisScriptDir)
+    if (len(thisScriptDir) > 0):
+        print("chdir to %s" % thisScriptDir, file=sys.stderr)
+        os.chdir(thisScriptDir)
     thisScriptDir = os.getcwd()
 
     homeDir = os.environ['HOME']
-    releaseDirDefault = os.path.join(homeDir, 'releases')
+    releaseDirDefault = os.path.join(homeDir, 'releases/binary')
     
     global options
 
@@ -110,7 +112,8 @@ def main():
     if (options.tag != "master"):
         cmd += " --tag " + options.tag
     elif (options.releaseDate != "latest"):
-        cmd += " --releaseDate " + options.releaseDate
+        tag = "lrose-core-" + options.releaseDate
+        cmd += " --tag " + tag
     cmd += " --releaseDir " + options.releaseDir
     cmd += " --force"
     cmd += " --static"
@@ -135,6 +138,7 @@ def main():
     cmd += " --releaseDir " + options.releaseDir
     cmd += " --force"
     cmd += " --buildNetcdf"
+    cmd += " --automake"
     shellCmd(cmd)
 
     # exit

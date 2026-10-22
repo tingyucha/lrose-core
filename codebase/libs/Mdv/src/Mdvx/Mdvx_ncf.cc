@@ -45,6 +45,7 @@
 #include <didss/DsURL.hh>
 #include <dsserver/DsLocator.hh>
 #include <dsserver/DmapAccess.hh>
+#include <toolsa/safe_snprintf.hh>
 #include <toolsa/TaStr.hh>
 #include <toolsa/mem.h>
 #include <cerrno>
@@ -533,7 +534,7 @@ void Mdvx::clearMdv2Ncf()
   _ncfCompress = true;
   _ncfCompressionLevel = 4;
   _ncfFileFormat = NCF_FORMAT_NETCDF4;
-  _ncfOutputLatlonArrays = true;
+  _ncfOutputLatlonArrays = false;
   _ncfOutputMdvAttr = true;
   _ncfOutputMdvChunks = true;
   _ncfOutputStartEndTimes = true;
@@ -761,10 +762,10 @@ int Mdvx::_writeToNcfBuf(const string &path)
   DateTime dnow(now);
   pid_t pid = getpid();
   char tmpFilePath[FILENAME_MAX];
-  sprintf(tmpFilePath,
-          "/tmp/Mdvx_writeToNcfBuf_%.4d%.2d%.2d_%.2d%.2d%.2d_%.5d.nc",
-          dnow.getYear(), dnow.getMonth(), dnow.getDay(),
-          dnow.getHour(), dnow.getMin(), dnow.getSec(), pid);
+  safe_snprintf(tmpFilePath,
+                "/tmp/Mdvx_writeToNcfBuf_%.4d%.2d%.2d_%.2d%.2d%.2d_%.5d.nc",
+                dnow.getYear(), dnow.getMonth(), dnow.getDay(),
+                dnow.getHour(), dnow.getMin(), dnow.getSec(), pid);
           
   Mdv2NcfTrans trans;
   trans.clearData();
@@ -891,10 +892,10 @@ int Mdvx::_readFromNcfBuf(const string &path)
   DateTime dnow(now);
   pid_t pid = getpid();
   char tmpFilePath[FILENAME_MAX];
-  sprintf(tmpFilePath,
-          "/tmp/Mdvx_readFromNcfBuf_%.4d%.2d%.2d_%.2d%.2d%.2d_%.5d.nc",
-          dnow.getYear(), dnow.getMonth(), dnow.getDay(),
-          dnow.getHour(), dnow.getMin(), dnow.getSec(), pid);
+  safe_snprintf(tmpFilePath,
+                "/tmp/Mdvx_readFromNcfBuf_%.4d%.2d%.2d_%.2d%.2d%.2d_%.5d.nc",
+                dnow.getYear(), dnow.getMonth(), dnow.getDay(),
+                dnow.getHour(), dnow.getMin(), dnow.getSec(), pid);
 
   // write nc buffer to file
 
@@ -968,9 +969,10 @@ int Mdvx::_readAllHeadersNcf(const string &path)
 
   Ncf2MdvTrans trans;
   trans.setDebug(_debug);
+  trans.setReadData(false);
   Mdvx mdvx;
   if (trans.readCf(path, mdvx)) {
-    _errStr += "ERROR - Mdvx::_readNcf\n";
+    _errStr += "ERROR - Mdvx::_readAllHeadersNcf\n";
     TaStr::AddStr(_errStr, "  Path ", path);
     TaStr::AddStr(_errStr, "  Cannot translate file to MDV");
     TaStr::AddStr(_errStr, trans.getErrStr());
@@ -994,7 +996,7 @@ int Mdvx::_readAllHeadersNcf(const string &path)
     MdvxField *field = mdvx.getField(ii);
     Mdvx::field_header_t fhdr = field->getFieldHeader();
     Mdvx::vlevel_header_t vhdr = field->getVlevelHeader();
-    addField(new MdvxField(fhdr, vhdr));
+    addField(new MdvxField(fhdr, vhdr, NULL, false, false, false));
     _fhdrsFile.push_back(fhdr);
     _vhdrsFile.push_back(vhdr);
   }
@@ -1055,7 +1057,7 @@ int Mdvx::_readNcf(const string &path)
   _internalFormat = FORMAT_MDV;
 
   // convert the output fields appropriately
-  
+
   for (int ii = 0; ii < (int) _fields.size(); ii++) {
     _fields[ii]->convertType(readEncodingType,
                              readCompressionType,
@@ -1104,8 +1106,9 @@ int Mdvx::_readAllHeadersRadx(const string &path)
   // read in first field with data
 
   RadxVol vol0;
-  if (vol.getFields().size() > 0) {
-    RadxField *rfld = vol.getField(0);
+  const vector<RadxField *> fields = vol.getFields();
+  if (fields.size() > 0) {
+    const RadxField *rfld = fields[0];
     string firstFieldName = rfld->getName();
     RadxFile inFile0;
     inFile0.addReadField(firstFieldName);
@@ -1180,6 +1183,12 @@ int Mdvx::_readAllHeadersRadx(const string &path)
     fhdr.grid_miny = 0.0;
     fhdr.grid_minz = 0.0;
 
+    fhdr.data_element_nbytes = rfld->getByteWidth();
+    if (fhdr.data_element_nbytes > 4) {
+      fhdr.data_element_nbytes = 4;
+    }
+    fhdr.volume_size = fhdr.data_element_nbytes * fhdr.nz * fhdr.ny * fhdr.nx;
+
     if (vol0.getNRays() > 0) {
       const RadxRay *ray0 = vol0.getRays()[0];
       fhdr.grid_dx = ray0->getGateSpacingKm();
@@ -1220,7 +1229,7 @@ int Mdvx::_readAllHeadersRadx(const string &path)
     
     _fhdrsFile.push_back(fhdr);
     _vhdrsFile.push_back(vhdr);
-    addField(new MdvxField(fhdr, vhdr));
+    addField(new MdvxField(fhdr, vhdr, NULL, false, false, false));
     
   } // ifield
   
@@ -1378,4 +1387,3 @@ void Mdvx::printConvertMdv2NcfRequest(ostream &out) const
   cerr << endl;
 
 }
-

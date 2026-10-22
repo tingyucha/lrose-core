@@ -163,9 +163,11 @@ RadxRay *Worker::compute(RadxRay *inputRay,
   RadxRay *outputRay = new RadxRay;
   outputRay->copyMetaData(*inputRay);
   
-  // compute kdp
+  // compute kdp if not passed in
 
-  _kdpCompute();
+  if (!_params.KDP_available) {
+    _kdpCompute();
+  }
 
   // compute pid
 
@@ -196,12 +198,8 @@ void Worker::_kdpInit()
 
   // initialize KDP object
 
-  _kdp.setFromParams(_kdpFiltParams);
+  _kdp.setParams(_kdpFiltParams);
   
-  if (_params.debug >= Params::DEBUG_VERBOSE) {
-    _kdp.setDebug(true);
-  }
-
 }
 
 ////////////////////////////////////////////////
@@ -399,7 +397,7 @@ void Worker::_allocArrays()
 }
 
 /////////////////////////////////////////////////////
-// load input arrays ready for KDP
+// load input arrays ready for computations
   
 int Worker::_loadInputArrays(RadxRay *inputRay)
   
@@ -432,6 +430,21 @@ int Worker::_loadInputArrays(RadxRay *inputRay)
   if (_loadFieldArray(inputRay, _params.RHOHV_field_name,
                       true, _rhohvArray)) {
     return -1;
+  }
+  
+  if (_params.KDP_available) {
+    // load in KDP
+    if (_loadFieldArray(inputRay, _params.KDP_field_name,
+                        true, _kdpArray)) {
+      return -1;
+    }
+    memcpy(_kdpScArray, _kdpArray, _nGates * sizeof(double));
+  } else {
+    // prepare to compute KDP
+    for (size_t igate = 0; igate < _nGates; igate++) {
+      _kdpArray[igate] = missingDbl;
+      _kdpScArray[igate] = missingDbl;
+    }
   }
   
   if (_params.LDR_available) {
@@ -542,16 +555,18 @@ void Worker::_censorNonWeather(RadxField &field)
 {
 
   const int *pid = _pid.getPid();
-  for (size_t ii = 0; ii < _nGates; ii++) {
-    int ptype = pid[ii];
-    if (ptype == NcarParticleId::FLYING_INSECTS ||
-        ptype == NcarParticleId::SECOND_TRIP ||
-        ptype == NcarParticleId::GROUND_CLUTTER ||
-        ptype < NcarParticleId::CLOUD ||
-        ptype > NcarParticleId::SATURATED_SNR) {
-      field.setGateToMissing(ii);
-    }
-  } // ii
+  for (size_t igate = 0; igate < _nGates; igate++) {
+    int ptype = pid[igate];
+    if (ptype <= 0) {
+      field.setGateToMissing(igate);
+    } else {
+      for (int it = 0; it < _params.non_weather_pid_types_n; it++) {
+        if (ptype == _params._non_weather_pid_types[it]) {
+          field.setGateToMissing(igate);
+        }
+      }  // it
+    } // if (ptype <= 0) 
+  } // igate
 
 }
 
@@ -758,6 +773,22 @@ void Worker::_loadOutputFields(RadxRay *inputRay,
 
   } // if (_params.copy_input_fields_to_output)
 
+  // censor non-weather in output fields
+
+  for (int ifield = 0; ifield < _params.output_fields_n; ifield++) {
+    const Params::output_field_t &ofld = _params._output_fields[ifield];
+    if (!ofld.do_write) {
+      continue;
+    }
+    if (ofld.censor_non_weather) {
+      string outName = ofld.name;
+      RadxField *fld = outputRay->getField(outName);
+      if (fld != NULL) {
+        _censorNonWeather(*fld);
+      }
+    }
+  } // ifield
+  
   // add debug fields if required
 
   if (_params.PID_write_debug_fields) {
@@ -869,10 +900,10 @@ void Worker::_addKdpDebugFields(RadxRay *outputRay)
             _kdp.getKdpZZdr());
   
   _addField(outputRay,
-            "PSOB", "deg",
+            "DELTA", "deg",
             "phase_shift_on_backscatter",
             "phase_shift_on_backscatter",
-            _kdp.getPsob());
+            _kdp.getDelta());
   
   _addField(outputRay,
             "DBZ_FOR_KDP", "dBZ",
@@ -891,12 +922,6 @@ void Worker::_addKdpDebugFields(RadxRay *outputRay)
             "zdr_filtered_for_kdp_computations",
             "differential_reflectivity_hv",
             _kdp.getZdr());
-  
-  _addField(outputRay,
-            "ZDR_SDEV_FOR_KDP", "dB",
-            "standard_deviation_of_zdr_for_kdp_computations",
-            "differential_reflectivity_hv",
-            _kdp.getZdrSdev());
   
   _addField(outputRay,
             "RHOHV_FOR_KDP", "",
@@ -923,10 +948,10 @@ void Worker::_addKdpDebugFields(RadxRay *outputRay)
             _kdp.getPhidpMean());
   
   _addField(outputRay,
-            "PHIDP_MEAN_UNFOLD", "deg",
-            "phidp_mean_unfold_for_kdp_computations",
+            "PHIDP_UNFOLD", "deg",
+            "phidp_unfold_for_kdp_computations",
             "differential_phase_hv",
-            _kdp.getPhidpMeanUnfold());
+            _kdp.getPhidpUnfold());
   
   _addField(outputRay,
             "PHIDP_SDEV", "deg",
@@ -941,22 +966,16 @@ void Worker::_addKdpDebugFields(RadxRay *outputRay)
             _kdp.getPhidpJitter());
   
   _addField(outputRay,
-            "PHIDP_UNFOLD", "deg",
-            "phidp_unfold_for_kdp_computations",
-            "differential_phase_hv",
-            _kdp.getPhidpUnfold());
-  
-  _addField(outputRay,
             "PHIDP_FILT", "deg",
             "phidp_filtered_for_kdp_computations",
             "differential_phase_hv",
             _kdp.getPhidpFilt());
   
   _addField(outputRay,
-            "PHIDP_COND", "deg",
-            "phidp_cond_for_kdp_computations",
+            "PHIDP_SC", "deg",
+            "phidp_self_consistency",
             "differential_phase_hv",
-            _kdp.getPhidpCond());
+            _kdp.getPhidpSC());
   
 }
   
@@ -1045,7 +1064,7 @@ void Worker::_addField(RadxRay *outputRay,
                        const string &units,
                        const string &longName,
                        const string standardName,
-                       const bool *arrayBool)
+                       const int *arrayBool)
 
 {
 

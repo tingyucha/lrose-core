@@ -96,6 +96,7 @@ protected:
 private:
 
   static const float POLCAST2_MISSING_VALUE;
+  static const double _missingDbl;
   
   string _progName;
   char *_paramsPath;
@@ -103,9 +104,9 @@ private:
   Params _params;
   Input *_input;
 
-  double _tempC;
-  double _dewPtC;
-  double _rh;
+  bool _kmlInTrack;
+  bool _kmlTimeValid;
+  time_t _kmlTime;
 
   int _decodeCommaDelimited(const char *line,
                             time_t &validTime,
@@ -127,10 +128,6 @@ private:
                      time_t &validTime,
                      ac_posn_wmod_t &posn);
   
-  int _decodeCsvGps(const char *line,
-                    time_t &validTime,
-                    ac_posn_wmod_t &posn);
-  
   int _decodePolcast2(const char *line,
                       time_t &validTime,
                       ac_posn_wmod_t &posn);
@@ -146,6 +143,14 @@ private:
   int _decodeIWG1(const char *line,
                   time_t &validTime,
                   ac_posn_wmod_t &posn);
+  
+  int _decodeCsvGps(const char *line,
+                    time_t &validTime,
+                    ac_posn_wmod_t &posn);
+  
+  int _decodeKML(const char *line,
+                 time_t &validTime,
+                 ac_posn_wmod_t &posn);
   
   void _addSpaces (const char *line, char *spaced_line);
 
@@ -168,7 +173,8 @@ private:
                           const vector<string> &toks,
                           int index);
 
-  void _computeDewPt();
+  void _computeDewPt(ac_posn_wmod_t &posn);
+  void _computeRh(ac_posn_wmod_t &posn);
 
 };
 

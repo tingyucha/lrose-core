@@ -193,7 +193,7 @@ public:
   // Destructor
   //
 
-  ~Params ();
+  virtual ~Params ();
 
   ////////////////////////////////////////////
   // Assignment
@@ -707,7 +707,11 @@ public:
 
   tdrp_bool_t include_scan_type_in_file_name;
 
+  tdrp_bool_t include_scan_name_in_file_name;
+
   tdrp_bool_t include_vol_num_in_file_name;
+
+  tdrp_bool_t include_mean_fixed_angle_in_file_name;
 
   tdrp_bool_t use_hyphen_in_file_name_datetime_part;
 
@@ -766,7 +770,7 @@ private:
 
   void _init();
 
-  mutable TDRPtable _table[175];
+  mutable TDRPtable _table[177];
 
   const char *_className;
 
