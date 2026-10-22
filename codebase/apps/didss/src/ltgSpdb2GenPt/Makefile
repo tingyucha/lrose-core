@@ -31,7 +31,7 @@
 
 include $(LROSE_CORE_DIR)/build/make_include/lrose_make_macros
 
-TARGET_FILE = ltgSpdb2GenPt 
+TARGET_FILE = ltgSpdb2GenPt
 
 
 LOC_INCLUDES = $(NETCDF4_INCS)

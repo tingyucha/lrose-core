@@ -169,6 +169,7 @@ set (SRCS
       ./Twolf/TwolfRadxFile.cc
       ./Uf/UfData.cc
       ./Uf/UfRadxFile.cc
+      ./Zarr/ZarrRadxFile.cc
    )
 
 if(APPLE)
@@ -178,6 +179,11 @@ else(APPLE)
 # build shared library
   add_library (Radx SHARED ${SRCS})
 endif(APPLE)
+
+find_library(ZSTD_LIBRARY zstd PATHS /opt/homebrew/lib /usr/lib /usr/local/lib)
+if(ZSTD_LIBRARY)
+  target_link_libraries(Radx ${ZSTD_LIBRARY} z)
+endif()
 
 # install
 

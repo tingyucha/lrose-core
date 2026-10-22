@@ -36,6 +36,7 @@
 ///////////////////////////////////////////////////////////////
 
 #include <Radx/Cf2RadxFile.hh>
+#include <Radx/ZarrRadxFile.hh>
 #include <Radx/Fm301RadxFile.hh>
 #include <Radx/CfarrNcRadxFile.hh>
 #include <Radx/D3rNcRadxFile.hh>
@@ -1113,6 +1114,25 @@ int RadxFile::readFromPath(const string &path,
 {
 
   clearErrStr();
+
+  // Zarr stores are directories, not NetCDF or HDF5 files.
+
+  if (ZarrRadxFile::isZarr(path)) {
+    ZarrRadxFile file;
+    file.copyReadDirectives(*this);
+    int iret = file.readFromPath(path, vol);
+    _errStr = file.getErrStr();
+    _pathInUse = path;
+    vol.setPathInUse(path);
+    if (iret == 0) {
+      _fileFormat = FILE_FORMAT_ZARR;
+      if (_debug) {
+        cerr << "INFO: RadxFile::readFromPath" << endl;
+        cerr << "  Read Zarr store, path: " << path << endl;
+      }
+    }
+    return iret;
+  }
 
   // check for HDF5
   
@@ -2750,6 +2770,8 @@ string RadxFile::getFileFormatAsString() const
     return "NOXP_NC";
   } else if (_fileFormat == FILE_FORMAT_RAXPOL_NC) {
     return "RAXPOL_NC";
+  } else if (_fileFormat == FILE_FORMAT_ZARR) {
+    return "ZARR";
   } else if (_fileFormat == FILE_FORMAT_CFARR) {
     return "CFARR";
   } else if (_fileFormat == FILE_FORMAT_NIMROD) {

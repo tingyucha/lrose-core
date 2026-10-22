@@ -36,7 +36,11 @@ DATE = date -u
 # includes
 #
 
-#SYS_INCLUDES = -I/usr/include -I/usr/include/sys
+# Homebrew on Apple Silicon. Apple clang does not search this path by default.
+# -isystem keeps this behind -I$(LROSE_INSTALL_DIR)/include. A linked
+# Homebrew lrose-core also installs headers here, and those must not
+# shadow the headers from this build.
+SYS_INCLUDES = -isystem /opt/homebrew/include
 SYS_X_INCLUDES = -I/usr/X11R6/include  -I/sw/include -I/opt/X11/include
 SYS_XVIEW_INCLUDES =
 
@@ -67,9 +71,9 @@ OPT_FLAG = -g
 # cc
 #
 
-SYS_CPPC_CFLAGS = $(SYS_CFLAGS) $(MY_CPPC_CFLAGS) 
+SYS_CPPC_CFLAGS = $(SYS_CFLAGS) $(MY_CPPC_CFLAGS) -std=c++17
 CPPC = g++
-SYS_CPPC_INCLUDES =
+SYS_CPPC_INCLUDES = -isystem /opt/homebrew/include
 ACC = $(CC)
 
 # fortran
@@ -88,14 +92,14 @@ NATIVE_FC = gfortran
 NATIVE_LIB_DIR = 
 F_TO_C_LIBS = -lf2c
 USE_GNU_F2C = -DUSE_GNU_F2C
-SYS_FFLAGS = -DLITENDIAN<
+SYS_FFLAGS = -DLITENDIAN
 
 #
 # link
 #
 
 STATIC_FLAG=-static
-SYS_LIBS = 
+SYS_LIBS = -lzstd 
 SYS_CPPC_LIBS =
 LROSE_PROFILE_LIB_DIR = $(LROSE_INSTALL_DIR)/lib
 
@@ -156,17 +160,25 @@ NCAR_CPPC=ncarg++
 #       NETCDF4_INCS defines location of netCDF 4 include files
 #       NETCDF4_LDFLAGS defines location of netCDF 4 libraries
 
-NETCDF_INCS=$(MY_NETCDF_INCS) -I/opt/homebrew/netcdf/include
-NETCDF_LDFLAGS=$(MY_NETCDF_LDFLAGS) -L/opt/homebrew/netcdf/lib
-NETCDF4_INCS=$(MY_NETCDF4_INCS)
-NETCDF4_LDFLAGS=$(MY_NETCDF4_LDFLAGS)
+# Homebrew netCDF/HDF5/udunits live in the prefix, not /opt/homebrew/netcdf.
+UDUNITS_INCS=$(MY_UDUNITS_INCS) -isystem /opt/homebrew/include
+UDUNITS_LDFLAGS=$(MY_UDUNITS_LDFLAGS) -L/opt/homebrew/lib
+
+HDF5_INCLUDES=$(MY_HDF5_INCS) -isystem /opt/homebrew/include
+HDF5_LDFLAGS=$(MY_HDF5_LDFLAGS) -L/opt/homebrew/lib
+HDF5_LIBS=$(MY_HDF5_LIBS) -lhdf5 -lhdf5_hl -lsz -lz
+
+NETCDF_INCS=$(MY_NETCDF_INCS) -isystem /opt/homebrew/include
+NETCDF_LDFLAGS=$(MY_NETCDF_LDFLAGS) -L/opt/homebrew/lib
+NETCDF4_INCS=$(MY_NETCDF4_INCS) -isystem /opt/homebrew/include $(HDF5_INCLUDES)
+NETCDF4_LDFLAGS=$(MY_NETCDF4_LDFLAGS) -L/opt/homebrew/lib $(HDF5_LDFLAGS)
 
 NETCDF_C_LIB=-lnetcdf
 NETCDF_C++_LIB=-lnetcdf_c++
 NETCDF_FF_LIB=-lnetcdff
 NETCDF_C_AND_C++_LIBS=-lnetcdf
 NETCDF_C_AND_F_LIBS=-lnetcdff -lnetcdf
-NETCDF4_LIBS=-lnetcdf -lhdf5_hl -lhdf5
+NETCDF4_LIBS=-lnetcdf -lhdf5_hl -lhdf5 -lsz -lz
 
 #
 # Qt
@@ -180,13 +192,15 @@ NETCDF4_LIBS=-lnetcdf -lhdf5_hl -lhdf5
 #QT_CPPC_CFLAGS = -std=c++17
 #QT_EXEC_PATH=$(shell pkg-config --variable=exec_prefix Qt5Core)
 
-QJSENGINE = -F/opt/homebrew/Cellar/qt/6.8.2/lib -framework QtQml
-PKG_CONFIG_PATH = /opt/homebrew/Cellar/qt/6.8.2/libexec/lib/pkgconfig
-QT_INCLUDES = $(shell pkg-config --cflags Qt6Core Qt6Widgets Qt6Gui)
-QT_LDFLAGS = -L$(shell pkg-config --variable=libdir Qt6Gui)
-QT_LIBS = $(shell pkg-config --libs Qt6Core Qt6Widgets Qt6Gui)
+# Use the Homebrew qt opt symlink so this survives version upgrades.
+# Pass PKG_CONFIG_PATH into each shell call; a make assignment is not exported.
+QJSENGINE = -F/opt/homebrew/lib -framework QtQml
+PKG_CONFIG_PATH = /opt/homebrew/opt/qt/lib/pkgconfig
+QT_INCLUDES = $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags Qt6Core Qt6Widgets Qt6Gui Qt6Network Qt6Qml | sed 's|-I/opt/homebrew/include|-isystem /opt/homebrew/include|g')
+QT_LDFLAGS = -L$(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --variable=libdir Qt6Gui)
+QT_LIBS = $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs Qt6Core Qt6Widgets Qt6Gui Qt6Network Qt6Qml)
 QT_CPPC_CFLAGS = -std=c++17
-QT_EXEC_PATH=$(shell pkg-config --variable=exec_prefix Qt6Core)
+QT_EXEC_PATH=$(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --variable=exec_prefix Qt6Core)
 
 # do not have jasper lib
 

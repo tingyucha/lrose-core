@@ -115,7 +115,8 @@ public:
     FILE_FORMAT_CFARR,        ///< Chilbolton radars
     FILE_FORMAT_NIMROD,       ///< UK Met Office Polar NIMROD
     FILE_FORMAT_NOAA_FSL,     ///< NOAA Forecast Systems Lab NetCDF
-    FILE_FORMAT_RAXPOL_NC     ///< netcdf for OU RAXPOL
+    FILE_FORMAT_RAXPOL_NC,    ///< netcdf for OU RAXPOL
+    FILE_FORMAT_ZARR          ///< Zarr directory store
   } file_format_t;
 
   /// write format for CfRadial
