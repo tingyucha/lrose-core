@@ -656,8 +656,8 @@ void RadarComplex::interpAndLoadVec(const RadarComplex_t &start,
 
   // use std::complex version
   
-  std::complex cstart(start.re, start.im);
-  std::complex cend(end.re, end.im);
+  std::complex<double> cstart(start.re, start.im);
+  std::complex<double> cend(end.re, end.im);
   std::vector<std::complex<double>> interpAng = 
     _interpolateAngles(cstart, cend, nInterp);
 
