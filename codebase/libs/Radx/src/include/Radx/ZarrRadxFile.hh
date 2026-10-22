@@ -11,8 +11,11 @@ class RadxVol;
 /// Accepts Zarr v2 (.zgroup/.zarray) and Zarr v3 (zarr.json) stores that
 /// use a CfRadial2 group layout: one group per sweep, a range coordinate,
 /// and moment arrays shaped (ray, range) or (range, ray). The ray axis may
-/// be named time, azimuth, or elevation. Chunk codecs supported are raw
-/// bytes, zlib/gzip, zstd, and vlen-utf8.
+/// be named time, azimuth, or elevation. Radar parameters, the
+/// radar_calibration group, and per-ray metadata (beam width, calibration
+/// index, antenna transition, scan rate, unambiguous range, transmit power)
+/// are copied onto the volume. Chunk codecs supported are raw bytes,
+/// zlib/gzip, zstd, and vlen-utf8.
 
 class ZarrRadxFile : public RadxFile {
 

@@ -2,6 +2,7 @@
 #include <Radx/RadxVol.hh>
 #include <Radx/RadxRay.hh>
 #include <Radx/RadxField.hh>
+#include <Radx/RadxRcalib.hh>
 #include <Radx/RadxTime.hh>
 #include <Radx/RadxGeoref.hh>
 
@@ -784,7 +785,24 @@ bool loadV3Array(const string &path, const Json &meta, ArrayInfo &info, string &
       }
     }
   }
-  if (!fillFromDtype(dtype, info, err)) return false;
+  if (dtype == "null_terminated_bytes" || dtype == "fixed_length_utf32") {
+    int n = 1;
+    if (dt->type == Json::OBJECT) {
+      const Json *conf = dt->find("configuration");
+      double length = 0;
+      if (conf != NULL && jsonToNumber(conf->find("length_bytes"), length) && length > 0) {
+        n = static_cast<int>(length);
+      } else if (conf != NULL && jsonToNumber(conf->find("length"), length) && length > 0) {
+        n = static_cast<int>(length);
+      }
+    }
+    info.isString = true;
+    info.kind = dtype == "fixed_length_utf32" ? 'U' : 'S';
+    info.stringChars = n;
+    info.itemSize = info.kind == 'U' ? n * 4 : n;
+  } else if (!fillFromDtype(dtype, info, err)) {
+    return false;
+  }
   const Json *codecs = meta.find("codecs");
   if (codecs != NULL && codecs->type == Json::ARRAY) {
     for (size_t ii = 0; ii < codecs->arr.size(); ii++) {
@@ -1350,6 +1368,7 @@ public:
     }
     vol.loadSweepInfoFromRays();
     vol.loadVolumeInfoFromRays();
+    applyVolumeMetadata(vol);
     if (debug) {
       std::cerr << "Zarr store " << _root
                 << " sweeps=" << vol.getNSweeps()
@@ -1412,6 +1431,150 @@ private:
         haveAlt = true;
       }
     }
+  }
+
+  static bool usableMeta(double val) {
+    return std::isfinite(val) && val > -9000;
+  }
+
+  bool firstNumber(const string &store, const string &name, double &out) {
+    vector<double> values;
+    if (!readNumericMaybe(store, name, values) || values.empty()) return false;
+    out = values[0];
+    return true;
+  }
+
+  void setCalib(RadxRcalib &cal, const string &group, const char *name,
+                void (RadxRcalib::*setter)(double)) {
+    double val = 0;
+    if (!firstNumber(group, name, val) || !usableMeta(val)) return;
+    (cal.*setter)(val);
+  }
+
+  void setCalibAlias(RadxRcalib &cal, const string &group,
+                     const char *primary, const char *alias,
+                     void (RadxRcalib::*setter)(double)) {
+    double val = 0;
+    if (firstNumber(group, primary, val) ||
+        (alias != NULL && firstNumber(group, alias, val))) {
+      if (usableMeta(val)) (cal.*setter)(val);
+    }
+  }
+
+  void applyVolumeMetadata(RadxVol &vol) {
+    string text;
+    if (readScalarString(_root, "instrument_type", text)) {
+      vol.setInstrumentType(Radx::instrumentTypeFromStr(text));
+    }
+    if (readScalarString(_root, "platform_type", text)) {
+      vol.setPlatformType(Radx::platformTypeFromStr(text));
+    }
+    if (readScalarString(_root, "primary_axis", text)) {
+      vol.setPrimaryAxis(Radx::primaryAxisFromStr(text));
+    }
+    if (readScalarString(_root, "status_str", text) ||
+        readScalarString(_root, "status_xml", text)) {
+      vol.setStatusXml(text);
+    }
+
+    string params = joinPath(_root, "radar_parameters");
+    if (!isDir(params)) params = _root;
+    double val = 0;
+    if (firstNumber(params, "radar_beam_width_h", val) && val > 0) {
+      vol.setRadarBeamWidthDegH(val);
+    }
+    if (firstNumber(params, "radar_beam_width_v", val) && val > 0) {
+      vol.setRadarBeamWidthDegV(val);
+    }
+    if (firstNumber(params, "radar_antenna_gain_h", val) && usableMeta(val)) {
+      vol.setRadarAntennaGainDbH(val);
+    }
+    if (firstNumber(params, "radar_antenna_gain_v", val) && usableMeta(val)) {
+      vol.setRadarAntennaGainDbV(val);
+    }
+    if (firstNumber(params, "radar_receiver_bandwidth", val) && val > 0) {
+      vol.setRadarReceiverBandwidthMhz(val / 1.0e6);
+    }
+    vector<double> freq;
+    if (vol.getFrequencyHz().empty() &&
+        readNumericMaybe(params, "frequency", freq)) {
+      for (size_t ii = 0; ii < freq.size(); ii++) vol.addFrequencyHz(freq[ii]);
+    }
+
+    string calibGroup = joinPath(_root, "radar_calibration");
+    if (!isDir(calibGroup)) return;
+    RadxRcalib *cal = new RadxRcalib();
+    if (readScalarString(calibGroup, "time", text)) {
+      string whenText = text;
+      if (!whenText.empty() && (whenText[whenText.size() - 1] == 'Z' ||
+                                whenText[whenText.size() - 1] == 'z')) {
+        whenText.erase(whenText.size() - 1);
+      }
+      for (size_t ii = 0; ii < whenText.size(); ii++) {
+        if (whenText[ii] == 'T') whenText[ii] = ' ';
+      }
+      time_t when = RadxTime::parseDateTime(whenText);
+      if (when != RadxTime::NEVER && when > 0) cal->setCalibTime(when);
+    }
+    if (firstNumber(calibGroup, "pulse_width", val) && val > 0) {
+      cal->setPulseWidthUsec(val < 1.0 ? val * 1.0e6 : val);
+    }
+    setCalib(*cal, calibGroup, "xmit_power_h", &RadxRcalib::setXmitPowerDbmH);
+    setCalib(*cal, calibGroup, "xmit_power_v", &RadxRcalib::setXmitPowerDbmV);
+    setCalib(*cal, calibGroup, "two_way_waveguide_loss_h", &RadxRcalib::setTwoWayWaveguideLossDbH);
+    setCalib(*cal, calibGroup, "two_way_waveguide_loss_v", &RadxRcalib::setTwoWayWaveguideLossDbV);
+    setCalib(*cal, calibGroup, "two_way_radome_loss_h", &RadxRcalib::setTwoWayRadomeLossDbH);
+    setCalib(*cal, calibGroup, "two_way_radome_loss_v", &RadxRcalib::setTwoWayRadomeLossDbV);
+    setCalib(*cal, calibGroup, "receiver_mismatch_loss", &RadxRcalib::setReceiverMismatchLossDb);
+    setCalib(*cal, calibGroup, "radar_constant_h", &RadxRcalib::setRadarConstantH);
+    setCalib(*cal, calibGroup, "radar_constant_v", &RadxRcalib::setRadarConstantV);
+    setCalib(*cal, calibGroup, "antenna_gain_h", &RadxRcalib::setAntennaGainDbH);
+    setCalib(*cal, calibGroup, "antenna_gain_v", &RadxRcalib::setAntennaGainDbV);
+    setCalib(*cal, calibGroup, "noise_hc", &RadxRcalib::setNoiseDbmHc);
+    setCalib(*cal, calibGroup, "noise_hx", &RadxRcalib::setNoiseDbmHx);
+    setCalib(*cal, calibGroup, "noise_vc", &RadxRcalib::setNoiseDbmVc);
+    setCalib(*cal, calibGroup, "noise_vx", &RadxRcalib::setNoiseDbmVx);
+    setCalib(*cal, calibGroup, "i0_dbm_hc", &RadxRcalib::setI0DbmHc);
+    setCalib(*cal, calibGroup, "i0_dbm_hx", &RadxRcalib::setI0DbmHx);
+    setCalib(*cal, calibGroup, "i0_dbm_vc", &RadxRcalib::setI0DbmVc);
+    setCalib(*cal, calibGroup, "i0_dbm_vx", &RadxRcalib::setI0DbmVx);
+    setCalib(*cal, calibGroup, "receiver_gain_hc", &RadxRcalib::setReceiverGainDbHc);
+    setCalib(*cal, calibGroup, "receiver_gain_hx", &RadxRcalib::setReceiverGainDbHx);
+    setCalib(*cal, calibGroup, "receiver_gain_vc", &RadxRcalib::setReceiverGainDbVc);
+    setCalib(*cal, calibGroup, "receiver_gain_vx", &RadxRcalib::setReceiverGainDbVx);
+    setCalibAlias(*cal, calibGroup, "base_dbz_1km_hc", "base_1km_hc", &RadxRcalib::setBaseDbz1kmHc);
+    setCalibAlias(*cal, calibGroup, "base_dbz_1km_hx", "base_1km_hx", &RadxRcalib::setBaseDbz1kmHx);
+    setCalibAlias(*cal, calibGroup, "base_dbz_1km_vc", "base_1km_vc", &RadxRcalib::setBaseDbz1kmVc);
+    setCalibAlias(*cal, calibGroup, "base_dbz_1km_vx", "base_1km_vx", &RadxRcalib::setBaseDbz1kmVx);
+    setCalib(*cal, calibGroup, "sun_power_hc", &RadxRcalib::setSunPowerDbmHc);
+    setCalib(*cal, calibGroup, "sun_power_hx", &RadxRcalib::setSunPowerDbmHx);
+    setCalib(*cal, calibGroup, "sun_power_vc", &RadxRcalib::setSunPowerDbmVc);
+    setCalib(*cal, calibGroup, "sun_power_vx", &RadxRcalib::setSunPowerDbmVx);
+    setCalib(*cal, calibGroup, "noise_source_power_h", &RadxRcalib::setNoiseSourcePowerDbmH);
+    setCalib(*cal, calibGroup, "noise_source_power_v", &RadxRcalib::setNoiseSourcePowerDbmV);
+    setCalib(*cal, calibGroup, "power_measure_loss_h", &RadxRcalib::setPowerMeasLossDbH);
+    setCalib(*cal, calibGroup, "power_measure_loss_v", &RadxRcalib::setPowerMeasLossDbV);
+    setCalib(*cal, calibGroup, "coupler_forward_loss_h", &RadxRcalib::setCouplerForwardLossDbH);
+    setCalib(*cal, calibGroup, "coupler_forward_loss_v", &RadxRcalib::setCouplerForwardLossDbV);
+    setCalib(*cal, calibGroup, "dbz_correction", &RadxRcalib::setDbzCorrection);
+    setCalib(*cal, calibGroup, "zdr_correction", &RadxRcalib::setZdrCorrectionDb);
+    setCalib(*cal, calibGroup, "ldr_correction_h", &RadxRcalib::setLdrCorrectionDbH);
+    setCalib(*cal, calibGroup, "ldr_correction_v", &RadxRcalib::setLdrCorrectionDbV);
+    setCalib(*cal, calibGroup, "system_phidp", &RadxRcalib::setSystemPhidpDeg);
+    setCalib(*cal, calibGroup, "test_power_h", &RadxRcalib::setTestPowerDbmH);
+    setCalib(*cal, calibGroup, "test_power_v", &RadxRcalib::setTestPowerDbmV);
+    setCalib(*cal, calibGroup, "receiver_slope_hc", &RadxRcalib::setReceiverSlopeDbHc);
+    setCalib(*cal, calibGroup, "receiver_slope_hx", &RadxRcalib::setReceiverSlopeDbHx);
+    setCalib(*cal, calibGroup, "receiver_slope_vc", &RadxRcalib::setReceiverSlopeDbVc);
+    setCalib(*cal, calibGroup, "receiver_slope_vx", &RadxRcalib::setReceiverSlopeDbVx);
+    setCalib(*cal, calibGroup, "dynamic_range_db_hc", &RadxRcalib::setDynamicRangeDbHc);
+    setCalib(*cal, calibGroup, "dynamic_range_db_hx", &RadxRcalib::setDynamicRangeDbHx);
+    setCalib(*cal, calibGroup, "dynamic_range_db_vc", &RadxRcalib::setDynamicRangeDbVc);
+    setCalib(*cal, calibGroup, "dynamic_range_db_vx", &RadxRcalib::setDynamicRangeDbVx);
+    setCalib(*cal, calibGroup, "k_squared_water", &RadxRcalib::setKSquaredWater);
+    if (vol.getRadarBeamWidthDegH() > 0) cal->setBeamWidthDegH(vol.getRadarBeamWidthDegH());
+    if (vol.getRadarBeamWidthDegV() > 0) cal->setBeamWidthDegV(vol.getRadarBeamWidthDegV());
+    vol.addCalib(cal);
   }
 
   bool sweepGroupNames(vector<string> &names) {
@@ -1544,7 +1707,8 @@ private:
       return false;
     }
 
-    vector<double> azimuth, elevation, times, prt, nyquist, pulse, nSamples;
+    vector<double> azimuth, elevation, times, prt, prtRatio, nyquist, pulse, nSamples;
+    vector<double> unambigRange, scanRate, xmitPowerH, xmitPowerV, calibIndex, antennaTransition;
     readNumericMaybe(group, "azimuth", azimuth);
     readNumericMaybe(group, "elevation", elevation);
     ArrayInfo timeInfo;
@@ -1555,9 +1719,27 @@ private:
       times.clear();
     }
     readNumericMaybe(group, "prt", prt);
+    readNumericMaybe(group, "prt_ratio", prtRatio);
     readNumericMaybe(group, "nyquist_velocity", nyquist);
     readNumericMaybe(group, "pulse_width", pulse);
     readNumericMaybe(group, "n_samples", nSamples);
+    readNumericMaybe(group, "unambiguous_range", unambigRange);
+    readNumericMaybe(group, "scan_rate", scanRate);
+    readNumericMaybe(group, "measured_transmit_power_h", xmitPowerH);
+    readNumericMaybe(group, "measured_transmit_power_v", xmitPowerV);
+    readNumericMaybe(group, "r_calib_index", calibIndex);
+    readNumericMaybe(group, "antenna_transition", antennaTransition);
+    string unambigUnits;
+    ArrayInfo unambigInfo;
+    string ignoredUnits;
+    if (loadArray(joinPath(group, "unambiguous_range"), unambigInfo, ignoredUnits)) {
+      unambigUnits = lowerCopy(unambigInfo.units);
+    }
+    bool unambigMeters = unambigUnits.find("km") == string::npos;
+    vector<string> prtModeText, followModeText, polModeText;
+    readStringArray(group, "prt_mode", prtModeText);
+    readStringArray(group, "follow_mode", followModeText);
+    readStringArray(group, "polarization_mode", polModeText);
 
     string modeText;
     readScalarString(group, "sweep_mode", modeText);
@@ -1611,6 +1793,31 @@ private:
       if (iray < nSamples.size() && std::isfinite(nSamples[iray])) {
         ray->setNSamples(static_cast<int>(std::llround(nSamples[iray])));
       }
+      if (iray < prtRatio.size() && usableMeta(prtRatio[iray])) {
+        ray->setPrtRatio(prtRatio[iray]);
+      }
+      if (iray < unambigRange.size() && unambigRange[iray] > 0) {
+        double rangeKm = unambigMeters ? unambigRange[iray] / 1000.0 : unambigRange[iray];
+        ray->setUnambigRangeKm(rangeKm);
+      }
+      if (iray < scanRate.size() && usableMeta(scanRate[iray])) {
+        ray->setTrueScanRateDegPerSec(scanRate[iray]);
+      }
+      if (iray < xmitPowerH.size() && usableMeta(xmitPowerH[iray])) {
+        ray->setMeasXmitPowerDbmH(xmitPowerH[iray]);
+      }
+      if (iray < xmitPowerV.size() && usableMeta(xmitPowerV[iray])) {
+        ray->setMeasXmitPowerDbmV(xmitPowerV[iray]);
+      }
+      if (iray < calibIndex.size() && std::isfinite(calibIndex[iray])) {
+        ray->setCalibIndex(static_cast<int>(std::llround(calibIndex[iray])));
+      }
+      if (iray < antennaTransition.size() && std::isfinite(antennaTransition[iray])) {
+        ray->setAntennaTransition(antennaTransition[iray] != 0);
+      }
+      applyMode(ray, prtModeText, iray, &Radx::prtModeFromStr, &RadxRay::setPrtMode);
+      applyMode(ray, followModeText, iray, &Radx::followModeFromStr, &RadxRay::setFollowMode);
+      applyMode(ray, polModeText, iray, &Radx::polarizationModeFromStr, &RadxRay::setPolarizationMode);
       if (haveTime && iray < times.size()) {
         ray->setTime(timeToUnix(times[iray], timeScale, timeRef));
       }
@@ -1664,7 +1871,33 @@ private:
       name == "sweep_fixed_angle" || name == "prt" || name == "prt_ratio" ||
       name == "pulse_width" || name == "nyquist_velocity" ||
       name == "unambiguous_range" || name == "n_samples" ||
-      name == "follow_mode" || name == "prt_mode" || name == "polarization_mode";
+      name == "follow_mode" || name == "prt_mode" || name == "polarization_mode" ||
+      name == "antenna_transition" || name == "scan_rate" ||
+      name == "measured_transmit_power_h" || name == "measured_transmit_power_v" ||
+      name == "r_calib_index" || name == "ray_gate_spacing" ||
+      name == "ray_n_gates" || name == "ray_start_index" || name == "ray_start_range";
+  }
+
+  bool readStringArray(const string &store, const string &name, vector<string> &out) {
+    ArrayInfo info;
+    string localErr;
+    string path = joinPath(store, name);
+    if (!isDir(path) || !loadArray(path, info, localErr)) return false;
+    if (!info.isString && info.kind != 'U' && info.kind != 'S') return false;
+    return readStrings(info, out, localErr) && !out.empty();
+  }
+
+  template <typename Mode>
+  static void applyMode(RadxRay *ray, const vector<string> &values, size_t iray,
+                        Mode (*parse)(const string &),
+                        void (RadxRay::*setter)(Mode)) {
+    if (values.empty()) return;
+    string text = values.size() == 1 ? values[0] : (iray < values.size() ? values[iray] : "");
+    if (text.empty()) return;
+    Mode mode = parse(text);
+    Mode missing = parse("");
+    if (mode == missing) mode = parse(lowerCopy(text));
+    if (mode != missing) (ray->*setter)(mode);
   }
 
   vector<double> _doubles;
